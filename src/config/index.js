@@ -17,7 +17,7 @@ const config = {
     ratingFormat: {
       position: 'prefix', // 'prefix' | 'suffix'
       template: '⭐ {rating}', // {rating} will be replaced with actual rating
-      separator: ' ' // separator between rating and title
+      separator: ' | ' // separator between rating and title
     },
 
     // Metadata provider for episode data (when wrapped addon doesn't provide meta)

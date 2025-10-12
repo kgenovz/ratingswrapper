@@ -269,10 +269,125 @@ async function replaceAddon(authToken, options) {
   }
 }
 
+/**
+ * Replaces multiple addons in one operation, preserving positions.
+ * - Cinemeta (if provided) is forced to index 0.
+ * - For each provided item, if a matching addon exists, it gets replaced in-place.
+ * - If a provided addon does not exist, it is appended to the end.
+ * @param {string} authToken
+ * @param {Array<{removePattern:string, wrappedAddonUrl:string, name?:string}>} items
+ * @returns {Promise<Object>} result summary
+ */
+async function replaceAddonsBatch(authToken, items) {
+  try {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error('No items provided for replacement');
+    }
+
+    // Get current addons
+    const originalAddons = await getAddonCollection(authToken);
+
+    // Helper: match function
+    function isMatch(addon, pattern) {
+      const manifestId = addon.manifest?.id || '';
+      const url = addon.transportUrl || '';
+      if (pattern === 'cinemeta') {
+        return manifestId.includes('cinemeta') || url.includes('cinemeta');
+      }
+      return manifestId === pattern || url === pattern;
+    }
+
+    // Fetch manifests for all wrapped addon URLs
+    const https = require('https');
+    const http = require('http');
+    async function fetchManifest(url) {
+      return new Promise((resolve, reject) => {
+        const p = url.startsWith('https') ? https : http;
+        p.get(url, (res) => {
+          let data = '';
+          res.on('data', c => data += c);
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(data));
+            } catch (e) {
+              reject(new Error(`Failed to parse manifest from ${url}: ${e.message}`));
+            }
+          });
+        }).on('error', reject);
+      });
+    }
+
+    const manifests = {};
+    for (const it of items) {
+      manifests[it.wrappedAddonUrl] = await fetchManifest(it.wrappedAddonUrl);
+    }
+
+    // Identify if we have a Cinemeta item
+    const cineIndex = items.findIndex(i => i.removePattern === 'cinemeta');
+    const cinemetaItem = cineIndex >= 0 ? items[cineIndex] : null;
+
+    // Build new collection
+    const newAddons = [];
+    const used = new Set(); // URLs used/injected
+
+    // 1) Force Cinemeta first if provided
+    if (cinemetaItem) {
+      newAddons.push({
+        transportUrl: cinemetaItem.wrappedAddonUrl,
+        transportName: 'http',
+        manifest: manifests[cinemetaItem.wrappedAddonUrl]
+      });
+      used.add(cinemetaItem.wrappedAddonUrl);
+    }
+
+    // 2) Replace in-place across original list, skipping any existing Cinemeta
+    for (const addon of originalAddons) {
+      const isCine = isMatch(addon, 'cinemeta');
+      if (isCine) continue; // drop existing Cinemeta entirely
+
+      const matchItem = items.find(i => i.removePattern !== 'cinemeta' && isMatch(addon, i.removePattern));
+      if (matchItem) {
+        const url = matchItem.wrappedAddonUrl;
+        if (!used.has(url)) {
+          newAddons.push({ transportUrl: url, transportName: 'http', manifest: manifests[url] });
+          used.add(url);
+        } else {
+          // Already injected (avoid duplicates); fall back to keeping original
+          newAddons.push(addon);
+        }
+      } else {
+        newAddons.push(addon);
+      }
+    }
+
+    // 3) Append any remaining wrapped addons not present originally
+    for (const it of items) {
+      const url = it.wrappedAddonUrl;
+      if (!used.has(url)) {
+        newAddons.push({ transportUrl: url, transportName: 'http', manifest: manifests[url] });
+        used.add(url);
+      }
+    }
+
+    // Sync back
+    await setAddonCollection(authToken, newAddons);
+
+    return {
+      success: true,
+      message: `Batch replace complete. Installed ${items.length} wrapped addon(s). Cinemeta ${cinemetaItem ? 'enforced first' : 'not provided'}.`,
+      totalAddons: newAddons.length
+    };
+  } catch (error) {
+    logger.error('Failed batch replace:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   stremioApiRequest,
   validateAuthToken,
   getAddonCollection,
   setAddonCollection,
-  replaceAddon
+  replaceAddon,
+  replaceAddonsBatch
 };
