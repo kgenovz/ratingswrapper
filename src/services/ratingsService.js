@@ -49,8 +49,9 @@ function extractImdbId(id) {
 
 class RatingsService {
   constructor() {
-    // Default to localhost:3001 where imdb-ratings-api runs
-    this.ratingsApiUrl = process.env.RATINGS_API_URL || 'http://localhost:3001';
+    // Default to internal ratings routes on the same server
+    const port = process.env.PORT || 7000;
+    this.ratingsApiUrl = process.env.RATINGS_API_URL || `http://127.0.0.1:${port}/ratings`;
     logger.info(`Ratings API configured: ${this.ratingsApiUrl}`);
   }
 

@@ -4,6 +4,7 @@
  */
 
 const express = require('express');
+const axios = require('axios');
 const logger = require('./utils/logger');
 const { parseConfigFromPath, encodeConfig } = require('./utils/configParser');
 const { createManifestHandler } = require('./handlers/manifest');
@@ -35,6 +36,49 @@ app.use((req, res, next) => {
  */
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', version: config.defaults.version });
+});
+
+/**
+ * Internal Ratings API routes
+ * - Proxies to external provider if RATINGS_PROVIDER_URL is set
+ * - Optional placeholder with RATINGS_PLACEHOLDER=true
+ *
+ * Wrapper defaults RATINGS_API_URL to point to these endpoints.
+ */
+const RATINGS_PROVIDER_URL = process.env.RATINGS_PROVIDER_URL || null;
+const RATINGS_PLACEHOLDER = String(process.env.RATINGS_PLACEHOLDER || '').toLowerCase() === 'true';
+
+async function proxyOrPlaceholder(res, providerUrl, pathSegments, placeholderValue) {
+  try {
+    if (RATINGS_PROVIDER_URL) {
+      const url = `${RATINGS_PROVIDER_URL}${providerUrl}`;
+      const response = await axios.get(url, { timeout: 8000 });
+      return res.json(response.data);
+    }
+    if (RATINGS_PLACEHOLDER) {
+      return res.json(placeholderValue);
+    }
+    return res.status(404).json({ error: 'No ratings provider configured' });
+  } catch (e) {
+    return res.status(502).json({ error: 'Ratings provider unavailable', detail: e.message });
+  }
+}
+
+// Single title rating by IMDb ID
+app.get('/ratings/api/rating/:imdbId', async (req, res) => {
+  const { imdbId } = req.params;
+  await proxyOrPlaceholder(res, `/api/rating/${encodeURIComponent(imdbId)}`, [imdbId], { rating: 8.5 });
+});
+
+// Episode rating by seriesId/season/episode
+app.get('/ratings/api/episode/:seriesId/:season/:episode', async (req, res) => {
+  const { seriesId, season, episode } = req.params;
+  await proxyOrPlaceholder(
+    res,
+    `/api/episode/${encodeURIComponent(seriesId)}/${encodeURIComponent(season)}/${encodeURIComponent(episode)}`,
+    [seriesId, season, episode],
+    { rating: 8.3, episodeId: `${seriesId}:${season}:${episode}` }
+  );
 });
 
 /**
