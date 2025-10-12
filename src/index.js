@@ -812,17 +812,6 @@ app.get('/configure', (req, res) => {
               </div>
             </div>
 
-            <!-- Emergency Restore (bottom) -->
-            <div style="background: #fff7ed; border: 2px solid #fdba74; border-radius: 8px; padding: 16px; margin-top: 22px;">
-              <h3 style="color:#9a3412; margin-bottom:8px;">Emergency Restore</h3>
-              <p style="font-size: 13px; color: #7c2d12; margin-bottom: 10px;">If Stremio is in a broken state, reset to Cinemeta-only, then re-run configuration.</p>
-              <div style="display:flex; gap:8px; align-items: end;">
-                <div style="flex:1"><input type="text" id="emergencyAuthToken" placeholder="Paste your auth token" style="font-family: monospace;" /></div>
-                <button class="btn" onclick="emergencyRestore()"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px"></i>Emergency Restore</button>
-              </div>
-              <div id="emergencyStatus" style="display:none; margin-top: 10px; padding: 10px; border-radius: 6px;"></div>
-            </div>
-
             <div id="advancedOptions" class="advanced-options">
               <div class="section-title">Ratings Display</div>
               <div class="form-group">
@@ -879,6 +868,17 @@ app.get('/configure', (req, res) => {
                 <button class="btn" onclick="autoReplaceAll()" id="replaceAllBtn" style="display:none;"><i class="fa-solid fa-rotate" style="margin-right:6px"></i>Auto Replace All</button>
                 <div id="replaceStatus" style="display:none; padding: 12px; border-radius: 6px; margin-top: 12px;"></div>
               </div>
+            </div>
+
+            <!-- Emergency Restore (bottom-most) -->
+            <div style="background: #fff7ed; border: 2px solid #fdba74; border-radius: 8px; padding: 16px; margin-top: 22px;">
+              <h3 style="color:#9a3412; margin-bottom:8px;">Emergency Restore</h3>
+              <p style="font-size: 13px; color: #7c2d12; margin-bottom: 10px;">If Stremio is in a broken state, reset to Cinemeta-only, then re-run configuration.</p>
+              <div style="display:flex; gap:8px; align-items: end;">
+                <div style="flex:1"><input type="text" id="emergencyAuthToken" placeholder="Paste your auth token" style="font-family: monospace;" /></div>
+                <button class="btn" onclick="emergencyRestore()"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px"></i>Emergency Restore</button>
+              </div>
+              <div id="emergencyStatus" style="display:none; margin-top: 10px; padding: 10px; border-radius: 6px;"></div>
             </div>
 
           </div>
