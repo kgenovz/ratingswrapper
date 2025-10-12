@@ -16,6 +16,8 @@ const config = require('./config');
 
 // Create Express app
 const app = express();
+// Trust proxy headers so req.protocol reflects X-Forwarded-Proto on Railway/Heroku
+app.set('trust proxy', 1);
 
 // Parse JSON bodies
 app.use(express.json());
@@ -438,7 +440,7 @@ app.get('/configure-old', (req, res) => {
         </div>
 
         <script>
-          const serverUrl = '${protocol}://${host}';
+          const serverUrl = window.location.origin;
           const CINEMETA_URL = 'https://v3-cinemeta.strem.io/manifest.json';
 
           function setupCinemeta() {
@@ -765,17 +767,6 @@ app.get('/configure', (req, res) => {
             </ol>
           </div>
           <div class="content">
-            <!-- Emergency Restore -->
-            <div style="background: #fff7ed; border: 2px solid #fdba74; border-radius: 8px; padding: 16px; margin-bottom: 22px;">
-              <h3 style="color:#9a3412; margin-bottom:8px;">Emergency Restore</h3>
-              <p style="font-size: 13px; color: #7c2d12; margin-bottom: 10px;">If Stremio is in a broken state, reset to Cinemeta-only, then re-run configuration.</p>
-              <div style="display:flex; gap:8px; align-items: end;">
-                <div style="flex:1"><input type="text" id="emergencyAuthToken" placeholder="Paste your auth token" style="font-family: monospace;" /></div>
-                <button class="btn" onclick="emergencyRestore()"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px"></i>Emergency Restore</button>
-              </div>
-              <div id="emergencyStatus" style="display:none; margin-top: 10px; padding: 10px; border-radius: 6px;"></div>
-            </div>
-
             <h2 style="margin-bottom: 10px; color: #111827;">Add Addons</h2>
             <div class="row form-group">
               <div>
@@ -789,6 +780,17 @@ app.get('/configure', (req, res) => {
               <div>
                 <button type="button" class="btn" onclick="addAddon()"><i class="fa-solid fa-plus" style="margin-right:6px"></i>Add</button>
               </div>
+            </div>
+
+            <!-- Emergency Restore (bottom) -->
+            <div style="background: #fff7ed; border: 2px solid #fdba74; border-radius: 8px; padding: 16px; margin-top: 22px;">
+              <h3 style="color:#9a3412; margin-bottom:8px;">Emergency Restore</h3>
+              <p style="font-size: 13px; color: #7c2d12; margin-bottom: 10px;">If Stremio is in a broken state, reset to Cinemeta-only, then re-run configuration.</p>
+              <div style="display:flex; gap:8px; align-items: end;">
+                <div style="flex:1"><input type="text" id="emergencyAuthToken" placeholder="Paste your auth token" style="font-family: monospace;" /></div>
+                <button class="btn" onclick="emergencyRestore()"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px"></i>Emergency Restore</button>
+              </div>
+              <div id="emergencyStatus" style="display:none; margin-top: 10px; padding: 10px; border-radius: 6px;"></div>
             </div>
 
             <div id="advancedOptions" class="advanced-options">
