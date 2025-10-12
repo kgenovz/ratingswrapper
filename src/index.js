@@ -5,6 +5,7 @@
 
 const express = require('express');
 const axios = require('axios');
+const { spawn } = require('child_process');
 const logger = require('./utils/logger');
 const { parseConfigFromPath, encodeConfig } = require('./utils/configParser');
 const { createManifestHandler } = require('./handlers/manifest');
@@ -48,13 +49,42 @@ app.get('/health', (req, res) => {
  */
 const RATINGS_PROVIDER_URL = process.env.RATINGS_PROVIDER_URL || null;
 const RATINGS_PLACEHOLDER = String(process.env.RATINGS_PLACEHOLDER || '').toLowerCase() === 'true';
+const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
+const EMBED_RATINGS_API = String(process.env.EMBED_RATINGS_API || 'true').toLowerCase() === 'true';
+const RATINGS_PORT = process.env.RATINGS_PORT || 3001;
 
 async function proxyOrPlaceholder(res, providerUrl, pathSegments, placeholderValue) {
   try {
-    if (RATINGS_PROVIDER_URL) {
-      const url = `${RATINGS_PROVIDER_URL}${providerUrl}`;
+    const providerBase = RATINGS_PROVIDER_URL || (EMBED_RATINGS_API ? `http://127.0.0.1:${RATINGS_PORT}` : null);
+    if (providerBase) {
+      const url = `${providerBase}${providerUrl}`;
       const response = await axios.get(url, { timeout: 8000 });
       return res.json(response.data);
+    }
+    // Internal provider via OMDb
+    if (OMDB_API_KEY) {
+      if (providerUrl.startsWith('/api/rating/')) {
+        const imdbId = providerUrl.split('/').pop();
+        const { data } = await axios.get('https://www.omdbapi.com/', { params: { i: imdbId, apikey: OMDB_API_KEY }, timeout: 8000 });
+        if (data && data.imdbRating && data.imdbRating !== 'N/A') {
+          return res.json({ rating: parseFloat(data.imdbRating) });
+        }
+        return res.status(404).json({ error: 'Rating not found' });
+      }
+      if (providerUrl.startsWith('/api/episode/')) {
+        const parts = providerUrl.split('/');
+        const seriesId = parts[3];
+        const season = parts[4];
+        const episode = parts[5];
+        const { data } = await axios.get('https://www.omdbapi.com/', { params: { i: seriesId, Season: season, apikey: OMDB_API_KEY }, timeout: 8000 });
+        if (data && Array.isArray(data.Episodes)) {
+          const ep = data.Episodes.find(e => String(e.Episode) === String(episode));
+          if (ep && ep.imdbRating && ep.imdbRating !== 'N/A') {
+            return res.json({ rating: parseFloat(ep.imdbRating), episodeId: `${seriesId}:${season}:${episode}` });
+          }
+        }
+        return res.status(404).json({ error: 'Episode rating not found' });
+      }
     }
     if (RATINGS_PLACEHOLDER) {
       return res.json(placeholderValue);
@@ -1548,5 +1578,21 @@ app.listen(PORT, async () => {
     await kitsuMappingService.loadMappings();
   } catch (error) {
     logger.error('Failed to load Kitsu mappings (Kitsu addon support will be limited)');
+  }
+
+  if (EMBED_RATINGS_API) {
+    try {
+      logger.info(`Starting embedded ratings API on port ${RATINGS_PORT}...`);
+      const child = spawn(process.execPath, ['ratings-api-server.js'], {
+        cwd: require('path').join(__dirname, '..', 'imdb-ratings-api'),
+        env: { ...process.env, PORT: String(RATINGS_PORT) },
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      child.stdout.on('data', (d) => logger.info('[ratings-api]', d.toString().trim()));
+      child.stderr.on('data', (d) => logger.error('[ratings-api]', d.toString().trim()));
+      child.on('exit', (code) => logger.warn(`Embedded ratings API exited with code ${code}`));
+    } catch (e) {
+      logger.error('Failed to start embedded ratings API:', e.message);
+    }
   }
 });
