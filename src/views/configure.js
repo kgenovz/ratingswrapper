@@ -436,6 +436,9 @@ function generateConfigureHTML(protocol, host) {
             addons.forEach(addon => {
               const card = document.createElement('div');
               const isAlreadyWrapped = addon.reason === 'Already wrapped';
+              const isCinemeta = (addon.id && String(addon.id).toLowerCase().includes('cinemeta')) ||
+                                 (addon.url && addon.url.includes('cinemeta')) ||
+                                 (addon.url === CINEMETA_URL);
 
               if (isAlreadyWrapped) {
                 card.className = 'addon-card already-wrapped';
@@ -445,7 +448,11 @@ function generateConfigureHTML(protocol, host) {
 
               card.dataset.addonUrl = addon.url;
               card.dataset.addonName = addon.name;
-              if (state.selectedAddons.has(addon.url)) {
+              if (isCinemeta) {
+                // Ensure Cinemeta is visually selected and can't be deselected
+                state.selectedAddons.add(CINEMETA_URL);
+                card.classList.add('selected');
+              } else if (state.selectedAddons.has(addon.url)) {
                 card.classList.add('selected');
               }
 
@@ -479,7 +486,7 @@ function generateConfigureHTML(protocol, host) {
               }
 
               const reasonText = document.createElement('span');
-              reasonText.textContent = addon.reason;
+              reasonText.textContent = isCinemeta ? 'Cinemeta (always enabled)' : addon.reason;
 
               status.appendChild(icon);
               status.appendChild(reasonText);
@@ -491,10 +498,13 @@ function generateConfigureHTML(protocol, host) {
               const checkbox = document.createElement('input');
               checkbox.type = 'checkbox';
               checkbox.className = 'addon-checkbox';
-              checkbox.disabled = !addon.wrappable || isAlreadyWrapped;
-              checkbox.checked = state.selectedAddons.has(addon.url);
+              checkbox.disabled = isCinemeta || !addon.wrappable || isAlreadyWrapped;
+              checkbox.checked = isCinemeta || state.selectedAddons.has(addon.url);
+              if (isCinemeta) {
+                checkbox.title = 'Cinemeta is always enabled';
+              }
 
-              if (addon.wrappable && !isAlreadyWrapped) {
+              if (!isCinemeta && addon.wrappable && !isAlreadyWrapped) {
                 const toggleSelection = () => {
                   if (state.selectedAddons.has(addon.url)) {
                     state.selectedAddons.delete(addon.url);
@@ -770,6 +780,11 @@ function generateConfigureHTML(protocol, host) {
             const url = document.getElementById('addonInputUrl').value.trim();
             const nameInput = document.getElementById('addonInputName').value.trim();
             if (!url) { alert('Enter an addon URL'); return; }
+            // Prevent adding Cinemeta manually; it's enforced automatically
+            if (url === CINEMETA_URL) {
+              alert('Cinemeta is already included by default and cannot be added twice.');
+              return;
+            }
             ensureCinemeta();
 
             // Try to fetch manifest name (best-effort)
