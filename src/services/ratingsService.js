@@ -152,10 +152,10 @@ class RatingsService {
   /**
    * Fetches ratings for multiple content items in batch with concurrency control
    * @param {Array<Object>} items - Array of {id, type} objects
-   * @param {number} concurrency - Maximum number of concurrent requests (default: 10)
+   * @param {number} concurrency - Maximum number of concurrent requests (default: 5)
    * @returns {Promise<Map<string, number>>} Map of ID to rating
    */
-  async getRatingsBatch(items, concurrency = 10) {
+  async getRatingsBatch(items, concurrency = 5) {
     try {
       const ratingsMap = new Map();
 
@@ -164,7 +164,10 @@ class RatingsService {
 
       for (let i = 0; i < items.length; i += concurrency) {
         const batch = items.slice(i, i + concurrency);
-        logger.debug(`Processing batch ${Math.floor(i / concurrency) + 1}/${Math.ceil(items.length / concurrency)} (${batch.length} items)`);
+        const batchNumber = Math.floor(i / concurrency) + 1;
+        const totalBatches = Math.ceil(items.length / concurrency);
+
+        logger.debug(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} items)`);
 
         // Process this batch in parallel
         const batchResults = await Promise.all(
@@ -186,9 +189,10 @@ class RatingsService {
           }
         });
 
-        // Small delay between batches to avoid overwhelming the API
+        // Delay between batches - longer for first batch to let API warm up
         if (i + concurrency < items.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          const delay = batchNumber === 1 ? 500 : 200;
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
 
