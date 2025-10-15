@@ -60,7 +60,7 @@ router.post('/get-addons', async (req, res) => {
 });
 
 /**
- * API: Emergency restore - sets a minimal working addon collection
+ * API: Emergency restore - unwraps all wrapped addons and restores originals
  */
 router.post('/emergency-restore', async (req, res) => {
   try {
@@ -76,19 +76,130 @@ router.post('/emergency-restore', async (req, res) => {
     let addons = await stremioApi.getAddonCollection(authToken);
     logger.info(`Retrieved ${addons.length} addons from account`);
 
-    // Remove any existing Cinemeta instances
-    addons = addons.filter(addon => {
-      const manifestId = addon.manifest?.id || '';
-      const transportUrl = addon.transportUrl || '';
-      return !manifestId.includes('cinemeta') &&
-             !transportUrl.includes('v3-cinemeta.strem.io') &&
-             !transportUrl.includes('cinemeta');
-    });
+    const restoredAddons = [];
+    let unwrappedCount = 0;
+    let removedCount = 0;
 
-    logger.info(`After removing Cinemeta: ${addons.length} addons remain`);
+    // Helper to check if addon is from this wrapper service
+    function isWrappedAddon(addon) {
+      const url = addon.transportUrl || '';
+      const manifestId = addon.manifest?.id || '';
+
+      // Check for .ratings-wrapper suffix in manifest ID
+      if (manifestId.includes('.ratings-wrapper')) {
+        return true;
+      }
+
+      // Check if URL matches wrapper pattern
+      try {
+        const urlObj = new URL(url);
+        if (/^\/[A-Za-z0-9_-]{50,}\/manifest\.json$/.test(urlObj.pathname)) {
+          if (urlObj.hostname.includes('ratingswrapper') ||
+              urlObj.hostname === 'localhost' ||
+              urlObj.hostname === '127.0.0.1') {
+            return true;
+          }
+        }
+      } catch (e) {
+        // Invalid URL, not wrapped
+      }
+
+      return false;
+    }
+
+    // Helper to extract original addon URL from wrapped config
+    function extractOriginalUrl(wrappedUrl) {
+      try {
+        const match = wrappedUrl.match(/\/([A-Za-z0-9_-]+)\/manifest\.json$/);
+        if (!match) return null;
+
+        const encodedConfig = match[1];
+        const decodedConfig = parseConfigFromPath(encodedConfig);
+        return decodedConfig.wrappedAddonUrl || null;
+      } catch (e) {
+        logger.debug(`Failed to extract original URL from ${wrappedUrl}:`, e.message);
+        return null;
+      }
+    }
+
+    // Helper to check if addon is AIO Metadata or similar full metadata addon
+    function isFullMetadataAddon(url) {
+      const urlLower = url.toLowerCase();
+      return urlLower.includes('aiometadata') ||
+             urlLower.includes('aio-metadata') ||
+             urlLower.includes('metahub') ||
+             urlLower.includes('midnightignite');
+    }
+
+    // Process each addon
+    for (const addon of addons) {
+      const url = addon.transportUrl || '';
+
+      if (isWrappedAddon(addon)) {
+        // Extract original addon URL
+        const originalUrl = extractOriginalUrl(url);
+
+        if (originalUrl) {
+          // Check if it's a wrapped full metadata addon (remove it entirely)
+          if (isFullMetadataAddon(originalUrl)) {
+            logger.info(`Removing wrapped full metadata addon: ${addon.manifest?.name}`);
+            removedCount++;
+            continue; // Skip adding to restoredAddons
+          }
+
+          // Restore the original unwrapped addon
+          logger.info(`Unwrapping: ${addon.manifest?.name} -> ${originalUrl}`);
+
+          // Fetch the original manifest
+          const https = require('https');
+          const http = require('http');
+
+          try {
+            const manifestData = await new Promise((resolve, reject) => {
+              const protocol = originalUrl.startsWith('https') ? https : http;
+              const timeout = setTimeout(() => reject(new Error('Timeout')), 5000);
+
+              protocol.get(originalUrl, (resp) => {
+                let data = '';
+                resp.on('data', chunk => data += chunk);
+                resp.on('end', () => {
+                  clearTimeout(timeout);
+                  try {
+                    resolve(JSON.parse(data));
+                  } catch (e) {
+                    reject(new Error('Invalid JSON'));
+                  }
+                });
+              }).on('error', (err) => {
+                clearTimeout(timeout);
+                reject(err);
+              });
+            });
+
+            restoredAddons.push({
+              transportUrl: originalUrl,
+              transportName: 'http',
+              manifest: manifestData
+            });
+
+            unwrappedCount++;
+          } catch (e) {
+            logger.warn(`Failed to fetch original manifest for ${originalUrl}, keeping wrapped version:`, e.message);
+            restoredAddons.push(addon);
+          }
+        } else {
+          // Couldn't extract original URL, keep the wrapped version
+          logger.warn(`Couldn't extract original URL from ${url}, keeping wrapped version`);
+          restoredAddons.push(addon);
+        }
+      } else {
+        // Not a wrapped addon, keep as-is
+        restoredAddons.push(addon);
+      }
+    }
 
     // Add clean Cinemeta at the top (first position)
-    addons.unshift({
+    restoredAddons.unshift({
       transportUrl: 'https://v3-cinemeta.strem.io/manifest.json',
       transportName: 'http',
       manifest: {
@@ -98,12 +209,15 @@ router.post('/emergency-restore', async (req, res) => {
       }
     });
 
-    logger.info(`Setting ${addons.length} addons with Cinemeta at position 0`);
-    await stremioApi.setAddonCollection(authToken, addons);
+    logger.info(`Emergency restore summary: ${unwrappedCount} unwrapped, ${removedCount} removed (full metadata addons), ${restoredAddons.length} total`);
+    await stremioApi.setAddonCollection(authToken, restoredAddons);
 
     res.json({
       success: true,
-      message: `Emergency restore complete! Restored ${addons.length} addons with clean Cinemeta at top. Restart Stremio.`
+      message: `Emergency restore complete! Unwrapped ${unwrappedCount} addon(s), removed ${removedCount} full metadata addon(s). Restored ${restoredAddons.length} addons with clean Cinemeta at top. Restart Stremio.`,
+      unwrappedCount,
+      removedCount,
+      totalAddons: restoredAddons.length
     });
 
   } catch (error) {
