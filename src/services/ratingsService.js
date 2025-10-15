@@ -52,6 +52,11 @@ class RatingsService {
     // Default to internal ratings routes on the same server
     const port = process.env.PORT || 7000;
     this.ratingsApiUrl = process.env.RATINGS_API_URL || `http://127.0.0.1:${port}/ratings`;
+
+    // Cache for failed lookups to avoid retrying non-existent episodes
+    this.notFoundCache = new Map();
+    this.cacheMaxSize = 1000;
+
     logger.info(`Ratings API configured: ${this.ratingsApiUrl}`);
   }
 
@@ -102,6 +107,12 @@ class RatingsService {
         return null;
       }
 
+      // Check cache for known not-found items
+      if (this.notFoundCache.has(id)) {
+        logger.debug(`Skipping cached not-found item: ${id}`);
+        return null;
+      }
+
       // Check if this is an episode ID in format: tt12345:1:1 (series:season:episode)
       if (id.includes(':') && id.startsWith('tt')) {
         const parts = id.split(':');
@@ -118,6 +129,8 @@ class RatingsService {
             return rating;
           }
 
+          // Cache the not-found result
+          this._addToNotFoundCache(id);
           logger.debug(`No episode rating found for ${id}`);
           return null;
         }
@@ -140,32 +153,66 @@ class RatingsService {
         return rating;
       }
 
+      // Cache the not-found result
+      this._addToNotFoundCache(id);
       logger.debug(`No rating found for ${imdbId}`);
       return null;
 
     } catch (error) {
+      // Only cache 404 errors, not 502 or other server errors
+      if (error.message.includes('404')) {
+        this._addToNotFoundCache(id);
+      }
       logger.error(`Error fetching rating for ${id}:`, error.message);
       return null;
     }
   }
 
   /**
+   * Add an ID to the not-found cache with size limit
+   * @param {string} id - ID to cache
+   * @private
+   */
+  _addToNotFoundCache(id) {
+    // Implement simple LRU-style cache
+    if (this.notFoundCache.size >= this.cacheMaxSize) {
+      // Remove oldest entry (first item in map)
+      const firstKey = this.notFoundCache.keys().next().value;
+      this.notFoundCache.delete(firstKey);
+    }
+    this.notFoundCache.set(id, Date.now());
+  }
+
+  /**
    * Fetches ratings for multiple content items in batch with concurrency control
    * @param {Array<Object>} items - Array of {id, type} objects
-   * @param {number} concurrency - Maximum number of concurrent requests (default: 5)
+   * @param {number} concurrency - Maximum number of concurrent requests (default: 10)
    * @returns {Promise<Map<string, number>>} Map of ID to rating
    */
-  async getRatingsBatch(items, concurrency = 5) {
+  async getRatingsBatch(items, concurrency = 10) {
     try {
       const ratingsMap = new Map();
 
-      // Process items in batches with controlled concurrency
-      logger.info(`Fetching ratings for ${items.length} items with concurrency limit of ${concurrency}`);
+      // Filter out items already in not-found cache
+      const itemsToFetch = items.filter(item => !this.notFoundCache.has(item.id));
+      const skippedCount = items.length - itemsToFetch.length;
 
-      for (let i = 0; i < items.length; i += concurrency) {
-        const batch = items.slice(i, i + concurrency);
+      if (skippedCount > 0) {
+        logger.info(`Skipping ${skippedCount} cached not-found items`);
+      }
+
+      if (itemsToFetch.length === 0) {
+        logger.info('All items are in not-found cache, skipping fetch');
+        return ratingsMap;
+      }
+
+      // Process items in batches with controlled concurrency
+      logger.info(`Fetching ratings for ${itemsToFetch.length} items with concurrency limit of ${concurrency}`);
+
+      for (let i = 0; i < itemsToFetch.length; i += concurrency) {
+        const batch = itemsToFetch.slice(i, i + concurrency);
         const batchNumber = Math.floor(i / concurrency) + 1;
-        const totalBatches = Math.ceil(items.length / concurrency);
+        const totalBatches = Math.ceil(itemsToFetch.length / concurrency);
 
         logger.debug(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} items)`);
 
@@ -189,14 +236,14 @@ class RatingsService {
           }
         });
 
-        // Delay between batches - longer for first batch to let API warm up
-        if (i + concurrency < items.length) {
-          const delay = batchNumber === 1 ? 500 : 200;
+        // Small delay between batches - only needed on first batch for warmup
+        if (i + concurrency < itemsToFetch.length) {
+          const delay = batchNumber === 1 ? 300 : 50;
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
 
-      logger.info(`Fetched ${ratingsMap.size} ratings for ${items.length} items`);
+      logger.info(`Fetched ${ratingsMap.size} ratings for ${itemsToFetch.length} items (${skippedCount} cached not-found)`);
       return ratingsMap;
 
     } catch (error) {
