@@ -340,13 +340,29 @@ async function replaceAddonsBatch(authToken, items) {
       used.add(cinemetaItem.wrappedAddonUrl);
     }
 
-    // 2) Replace in-place across original list, skipping any existing Cinemeta
+    // Helper: check if an addon is from this wrapper service
+    function isFromThisWrapper(addon) {
+      const url = addon.transportUrl || '';
+      // Check if the URL contains an encoded config (base64url pattern followed by /manifest.json)
+      // This pattern matches our wrapper URLs like: https://host.com/encodedConfig/manifest.json
+      return /\/[A-Za-z0-9_-]+\/manifest\.json$/.test(url) &&
+             !url.includes('v3-cinemeta.strem.io') &&
+             !url.includes('stremio.com'); // Exclude official Stremio addons
+    }
+
+    // 2) Replace in-place across original list, skipping any existing Cinemeta or wrapped versions
     for (const addon of originalAddons) {
       const isCine = isMatch(addon, 'cinemeta');
       if (isCine) continue; // drop existing Cinemeta entirely
 
+      // Check if this addon should be replaced
       const matchItem = items.find(i => i.removePattern !== 'cinemeta' && isMatch(addon, i.removePattern));
+
+      // Also check if this is an old wrapped version from this service
+      const isOldWrapped = isFromThisWrapper(addon);
+
       if (matchItem) {
+        // Found a match for the original addon - replace it
         const url = matchItem.wrappedAddonUrl;
         if (!used.has(url)) {
           newAddons.push({ transportUrl: url, transportName: 'http', manifest: manifests[url] });
@@ -355,7 +371,29 @@ async function replaceAddonsBatch(authToken, items) {
           // Already injected (avoid duplicates); fall back to keeping original
           newAddons.push(addon);
         }
+      } else if (isOldWrapped) {
+        // This is an old wrapped version - check if we have a new version to replace it with
+        // Look for a match based on the original addon name (removing " with Ratings" suffix)
+        const originalName = addon.manifest?.name?.replace(/\s+with\s+Ratings$/i, '');
+        const replacementItem = items.find(it => {
+          const newManifest = manifests[it.wrappedAddonUrl];
+          const newOriginalName = newManifest?.name?.replace(/\s+with\s+Ratings$/i, '');
+          return originalName && newOriginalName && originalName === newOriginalName;
+        });
+
+        if (replacementItem && !used.has(replacementItem.wrappedAddonUrl)) {
+          // Replace with new wrapped version
+          const url = replacementItem.wrappedAddonUrl;
+          newAddons.push({ transportUrl: url, transportName: 'http', manifest: manifests[url] });
+          used.add(url);
+          logger.info(`Replaced old wrapped addon: ${addon.manifest?.name} with new version`);
+        } else if (!replacementItem) {
+          // No replacement found, keep the old wrapped version
+          newAddons.push(addon);
+        }
+        // If replacementItem exists but already used, skip (avoid duplicate)
       } else {
+        // Keep original addon as-is
         newAddons.push(addon);
       }
     }
