@@ -76,7 +76,7 @@ router.post('/emergency-restore', async (req, res) => {
     let addons = await stremioApi.getAddonCollection(authToken);
     logger.info(`Retrieved ${addons.length} addons from account`);
 
-    const restoredAddons = [];
+    let restoredAddons = [];
     let unwrappedCount = 0;
     let removedCount = 0;
 
@@ -197,6 +197,14 @@ router.post('/emergency-restore', async (req, res) => {
         restoredAddons.push(addon);
       }
     }
+
+    // Remove any existing Cinemeta entries to avoid duplicates
+    restoredAddons = restoredAddons.filter(a => {
+      const manifestId = a.manifest?.id ? String(a.manifest.id).toLowerCase() : '';
+      const url = (a.transportUrl || '').toLowerCase();
+      const isCinemeta = manifestId.includes('cinemeta') || url.includes('cinemeta') || url.includes('v3-cinemeta.strem.io');
+      return !isCinemeta;
+    });
 
     // Add clean Cinemeta at the top (first position)
     restoredAddons.unshift({
