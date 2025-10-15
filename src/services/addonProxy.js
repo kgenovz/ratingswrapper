@@ -120,8 +120,13 @@ class AddonProxyService {
 
       const catalogResponse = await this._fetchWithRetry(catalogUrl);
 
+      // Log the response structure for debugging
+      logger.debug(`Catalog response keys: ${Object.keys(catalogResponse).join(', ')}`);
+      logger.debug(`Full response: ${JSON.stringify(catalogResponse).substring(0, 500)}`);
+
       // Validate response has metas array
       if (!catalogResponse.metas || !Array.isArray(catalogResponse.metas)) {
+        logger.error(`Invalid catalog response structure. Keys: ${Object.keys(catalogResponse).join(', ')}`);
         throw new Error('Invalid catalog response: missing metas array');
       }
 
