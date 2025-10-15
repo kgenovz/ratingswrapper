@@ -101,6 +101,18 @@ class MetadataEnhancerService {
             }
           }
 
+          // If this is a MAL ID, try to map it to IMDb ID
+          if (kitsuMappingService.isMalId(id)) {
+            const malId = kitsuMappingService.extractMalId(id);
+            const imdbId = kitsuMappingService.getImdbIdFromMal(malId);
+            if (imdbId) {
+              logger.debug(`Mapped MAL ID ${malId} to IMDb ID ${imdbId}`);
+              id = imdbId;
+            } else {
+              logger.debug(`No IMDb mapping found for MAL ID ${malId}`);
+            }
+          }
+
           return {
             id: id,
             type: meta.type
@@ -217,6 +229,16 @@ class MetadataEnhancerService {
               const imdbId = kitsuMappingService.getImdbId(kitsuId);
               if (imdbId) {
                 logger.debug(`Mapped Kitsu episode ${video.id} to series IMDb ID ${imdbId}`);
+                return { id: imdbId, type: 'series' };
+              }
+            }
+
+            // If video ID is MAL format, try to map the series
+            if (video.id && kitsuMappingService.isMalId(video.id)) {
+              const malId = kitsuMappingService.extractMalId(video.id);
+              const imdbId = kitsuMappingService.getImdbIdFromMal(malId);
+              if (imdbId) {
+                logger.debug(`Mapped MAL episode ${video.id} to series IMDb ID ${imdbId}`);
                 return { id: imdbId, type: 'series' };
               }
             }
