@@ -263,10 +263,11 @@ class MetadataEnhancerService {
             return { id: video.id, type: 'series' };
           });
 
-        logger.debug(`Extracted ${episodeItems.length} episode IDs`);
+        logger.info(`Extracted ${episodeItems.length} episode IDs`);
         if (episodeItems.length > 0) {
-          logger.debug('First episode ID sample:', episodeItems[0].id);
-          logger.debug('First few episode IDs:', episodeItems.slice(0, 3).map(e => e.id));
+          logger.info('First episode ID sample:', episodeItems[0].id);
+          logger.info('First 5 episode IDs:', episodeItems.slice(0, 5).map(e => e.id));
+          logger.info('Original first episode video.id:', meta.videos[0].id);
         }
 
         // Fetch all episode ratings in batch
