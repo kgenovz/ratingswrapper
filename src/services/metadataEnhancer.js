@@ -79,7 +79,7 @@ class MetadataEnhancerService {
 
       // Debug: Log first item to see structure
       if (metas.length > 0) {
-        logger.info('Sample catalog item structure:', JSON.stringify(metas[0]).substring(0, 500));
+        logger.debug('Sample catalog item structure:', JSON.stringify(metas[0]).substring(0, 500));
       }
 
       // Extract items for batch rating fetch, filtering out invalid items
@@ -109,18 +109,17 @@ class MetadataEnhancerService {
 
       if (items.length === 0) {
         logger.warn('No valid items with IDs found in catalog');
-        logger.info('Sample meta object:', JSON.stringify(metas[0]));
+        logger.debug('Sample meta object:', JSON.stringify(metas[0]));
         return metas;
       }
 
       // Debug: Log sample to see ID format
       if (items.length > 0) {
-        logger.info(`Sample catalog item ID: ${items[0].id} (type: ${items[0].type})`);
+        logger.debug(`Sample catalog item ID: ${items[0].id} (type: ${items[0].type})`);
       }
 
       // Fetch all ratings in batch
       const ratingsMap = await ratingsService.getRatingsBatch(items);
-      logger.info(`Fetched ${ratingsMap.size} ratings from ${items.length} items`);
 
       // Enhance each meta with its rating
       const enhancedMetas = metas.map(meta => {
@@ -129,7 +128,7 @@ class MetadataEnhancerService {
         const rating = ratingsMap.get(id);
 
         if (rating) {
-          logger.info(`Found rating ${rating} for ${id}`);
+          logger.debug(`Found rating ${rating} for ${id}`);
         }
 
         return this._enhanceMetaWithRating(meta, rating, config.ratingFormat, config.ratingLocation);
@@ -139,7 +138,7 @@ class MetadataEnhancerService {
         meta.name !== metas[idx].name
       ).length;
 
-      logger.info(`Enhanced ${enhancedCount}/${metas.length} items with ratings`);
+      logger.info(`✓ Enhanced ${enhancedCount}/${metas.length} catalog items with ratings`);
 
       return enhancedMetas;
 
@@ -184,7 +183,7 @@ class MetadataEnhancerService {
       // Enhance episode titles if this is a series with videos (episodes) - only if episode ratings are enabled
       if (config.enableEpisodeRatings && meta.videos && Array.isArray(meta.videos) && meta.videos.length > 0) {
         logger.info(`Enhancing ${meta.videos.length} episode titles with ratings`);
-        logger.info('First episode sample:', JSON.stringify(meta.videos[0]));
+        logger.debug('First episode sample:', JSON.stringify(meta.videos[0]));
 
         // For episodes, we need to extract individual episode IMDb IDs
         // Different providers use different formats:
@@ -299,7 +298,7 @@ class MetadataEnhancerService {
           video.name !== meta.videos[idx].name
         ).length;
 
-        logger.info(`Enhanced ${enhancedEpisodeCount}/${meta.videos.length} episode titles`);
+        logger.info(`✓ Enhanced ${enhancedEpisodeCount}/${meta.videos.length} episode titles`);
 
         // Debug: log a sample episode before/after
         if (meta.videos.length > 0) {
