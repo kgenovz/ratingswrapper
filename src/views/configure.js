@@ -68,12 +68,12 @@ function generateConfigureHTML(protocol, host) {
               <span class="tag">IMDb Ratings</span>
             </div>
             <h2>Wrap Cinemeta and multiple addons</h2>
-            <p class="subtitle">Generate installation URLs or auto‑replace your installed addons. Cinemeta is required and stays first for best results.</p>
+            <p class="subtitle">Discover your installed addons and wrap them with IMDb ratings automatically. Cinemeta is required and stays first for best results.</p>
             <ol class="steps">
-              <li>Add configured addon URLs (Cinemeta is added automatically).</li>
-              <li>Optionally tweak rating format for all wrapped addons.</li>
-              <li>Click "Generate Wrapped URLs" to get manual install links.</li>
-              <li>Or test your token and use "Auto Replace All".</li>
+              <li><strong>Login to Stremio</strong> to see which of your installed addons can be wrapped.</li>
+              <li><strong>Select addons</strong> from your account or manually add addon URLs (Cinemeta added automatically).</li>
+              <li><strong>Customize ratings display</strong> - adjust format, position, and which content gets ratings.</li>
+              <li><strong>Generate & Deploy</strong> - Get install URLs or use Auto-Replace to update your account instantly.</li>
             </ol>
           </div>
           <div class="content">
