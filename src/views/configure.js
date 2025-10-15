@@ -717,11 +717,25 @@ function generateConfigureHTML(protocol, host) {
               const cinemataIndex = state.items.findIndex(i => i.required || i.url === CINEMETA_URL);
               if (cinemataIndex !== -1) {
                 state.items.splice(cinemataIndex, 1);
-                // Show notification
-                const notice = document.getElementById('cinemataNotice');
-                if (notice) {
-                  notice.style.display = 'block';
-                }
+              }
+
+              // Move the full metadata addon to position 0
+              const fullMetadataIndex = state.items.findIndex(item => {
+                const url = item.url.toLowerCase();
+                return url.includes('aiometadata') || url.includes('aio-metadata') ||
+                       url.includes('metahub') || url.includes('midnightignite');
+              });
+
+              if (fullMetadataIndex > 0) {
+                // Remove from current position and add to beginning
+                const [fullMetadataAddon] = state.items.splice(fullMetadataIndex, 1);
+                state.items.unshift(fullMetadataAddon);
+              }
+
+              // Show notification
+              const notice = document.getElementById('cinemataNotice');
+              if (notice) {
+                notice.style.display = 'block';
               }
               return;
             }
