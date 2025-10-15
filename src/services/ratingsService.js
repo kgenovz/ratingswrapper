@@ -150,25 +150,49 @@ class RatingsService {
   }
 
   /**
-   * Fetches ratings for multiple content items in batch
+   * Fetches ratings for multiple content items in batch with concurrency control
    * @param {Array<Object>} items - Array of {id, type} objects
+   * @param {number} concurrency - Maximum number of concurrent requests (default: 10)
    * @returns {Promise<Map<string, number>>} Map of ID to rating
    */
-  async getRatingsBatch(items) {
+  async getRatingsBatch(items, concurrency = 10) {
     try {
       const ratingsMap = new Map();
 
-      // Process all items in parallel
-      await Promise.all(
-        items.map(async (item) => {
-          const rating = await this.getRating(item.id, item.type);
-          if (rating !== null) {
-            ratingsMap.set(item.id, rating);
-          }
-        })
-      );
+      // Process items in batches with controlled concurrency
+      logger.info(`Fetching ratings for ${items.length} items with concurrency limit of ${concurrency}`);
 
-      logger.debug(`Fetched ${ratingsMap.size} ratings for ${items.length} items`);
+      for (let i = 0; i < items.length; i += concurrency) {
+        const batch = items.slice(i, i + concurrency);
+        logger.debug(`Processing batch ${Math.floor(i / concurrency) + 1}/${Math.ceil(items.length / concurrency)} (${batch.length} items)`);
+
+        // Process this batch in parallel
+        const batchResults = await Promise.all(
+          batch.map(async (item) => {
+            try {
+              const rating = await this.getRating(item.id, item.type);
+              return { id: item.id, rating };
+            } catch (error) {
+              logger.debug(`Error fetching rating for ${item.id}: ${error.message}`);
+              return { id: item.id, rating: null };
+            }
+          })
+        );
+
+        // Add results to map
+        batchResults.forEach(({ id, rating }) => {
+          if (rating !== null) {
+            ratingsMap.set(id, rating);
+          }
+        });
+
+        // Small delay between batches to avoid overwhelming the API
+        if (i + concurrency < items.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      logger.info(`Fetched ${ratingsMap.size} ratings for ${items.length} items`);
       return ratingsMap;
 
     } catch (error) {
