@@ -50,10 +50,16 @@ npm install
 
 ### 2. Configure on Railway
 
-Set environment variables:
-- `PORT` - Server port (default: 7000)
-- `LOG_LEVEL` - Logging level: `debug`, `info`, `warn`, `error` (default: `info`)
-  - Use `error` for production to reduce verbosity
+Set these environment variables in Railway:
+
+**Required:**
+- `EMBED_RATINGS_API` = `true` (starts the embedded IMDb ratings API)
+
+**Optional:**
+- `PORT` = `7000` (server port, Railway sets this automatically)
+- `RATINGS_PORT` = `3001` (port for embedded ratings API)
+- `LOG_LEVEL` = `error` (reduce log verbosity in production)
+  - Use `error` or `warn` for production (less verbose)
   - Switch to `info` or `debug` when troubleshooting
 
 ### 3. Use the Web Interface
@@ -182,7 +188,9 @@ https://your-app.railway.app/{base64url-config}/manifest.json
 |----------|---------|-------------|
 | `PORT` | `7000` | Server port |
 | `LOG_LEVEL` | `info` | Logging verbosity: `debug`, `info`, `warn`, `error` |
-| `RATINGS_API_URL` | `http://127.0.0.1:{PORT}/ratings` | IMDb ratings API endpoint |
+| `EMBED_RATINGS_API` | `true` | Start embedded IMDb ratings API server |
+| `RATINGS_PORT` | `3001` | Port for embedded ratings API (when `EMBED_RATINGS_API=true`) |
+| `RATINGS_API_URL` | `http://127.0.0.1:{PORT}/ratings` | IMDb ratings API endpoint (override if using external API) |
 
 ### Log Level Guide
 
