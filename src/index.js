@@ -826,7 +826,14 @@ app.get('/configure', (req, res) => {
               <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
                 <h3 style="margin-bottom: 10px;">Auto-Replace In Your Account</h3>
                 <p style="font-size: 13px; color:#374151;">We remove existing versions and install wrapped versions in-place. Missing ones are appended. Cinemeta is first.</p>
-                <div class="form-group">
+
+                <div style="margin-bottom: 15px;">
+                  <button type="button" onclick="toggleAuthMethod()" id="authMethodToggle" style="background: none; border: none; color: #4f46e5; cursor: pointer; font-size: 14px; font-weight: 600; padding: 0;">
+                    Switch to Auth Token
+                  </button>
+                </div>
+
+                <div id="authTokenMethod" class="form-group" style="display:none;">
                   <label for="authToken">Stremio Auth Token *</label>
                   <input type="text" id="authToken" placeholder="Paste your auth token" style="font-family: monospace; font-size: 12px;" />
                   <div class="help-text" style="margin-top:6px;">
@@ -834,11 +841,26 @@ app.get('/configure', (req, res) => {
                     <ol style="margin:6px 0 0 18px;">
                       <li>Login to <a href="https://web.stremio.com/" target="_blank">https://web.stremio.com/</a> using your Stremio credentials.</li>
                       <li>Open the developer console and paste: <code>JSON.parse(localStorage.getItem("profile")).auth.key</code></li>
-                      <li>Copy the printed value and paste it into the form below.</li>
+                      <li>Copy the printed value and paste it into the form above.</li>
                     </ol>
                   </div>
                 </div>
-                <button class="btn" onclick="testAuth()" id="testAuthBtn" style="margin-bottom: 10px;"><i class="fa-solid fa-key" style="margin-right:6px"></i>Test Auth Token</button>
+
+                <div id="emailPasswordMethod" class="form-group">
+                  <label for="stremioEmail">Stremio Email *</label>
+                  <input type="email" id="stremioEmail" placeholder="your@email.com" style="margin-bottom: 10px;" />
+
+                  <label for="stremioPassword">Stremio Password *</label>
+                  <input type="password" id="stremioPassword" placeholder="Your password" style="margin-bottom: 10px;" />
+
+                  <div class="help-text" style="margin-top:6px;">
+                    <strong>Note:</strong> Facebook login is not supported. Your credentials are only used to authenticate with Stremio's API and are not stored.
+                  </div>
+
+                  <button class="btn" onclick="loginWithPassword()" id="loginBtn" style="margin-top: 10px;"><i class="fa-solid fa-right-to-bracket" style="margin-right:6px"></i>Login</button>
+                </div>
+
+                <button class="btn" onclick="testAuth()" id="testAuthBtn" style="margin-bottom: 10px; display:none;"><i class="fa-solid fa-key" style="margin-right:6px"></i>Test Auth Token</button>
                 <div id="authStatus" style="display:none; padding: 10px; border-radius: 6px; margin-bottom: 12px;"></div>
                 <button class="btn" onclick="autoReplaceAll()" id="replaceAllBtn" style="display:none;"><i class="fa-solid fa-rotate" style="margin-right:6px"></i>Auto Replace All</button>
                 <div id="replaceStatus" style="display:none; padding: 12px; border-radius: 6px; margin-top: 12px;"></div>
@@ -1135,6 +1157,89 @@ app.get('/configure', (req, res) => {
             });
           }
 
+          function toggleAuthMethod() {
+            const tokenMethod = document.getElementById('authTokenMethod');
+            const emailPasswordMethod = document.getElementById('emailPasswordMethod');
+            const toggle = document.getElementById('authMethodToggle');
+            const testAuthBtn = document.getElementById('testAuthBtn');
+
+            if (tokenMethod.style.display === 'none') {
+              tokenMethod.style.display = 'block';
+              emailPasswordMethod.style.display = 'none';
+              toggle.textContent = 'Switch to Email/Password Login';
+              testAuthBtn.style.display = 'inline-block';
+            } else {
+              tokenMethod.style.display = 'none';
+              emailPasswordMethod.style.display = 'block';
+              toggle.textContent = 'Switch to Auth Token';
+              testAuthBtn.style.display = 'none';
+            }
+          }
+
+          async function loginWithPassword() {
+            const email = document.getElementById('stremioEmail').value.trim();
+            const password = document.getElementById('stremioPassword').value.trim();
+            const statusDiv = document.getElementById('authStatus');
+            const loginBtn = document.getElementById('loginBtn');
+            const replaceAllBtn = document.getElementById('replaceAllBtn');
+
+            if (!email || !password) {
+              alert('Please enter both email and password');
+              return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px"></i>Logging in...';
+
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#fff7ed';
+            statusDiv.style.border = '1px solid #fdba74';
+            statusDiv.innerHTML = 'Logging in to Stremio...';
+
+            try {
+              const response = await fetch(serverUrl + '/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+              });
+
+              const result = await response.json();
+
+              if (result.success && result.authKey) {
+                document.getElementById('authToken').value = result.authKey;
+                statusDiv.style.background = '#d1fae5';
+                statusDiv.style.border = '1px solid #10b981';
+                statusDiv.innerHTML = '✔ ' + result.message;
+
+                // Auto-test the token
+                const testResponse = await fetch(serverUrl + '/api/test-auth', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ authToken: result.authKey })
+                });
+
+                const testResult = await testResponse.json();
+                if (testResult.success) {
+                  statusDiv.innerHTML = '✔ Login successful! Found ' + testResult.addonCount + ' addons.';
+                  replaceAllBtn.style.display = 'inline-block';
+                }
+              } else {
+                statusDiv.style.background = '#fee2e2';
+                statusDiv.style.border = '1px solid #ef4444';
+                statusDiv.innerHTML = '✖ ' + (result.error || 'Login failed');
+                replaceAllBtn.style.display = 'none';
+              }
+            } catch (e) {
+              statusDiv.style.background = '#fee2e2';
+              statusDiv.style.border = '1px solid #ef4444';
+              statusDiv.innerHTML = '✖ Error: ' + e.message;
+              replaceAllBtn.style.display = 'none';
+            } finally {
+              loginBtn.disabled = false;
+              loginBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket" style="margin-right:6px"></i>Login';
+            }
+          }
+
           async function testAuth() {
             const authToken = document.getElementById('authToken').value.trim();
             const statusDiv = document.getElementById('authStatus');
@@ -1385,6 +1490,50 @@ app.post('/api/emergency-restore', async (req, res) => {
     res.json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+/**
+ * API: Login with username and password
+ */
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    logger.info('Attempting login with email/password...');
+
+    // Call Stremio login API
+    const response = await axios.post('https://api.strem.io/api/login', {
+      authKey: null,
+      email: email,
+      password: password
+    });
+
+    if (response.data && response.data.result && response.data.result.authKey) {
+      const authKey = response.data.result.authKey;
+
+      res.json({
+        success: true,
+        authKey: authKey,
+        message: 'Login successful!'
+      });
+    } else {
+      res.json({
+        success: false,
+        error: 'Invalid credentials or unexpected response'
+      });
+    }
+
+  } catch (error) {
+    logger.error('Login failed:', error.message);
+    res.json({
+      success: false,
+      error: error.response?.data?.error || error.message
     });
   }
 });
