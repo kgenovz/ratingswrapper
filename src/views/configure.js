@@ -82,7 +82,33 @@ function generateConfigureHTML(protocol, host) {
               <div class="help-text">Cinemeta will be wrapped and placed first automatically.</div>
             </div>
 
-            <div class="form-group"><button class="btn" onclick="generateAll()">Generate Wrapped URLs</button></div>
+            <!-- Ratings Display Section -->
+            <div id="advancedOptions" class="advanced-options" style="background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-top: 22px;">
+              <div class="section-title">Ratings Display</div>
+              <div class="form-group">
+                <label>Rating Position</label>
+                <select id="ratingPosition"><option value="prefix">Prefix (★ 8.5 Movie)</option><option value="suffix">Suffix (Movie ★ 8.5)</option></select>
+              </div>
+              <div class="row-2">
+                <div class="form-group">
+                  <label for="ratingTemplate">Rating Template</label>
+                  <input type="text" id="ratingTemplate" value="★ {rating}" />
+                  <div class="help-text">Use {rating} as placeholder</div>
+                </div>
+                <div class="form-group">
+                  <label for="ratingSeparator">Separator</label>
+                  <input type="text" id="ratingSeparator" value=" | " />
+                  <div class="help-text">Default: space + | + space</div>
+                </div>
+              </div>
+              <div class="form-group"><label class="checkbox-group"><input type="checkbox" id="enableRatings" checked /> Enable rating injection</label></div>
+              <div class="form-group">
+                <div class="help-text" style="margin-bottom:6px;">Preview</div>
+                <div id="ratingPreview" class="preview"></div>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 22px;"><button class="btn" onclick="generateAll()">Generate Wrapped URLs</button></div>
 
             <div class="result-section" id="resultSection" style="display:none;">
               <h3 style="margin-bottom: 10px;">Manual Installation URLs</h3>
@@ -128,32 +154,6 @@ function generateConfigureHTML(protocol, host) {
                 <div id="authStatus" style="display:none; padding: 10px; border-radius: 6px; margin-bottom: 12px;"></div>
                 <button class="btn" onclick="autoReplaceAll()" id="replaceAllBtn" style="display:none;"><i class="fa-solid fa-rotate" style="margin-right:6px"></i>Auto Replace All</button>
                 <div id="replaceStatus" style="display:none; padding: 12px; border-radius: 6px; margin-top: 12px;"></div>
-              </div>
-            </div>
-
-            <!-- Ratings Display Section -->
-            <div id="advancedOptions" class="advanced-options" style="background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-top: 22px;">
-              <div class="section-title">Ratings Display</div>
-              <div class="form-group">
-                <label>Rating Position</label>
-                <select id="ratingPosition"><option value="prefix">Prefix (★ 8.5 Movie)</option><option value="suffix">Suffix (Movie ★ 8.5)</option></select>
-              </div>
-              <div class="row-2">
-                <div class="form-group">
-                  <label for="ratingTemplate">Rating Template</label>
-                  <input type="text" id="ratingTemplate" value="★ {rating}" />
-                  <div class="help-text">Use {rating} as placeholder</div>
-                </div>
-                <div class="form-group">
-                  <label for="ratingSeparator">Separator</label>
-                  <input type="text" id="ratingSeparator" value=" | " />
-                  <div class="help-text">Default: space + | + space</div>
-                </div>
-              </div>
-              <div class="form-group"><label class="checkbox-group"><input type="checkbox" id="enableRatings" checked /> Enable rating injection</label></div>
-              <div class="form-group">
-                <div class="help-text" style="margin-bottom:6px;">Preview</div>
-                <div id="ratingPreview" class="preview"></div>
               </div>
             </div>
 
