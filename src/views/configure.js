@@ -33,7 +33,7 @@ function generateConfigureHTML(protocol, host) {
           .btn:hover { background: #4338ca; }
           .row { display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px; align-items: end; }
           .row-2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; align-items: start; }
-          .url-display { background: #f8fafc; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+          .url-display { background: #f8fafc; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; word-break: break-all; overflow-wrap: break-word; }
           .advanced-toggle { display: none; }
           .advanced-options { display: block; margin-top: 8px; }
           .section-title { font-size: 16px; font-weight: 700; margin: 6px 0 8px 0; color: #1f2937; }
