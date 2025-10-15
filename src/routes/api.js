@@ -327,4 +327,150 @@ router.post('/replace-addons', async (req, res) => {
   }
 });
 
+/**
+ * API: Get wrappable addons from user's Stremio account
+ */
+router.post('/get-wrappable-addons', async (req, res) => {
+  try {
+    const { authToken } = req.body;
+
+    if (!authToken) {
+      return res.status(400).json({ error: 'Auth token required' });
+    }
+
+    const validation = stremioApi.validateAuthToken(authToken);
+    if (!validation.valid) {
+      return res.json({
+        success: false,
+        error: `Invalid token format: ${validation.error}`
+      });
+    }
+
+    logger.info('Fetching wrappable addons...');
+
+    // Get user's installed addons
+    const addons = await stremioApi.getAddonCollection(authToken);
+    logger.info(`Retrieved ${addons.length} addons from account`);
+
+    // Check each addon to see if it's wrappable
+    const https = require('https');
+    const http = require('http');
+
+    const addonResults = await Promise.all(addons.map(async (addon) => {
+      const manifestUrl = addon.transportUrl;
+      const addonInfo = {
+        name: addon.manifest?.name || 'Unknown Addon',
+        url: manifestUrl,
+        logo: addon.manifest?.logo || null,
+        id: addon.manifest?.id || null,
+        wrappable: false,
+        reason: ''
+      };
+
+      // Skip if no URL
+      if (!manifestUrl) {
+        addonInfo.reason = 'No manifest URL';
+        return addonInfo;
+      }
+
+      // Skip if it's already a wrapped addon from this service
+      // Check manifest ID for .ratings-wrapper suffix
+      if (addon.manifest?.id?.includes('.ratings-wrapper')) {
+        addonInfo.reason = 'Already wrapped';
+        return addonInfo;
+      }
+
+      // Check if URL points to a ratings wrapper service
+      // Pattern: the URL contains a base64url-encoded config followed by /manifest.json
+      // Example: https://ratingswrapper-production.up.railway.app/{base64config}/manifest.json
+      try {
+        const url = new URL(manifestUrl);
+        // Check if the path matches our wrapper pattern (base64url string followed by /manifest.json)
+        if (/^\/[A-Za-z0-9_-]{50,}\/manifest\.json$/.test(url.pathname)) {
+          // This looks like a wrapped addon - verify by checking the hostname
+          if (url.hostname.includes('ratingswrapper') ||
+              url.hostname === 'localhost' ||
+              url.hostname === '127.0.0.1') {
+            addonInfo.reason = 'Already wrapped';
+            return addonInfo;
+          }
+        }
+      } catch (e) {
+        // Invalid URL, continue with normal checks
+      }
+
+      try {
+        // Fetch the manifest to check resources
+        const manifestData = await new Promise((resolve, reject) => {
+          const protocol = manifestUrl.startsWith('https') ? https : http;
+          const timeout = setTimeout(() => {
+            reject(new Error('Timeout'));
+          }, 5000);
+
+          protocol.get(manifestUrl, (resp) => {
+            let data = '';
+            resp.on('data', chunk => data += chunk);
+            resp.on('end', () => {
+              clearTimeout(timeout);
+              try {
+                resolve(JSON.parse(data));
+              } catch (e) {
+                reject(new Error('Invalid JSON'));
+              }
+            });
+          }).on('error', (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+        });
+
+        // Check if addon has catalog or meta resources
+        const resources = manifestData.resources || [];
+        const hasCatalog = resources.includes('catalog');
+        const hasMeta = resources.includes('meta');
+
+        if (hasCatalog || hasMeta) {
+          addonInfo.wrappable = true;
+          addonInfo.reason = `Has ${resources.filter(r => r === 'catalog' || r === 'meta').join(' and ')}`;
+        } else {
+          addonInfo.reason = `Missing catalog/meta (has: ${resources.join(', ') || 'none'})`;
+        }
+
+      } catch (error) {
+        addonInfo.reason = `Error: ${error.message}`;
+        logger.debug(`Failed to check addon ${addonInfo.name}:`, error.message);
+      }
+
+      return addonInfo;
+    }));
+
+    // Sort addons: wrappable first, then already-wrapped, then non-wrappable
+    const sortedAddons = addonResults.sort((a, b) => {
+      // Wrappable addons first
+      if (a.wrappable && !b.wrappable && b.reason !== 'Already wrapped') return -1;
+      if (b.wrappable && !a.wrappable && a.reason !== 'Already wrapped') return 1;
+
+      // Already wrapped addons last
+      if (a.reason === 'Already wrapped' && b.reason !== 'Already wrapped') return 1;
+      if (b.reason === 'Already wrapped' && a.reason !== 'Already wrapped') return -1;
+
+      return 0;
+    });
+
+    res.json({
+      success: true,
+      addons: sortedAddons,
+      total: sortedAddons.length,
+      wrappableCount: sortedAddons.filter(a => a.wrappable).length
+    });
+
+  } catch (error) {
+    logger.error('Get wrappable addons failed:', error.message);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

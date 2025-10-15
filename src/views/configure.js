@@ -41,6 +41,22 @@ function generateConfigureHTML(protocol, host) {
           .install-btn { background: #0ea5e9; color: white; text-decoration: none; padding: 8px 14px; border-radius: 6px; display: inline-block; font-size: 13px; font-weight: 600; margin-left: 8px; }
           .copy-btn { background: #22c55e; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
           .help-text { font-size: 12px; color: #666; margin-top: 5px; }
+          .login-section { background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 8px; padding: 16px; margin-bottom: 22px; }
+          .addon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 12px; }
+          .addon-card { background: white; border: 2px solid #e5e7eb; border-radius: 8px; padding: 12px; display: flex; align-items: center; gap: 10px; transition: all 0.2s; cursor: pointer; }
+          .addon-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+          .addon-card.wrappable { border-color: #10b981; }
+          .addon-card.not-wrappable { opacity: 0.6; cursor: not-allowed; }
+          .addon-card.already-wrapped { opacity: 0.5; cursor: not-allowed; background: #f9fafb; border-color: #d1d5db; }
+          .addon-card.selected { background: #dbeafe; border-color: #3b82f6; }
+          .addon-logo { width: 48px; height: 48px; object-fit: contain; background: #f3f4f6; border-radius: 6px; }
+          .addon-info { flex: 1; min-width: 0; }
+          .addon-name { font-weight: 600; font-size: 14px; color: #111827; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .addon-status { font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 4px; }
+          .status-icon { font-size: 14px; }
+          .status-icon.wrappable { color: #10b981; }
+          .status-icon.not-wrappable { color: #ef4444; }
+          .addon-checkbox { width: 18px; height: 18px; cursor: pointer; }
         </style>
       </head>
       <body>
@@ -61,6 +77,59 @@ function generateConfigureHTML(protocol, host) {
             </ol>
           </div>
           <div class="content">
+            <!-- Stremio Login Section -->
+            <div class="login-section">
+              <h2 style="margin-bottom: 8px; color: #111827;">Log In to Stremio</h2>
+              <p style="font-size: 14px; color: #374151; margin-bottom: 12px;">
+                Log in to see which of your installed addons can be wrapped with ratings. You can then select them to automatically add to your configuration.
+              </p>
+
+              <div style="margin-bottom: 15px;">
+                <button type="button" onclick="toggleLoginAuthMethod()" id="loginAuthMethodToggle" style="background: none; border: none; color: #4f46e5; cursor: pointer; font-size: 14px; font-weight: 600; padding: 0;">
+                  Switch to Auth Token
+                </button>
+              </div>
+
+              <div id="loginAuthTokenMethod" class="form-group" style="display:none;">
+                <label for="loginAuthToken">Stremio Auth Token *</label>
+                <input type="text" id="loginAuthToken" placeholder="Paste your auth token" style="font-family: monospace; font-size: 12px;" />
+                <div class="help-text" style="margin-top:6px;">
+                  <strong>Login using an authentication key</strong>
+                  <ol style="margin:6px 0 0 18px;">
+                    <li>Login to <a href="https://web.stremio.com/" target="_blank">https://web.stremio.com/</a> using your Stremio credentials.</li>
+                    <li>Open the developer console and paste: <code>JSON.parse(localStorage.getItem("profile")).auth.key</code></li>
+                    <li>Copy the printed value and paste it into the form above.</li>
+                  </ol>
+                </div>
+                <button class="btn" onclick="loginAndFetchAddons()" id="loginWithTokenBtn" style="margin-top: 10px;"><i class="fa-solid fa-right-to-bracket" style="margin-right:6px"></i>Fetch Addons</button>
+              </div>
+
+              <div id="loginEmailPasswordMethod" class="form-group">
+                <label for="loginStremioEmail">Stremio Email *</label>
+                <input type="email" id="loginStremioEmail" placeholder="your@email.com" style="margin-bottom: 10px;" />
+
+                <label for="loginStremioPassword">Stremio Password *</label>
+                <input type="password" id="loginStremioPassword" placeholder="Your password" style="margin-bottom: 10px;" />
+
+                <div class="help-text" style="margin-top:6px;">
+                  <strong>Note:</strong> Facebook login is not supported. Your credentials are only used to authenticate with Stremio's API and are not stored.
+                </div>
+
+                <button class="btn" onclick="loginWithPasswordAndFetchAddons()" id="loginWithPasswordBtn" style="margin-top: 10px;"><i class="fa-solid fa-right-to-bracket" style="margin-right:6px"></i>Login & Fetch Addons</button>
+              </div>
+
+              <div id="loginStatus" style="display:none; padding: 10px; border-radius: 6px; margin-top: 12px;"></div>
+
+              <!-- Installed Addons List -->
+              <div id="installedAddonsSection" style="display:none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #bae6fd;">
+                <h3 style="margin-bottom: 8px;">Your Installed Addons</h3>
+                <p style="font-size: 13px; color: #374151; margin-bottom: 10px;">
+                  Select wrappable addons to add them to your configuration. Addons with a green checkmark can be wrapped.
+                </p>
+                <div id="installedAddonsList" class="addon-grid"></div>
+              </div>
+            </div>
+
             <h2 style="margin-bottom: 10px; color: #111827;">Add Addons</h2>
             <div class="row form-group">
               <div>
@@ -142,52 +211,53 @@ function generateConfigureHTML(protocol, host) {
               </div>
             </div>
 
-            <div class="form-group" style="margin-top: 22px;"><button class="btn" onclick="generateAll()">Generate Wrapped URLs</button></div>
+            <div class="form-group" style="margin-top: 22px;"><button class="btn" onclick="generateAll()">Generate Install URLs & Enable Auto-Replace</button></div>
 
             <div class="result-section" id="resultSection" style="display:none;">
-              <h3 style="margin-bottom: 10px;">Manual Installation URLs</h3>
-              <div id="manualList"></div>
+              <h3 style="margin-bottom: 10px;">Auto-Replace In Your Account</h3>
+              <p style="font-size: 13px; color:#374151; margin-bottom: 12px;">We remove existing versions and install wrapped versions in-place. Missing ones are appended. Cinemeta is first.</p>
+
+              <div style="margin-bottom: 15px;">
+                <button type="button" onclick="toggleAuthMethod()" id="authMethodToggle" style="background: none; border: none; color: #4f46e5; cursor: pointer; font-size: 14px; font-weight: 600; padding: 0;">
+                  Switch to Auth Token
+                </button>
+              </div>
+
+              <div id="authTokenMethod" class="form-group" style="display:none;">
+                <label for="authToken">Stremio Auth Token *</label>
+                <input type="text" id="authToken" placeholder="Paste your auth token" style="font-family: monospace; font-size: 12px;" />
+                <div class="help-text" style="margin-top:6px;">
+                  <strong>Login using an authentication key</strong>
+                  <ol style="margin:6px 0 0 18px;">
+                    <li>Login to <a href="https://web.stremio.com/" target="_blank">https://web.stremio.com/</a> using your Stremio credentials.</li>
+                    <li>Open the developer console and paste: <code>JSON.parse(localStorage.getItem("profile")).auth.key</code></li>
+                    <li>Copy the printed value and paste it into the form above.</li>
+                  </ol>
+                </div>
+              </div>
+
+              <div id="emailPasswordMethod" class="form-group">
+                <label for="stremioEmail">Stremio Email *</label>
+                <input type="email" id="stremioEmail" placeholder="your@email.com" style="margin-bottom: 10px;" />
+
+                <label for="stremioPassword">Stremio Password *</label>
+                <input type="password" id="stremioPassword" placeholder="Your password" style="margin-bottom: 10px;" />
+
+                <div class="help-text" style="margin-top:6px;">
+                  <strong>Note:</strong> Facebook login is not supported. Your credentials are only used to authenticate with Stremio's API and are not stored.
+                </div>
+
+                <button class="btn" onclick="loginWithPassword()" id="loginBtn" style="margin-top: 10px;"><i class="fa-solid fa-right-to-bracket" style="margin-right:6px"></i>Login</button>
+              </div>
+
+              <button class="btn" onclick="testAuth()" id="testAuthBtn" style="margin-bottom: 10px; display:none;"><i class="fa-solid fa-key" style="margin-right:6px"></i>Test Auth Token</button>
+              <div id="authStatus" style="display:none; padding: 10px; border-radius: 6px; margin-bottom: 12px;"></div>
+              <button class="btn" onclick="autoReplaceAll()" id="replaceAllBtn" style="display:none;"><i class="fa-solid fa-rotate" style="margin-right:6px"></i>Auto Replace All</button>
+              <div id="replaceStatus" style="display:none; padding: 12px; border-radius: 6px; margin-top: 12px;"></div>
+
               <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
-                <h3 style="margin-bottom: 10px;">Auto-Replace In Your Account</h3>
-                <p style="font-size: 13px; color:#374151;">We remove existing versions and install wrapped versions in-place. Missing ones are appended. Cinemeta is first.</p>
-
-                <div style="margin-bottom: 15px;">
-                  <button type="button" onclick="toggleAuthMethod()" id="authMethodToggle" style="background: none; border: none; color: #4f46e5; cursor: pointer; font-size: 14px; font-weight: 600; padding: 0;">
-                    Switch to Auth Token
-                  </button>
-                </div>
-
-                <div id="authTokenMethod" class="form-group" style="display:none;">
-                  <label for="authToken">Stremio Auth Token *</label>
-                  <input type="text" id="authToken" placeholder="Paste your auth token" style="font-family: monospace; font-size: 12px;" />
-                  <div class="help-text" style="margin-top:6px;">
-                    <strong>Login using an authentication key</strong>
-                    <ol style="margin:6px 0 0 18px;">
-                      <li>Login to <a href="https://web.stremio.com/" target="_blank">https://web.stremio.com/</a> using your Stremio credentials.</li>
-                      <li>Open the developer console and paste: <code>JSON.parse(localStorage.getItem("profile")).auth.key</code></li>
-                      <li>Copy the printed value and paste it into the form above.</li>
-                    </ol>
-                  </div>
-                </div>
-
-                <div id="emailPasswordMethod" class="form-group">
-                  <label for="stremioEmail">Stremio Email *</label>
-                  <input type="email" id="stremioEmail" placeholder="your@email.com" style="margin-bottom: 10px;" />
-
-                  <label for="stremioPassword">Stremio Password *</label>
-                  <input type="password" id="stremioPassword" placeholder="Your password" style="margin-bottom: 10px;" />
-
-                  <div class="help-text" style="margin-top:6px;">
-                    <strong>Note:</strong> Facebook login is not supported. Your credentials are only used to authenticate with Stremio's API and are not stored.
-                  </div>
-
-                  <button class="btn" onclick="loginWithPassword()" id="loginBtn" style="margin-top: 10px;"><i class="fa-solid fa-right-to-bracket" style="margin-right:6px"></i>Login</button>
-                </div>
-
-                <button class="btn" onclick="testAuth()" id="testAuthBtn" style="margin-bottom: 10px; display:none;"><i class="fa-solid fa-key" style="margin-right:6px"></i>Test Auth Token</button>
-                <div id="authStatus" style="display:none; padding: 10px; border-radius: 6px; margin-bottom: 12px;"></div>
-                <button class="btn" onclick="autoReplaceAll()" id="replaceAllBtn" style="display:none;"><i class="fa-solid fa-rotate" style="margin-right:6px"></i>Auto Replace All</button>
-                <div id="replaceStatus" style="display:none; padding: 12px; border-radius: 6px; margin-top: 12px;"></div>
+                <h3 style="margin-bottom: 10px;">Manual Installation URLs</h3>
+                <div id="manualList"></div>
               </div>
             </div>
 
@@ -195,8 +265,12 @@ function generateConfigureHTML(protocol, host) {
             <div style="background: #fff7ed; border: 2px solid #fdba74; border-radius: 8px; padding: 16px; margin-top: 22px;">
               <h3 style="color:#9a3412; margin-bottom:8px;">Emergency Restore</h3>
               <p style="font-size: 13px; color: #7c2d12; margin-bottom: 10px;">If Stremio is in a broken state, reset to Cinemeta-only, then re-run configuration.</p>
-              <div style="display:flex; gap:8px; align-items: end;">
+              <div id="emergencyAuthInput" style="display:flex; gap:8px; align-items: end;">
                 <div style="flex:1"><input type="text" id="emergencyAuthToken" placeholder="Paste your auth token" style="font-family: monospace;" /></div>
+                <button class="btn" onclick="emergencyRestore()"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px"></i>Emergency Restore</button>
+              </div>
+              <div id="emergencyAuthReady" style="display:none;">
+                <p style="font-size: 13px; color: #059669; margin-bottom: 10px; font-weight: 600;">✓ Already logged in - ready to restore</p>
                 <button class="btn" onclick="emergencyRestore()"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px"></i>Emergency Restore</button>
               </div>
               <div id="emergencyStatus" style="display:none; margin-top: 10px; padding: 10px; border-radius: 6px;"></div>
@@ -208,7 +282,336 @@ function generateConfigureHTML(protocol, host) {
         <script>
           const serverUrl = '${protocol}://${host}';
           const CINEMETA_URL = 'https://v3-cinemeta.strem.io/manifest.json';
-          const state = { items: [] };
+          const state = { items: [], selectedAddons: new Set() };
+
+          // Login section functions
+          function toggleLoginAuthMethod() {
+            const tokenMethod = document.getElementById('loginAuthTokenMethod');
+            const emailPasswordMethod = document.getElementById('loginEmailPasswordMethod');
+            const toggle = document.getElementById('loginAuthMethodToggle');
+
+            if (tokenMethod.style.display === 'none') {
+              tokenMethod.style.display = 'block';
+              emailPasswordMethod.style.display = 'none';
+              toggle.textContent = 'Switch to Email/Password Login';
+            } else {
+              tokenMethod.style.display = 'none';
+              emailPasswordMethod.style.display = 'block';
+              toggle.textContent = 'Switch to Auth Token';
+            }
+          }
+
+          async function loginWithPasswordAndFetchAddons() {
+            const email = document.getElementById('loginStremioEmail').value.trim();
+            const password = document.getElementById('loginStremioPassword').value.trim();
+            const statusDiv = document.getElementById('loginStatus');
+            const loginBtn = document.getElementById('loginWithPasswordBtn');
+
+            if (!email || !password) {
+              alert('Please enter both email and password');
+              return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px"></i>Logging in...';
+
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#fff7ed';
+            statusDiv.style.border = '1px solid #fdba74';
+            statusDiv.innerHTML = 'Logging in to Stremio...';
+
+            try {
+              const response = await fetch(serverUrl + '/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+              });
+
+              const result = await response.json();
+
+              if (result.success && result.authKey) {
+                document.getElementById('loginAuthToken').value = result.authKey;
+                // Also set the auth token in the Auto Replace section
+                document.getElementById('authToken').value = result.authKey;
+                statusDiv.style.background = '#d1fae5';
+                statusDiv.style.border = '1px solid #10b981';
+                statusDiv.innerHTML = '✔ Login successful! Fetching addons...';
+
+                // Now fetch addons
+                await fetchAndDisplayAddons(result.authKey);
+              } else {
+                statusDiv.style.background = '#fee2e2';
+                statusDiv.style.border = '1px solid #ef4444';
+                statusDiv.innerHTML = '✖ ' + (result.error || 'Login failed');
+              }
+            } catch (e) {
+              statusDiv.style.background = '#fee2e2';
+              statusDiv.style.border = '1px solid #ef4444';
+              statusDiv.innerHTML = '✖ Error: ' + e.message;
+            } finally {
+              loginBtn.disabled = false;
+              loginBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket" style="margin-right:6px"></i>Login & Fetch Addons';
+            }
+          }
+
+          async function loginAndFetchAddons() {
+            const authToken = document.getElementById('loginAuthToken').value.trim();
+            const statusDiv = document.getElementById('loginStatus');
+            const loginBtn = document.getElementById('loginWithTokenBtn');
+
+            if (!authToken) {
+              alert('Please enter your auth token');
+              return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px"></i>Fetching...';
+
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#fff7ed';
+            statusDiv.style.border = '1px solid #fdba74';
+            statusDiv.innerHTML = 'Fetching your addons...';
+
+            try {
+              await fetchAndDisplayAddons(authToken);
+            } catch (e) {
+              statusDiv.style.background = '#fee2e2';
+              statusDiv.style.border = '1px solid #ef4444';
+              statusDiv.innerHTML = '✖ Error: ' + e.message;
+            } finally {
+              loginBtn.disabled = false;
+              loginBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket" style="margin-right:6px"></i>Fetch Addons';
+            }
+          }
+
+          async function fetchAndDisplayAddons(authToken) {
+            const statusDiv = document.getElementById('loginStatus');
+
+            try {
+              const response = await fetch(serverUrl + '/api/get-wrappable-addons', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ authToken })
+              });
+
+              const result = await response.json();
+
+              if (result.success) {
+                const alreadyWrappedCount = result.addons.filter(a => a.reason === 'Already wrapped').length;
+                statusDiv.style.background = '#d1fae5';
+                statusDiv.style.border = '1px solid #10b981';
+                statusDiv.innerHTML = '✔ Found ' + result.total + ' addons (' + result.wrappableCount + ' wrappable, ' + alreadyWrappedCount + ' already wrapped)';
+
+                renderInstalledAddons(result.addons);
+                document.getElementById('installedAddonsSection').style.display = 'block';
+
+                // Show the replace button in the Auto Replace section and hide auth form
+                updateAutoReplaceSection();
+              } else {
+                statusDiv.style.background = '#fee2e2';
+                statusDiv.style.border = '1px solid #ef4444';
+                statusDiv.innerHTML = '✖ ' + result.error;
+              }
+            } catch (e) {
+              throw e;
+            }
+          }
+
+          function renderInstalledAddons(addons) {
+            const container = document.getElementById('installedAddonsList');
+            container.innerHTML = '';
+
+            if (!addons || addons.length === 0) {
+              container.innerHTML = '<p style="color: #6b7280; font-size: 14px;">No addons found.</p>';
+              return;
+            }
+
+            addons.forEach(addon => {
+              const card = document.createElement('div');
+              const isAlreadyWrapped = addon.reason === 'Already wrapped';
+
+              if (isAlreadyWrapped) {
+                card.className = 'addon-card already-wrapped';
+              } else {
+                card.className = 'addon-card ' + (addon.wrappable ? 'wrappable' : 'not-wrappable');
+              }
+
+              card.dataset.addonUrl = addon.url;
+              card.dataset.addonName = addon.name;
+              if (state.selectedAddons.has(addon.url)) {
+                card.classList.add('selected');
+              }
+
+              // Logo
+              const logo = document.createElement('img');
+              logo.className = 'addon-logo';
+              logo.src = addon.logo || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"%3E%3Cpath d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/%3E%3C/svg%3E';
+              logo.alt = addon.name;
+              logo.onerror = function() {
+                this.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"%3E%3Cpath d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/%3E%3C/svg%3E';
+              };
+
+              // Info
+              const info = document.createElement('div');
+              info.className = 'addon-info';
+
+              const name = document.createElement('div');
+              name.className = 'addon-name';
+              name.textContent = addon.name;
+              name.title = addon.name;
+
+              const status = document.createElement('div');
+              status.className = 'addon-status';
+
+              const icon = document.createElement('i');
+              if (isAlreadyWrapped) {
+                icon.className = 'fa-solid fa-check-double status-icon';
+                icon.style.color = '#9ca3af';
+              } else {
+                icon.className = 'fa-solid ' + (addon.wrappable ? 'fa-circle-check status-icon wrappable' : 'fa-circle-xmark status-icon not-wrappable');
+              }
+
+              const reasonText = document.createElement('span');
+              reasonText.textContent = addon.reason;
+
+              status.appendChild(icon);
+              status.appendChild(reasonText);
+
+              info.appendChild(name);
+              info.appendChild(status);
+
+              // Checkbox
+              const checkbox = document.createElement('input');
+              checkbox.type = 'checkbox';
+              checkbox.className = 'addon-checkbox';
+              checkbox.disabled = !addon.wrappable || isAlreadyWrapped;
+              checkbox.checked = state.selectedAddons.has(addon.url);
+
+              if (addon.wrappable && !isAlreadyWrapped) {
+                const toggleSelection = () => {
+                  if (state.selectedAddons.has(addon.url)) {
+                    state.selectedAddons.delete(addon.url);
+                    card.classList.remove('selected');
+                    checkbox.checked = false;
+                  } else {
+                    state.selectedAddons.add(addon.url);
+                    card.classList.add('selected');
+                    checkbox.checked = true;
+                  }
+                };
+
+                checkbox.addEventListener('change', toggleSelection);
+                card.addEventListener('click', (e) => {
+                  if (e.target !== checkbox) {
+                    toggleSelection();
+                  }
+                });
+              }
+
+              card.appendChild(logo);
+              card.appendChild(info);
+              card.appendChild(checkbox);
+
+              container.appendChild(card);
+            });
+
+            // Add "Add Selected" button if not exists
+            let addSelectedBtn = document.getElementById('addSelectedAddonsBtn');
+            if (!addSelectedBtn) {
+              addSelectedBtn = document.createElement('button');
+              addSelectedBtn.id = 'addSelectedAddonsBtn';
+              addSelectedBtn.className = 'btn';
+              addSelectedBtn.style.marginTop = '12px';
+              addSelectedBtn.innerHTML = '<i class="fa-solid fa-plus" style="margin-right:6px"></i>Add Selected Addons';
+              addSelectedBtn.onclick = addSelectedAddons;
+              document.getElementById('installedAddonsSection').appendChild(addSelectedBtn);
+            }
+          }
+
+          function updateAutoReplaceSection() {
+            const authToken = document.getElementById('authToken').value.trim();
+            if (authToken) {
+              // Hide the login forms
+              document.getElementById('authTokenMethod').style.display = 'none';
+              document.getElementById('emailPasswordMethod').style.display = 'none';
+              document.getElementById('authMethodToggle').style.display = 'none';
+              document.getElementById('testAuthBtn').style.display = 'none';
+
+              // Show the replace button directly
+              document.getElementById('replaceAllBtn').style.display = 'inline-block';
+
+              // Update the intro text to indicate user is already logged in
+              const replaceSection = document.getElementById('replaceAllBtn').parentElement;
+              let alreadyLoggedInMsg = document.getElementById('alreadyLoggedInMsg');
+              if (!alreadyLoggedInMsg) {
+                alreadyLoggedInMsg = document.createElement('p');
+                alreadyLoggedInMsg.id = 'alreadyLoggedInMsg';
+                alreadyLoggedInMsg.style.cssText = 'font-size: 13px; color: #059669; margin-bottom: 12px; font-weight: 600;';
+                alreadyLoggedInMsg.innerHTML = '✓ Already logged in - ready to auto-replace';
+                replaceSection.insertBefore(alreadyLoggedInMsg, document.getElementById('replaceAllBtn'));
+              }
+
+              // Also update Emergency Restore section
+              document.getElementById('emergencyAuthToken').value = authToken;
+              document.getElementById('emergencyAuthInput').style.display = 'none';
+              document.getElementById('emergencyAuthReady').style.display = 'block';
+            }
+          }
+
+          async function addSelectedAddons() {
+            if (state.selectedAddons.size === 0) {
+              alert('Please select at least one addon');
+              return;
+            }
+
+            ensureCinemeta();
+
+            // Get the addon details from the displayed list
+            const addonCards = document.querySelectorAll('.addon-card.wrappable.selected');
+            let addedCount = 0;
+
+            for (const card of addonCards) {
+              const url = card.dataset.addonUrl;
+              if (!url) continue;
+
+              // Check if already added
+              if (state.items.find(it => it.url === url)) {
+                continue;
+              }
+
+              // Try to fetch manifest name
+              let resolvedName = undefined;
+              try {
+                const resp = await fetch(serverUrl + '/api/fetch-manifest', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ url: url })
+                });
+                const result = await resp.json();
+                if (result && result.success && result.manifest && result.manifest.name) {
+                  resolvedName = result.manifest.name + ' with Ratings';
+                }
+              } catch (e) {
+                // Use the name from the card if manifest fetch fails
+                resolvedName = card.dataset.addonName + ' with Ratings';
+              }
+
+              state.items.push({ url: url, name: resolvedName });
+              addedCount++;
+            }
+
+            if (addedCount > 0) {
+              renderAddonList();
+              alert('Added ' + addedCount + ' addon(s) to your configuration');
+
+              // Clear selections
+              state.selectedAddons.clear();
+              document.querySelectorAll('.addon-card.selected').forEach(c => c.classList.remove('selected'));
+              document.querySelectorAll('.addon-checkbox:checked').forEach(cb => cb.checked = false);
+            } else {
+              alert('All selected addons are already in your configuration');
+            }
+          }
 
           function guessNameFromUrl(u) {
             try {
