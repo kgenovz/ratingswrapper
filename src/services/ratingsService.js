@@ -159,11 +159,19 @@ class RatingsService {
       return null;
 
     } catch (error) {
-      // Only cache 404 errors, not 502 or other server errors
+      // Handle different error types appropriately
       if (error.message.includes('404')) {
+        // Cache 404 errors (episode doesn't exist in IMDb)
         this._addToNotFoundCache(id);
+        logger.debug(`Rating not found for ${id} (404 - cached)`);
+      } else if (error.message.includes('502')) {
+        // 502 errors usually mean episode not released yet or temporary API issue
+        // Don't cache these, just log as debug to reduce noise
+        logger.debug(`Episode not available yet or API issue for ${id} (502)`);
+      } else {
+        // Log other errors as errors
+        logger.error(`Error fetching rating for ${id}:`, error.message);
       }
-      logger.error(`Error fetching rating for ${id}:`, error.message);
       return null;
     }
   }
