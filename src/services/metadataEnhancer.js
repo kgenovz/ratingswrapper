@@ -224,13 +224,28 @@ class MetadataEnhancerService {
               return { id: episodeImdbId, type: 'series' };
             }
 
-            // If video ID is Kitsu format, try to map the series
+            // If video ID is Kitsu format, try to map the series and preserve season/episode
             if (video.id && kitsuMappingService.isKitsuId(video.id)) {
-              const kitsuId = kitsuMappingService.extractKitsuId(video.id);
-              const imdbId = kitsuMappingService.getImdbId(kitsuId);
-              if (imdbId) {
-                logger.debug(`Mapped Kitsu episode ${video.id} to series IMDb ID ${imdbId}`);
-                return { id: imdbId, type: 'series' };
+              // Check if video.id is in format kitsu:12345:1 (with episode number)
+              const parts = video.id.split(':');
+              if (parts.length >= 3 && parts[0] === 'kitsu') {
+                const kitsuId = parts[1];
+                const episodeNum = parts[2];
+                const imdbId = kitsuMappingService.getImdbId(kitsuId);
+                if (imdbId) {
+                  // Kitsu uses single season (season 1), format as IMDb series:1:episode
+                  const formattedId = `${imdbId}:1:${episodeNum}`;
+                  logger.debug(`Mapped Kitsu episode ${video.id} to ${formattedId}`);
+                  return { id: formattedId, type: 'series' };
+                }
+              } else {
+                // Just kitsu:12345 format
+                const kitsuId = kitsuMappingService.extractKitsuId(video.id);
+                const imdbId = kitsuMappingService.getImdbId(kitsuId);
+                if (imdbId) {
+                  logger.debug(`Mapped Kitsu episode ${video.id} to series IMDb ID ${imdbId}`);
+                  return { id: imdbId, type: 'series' };
+                }
               }
             }
 
