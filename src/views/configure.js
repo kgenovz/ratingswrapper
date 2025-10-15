@@ -146,9 +146,13 @@ function generateConfigureHTML(protocol, host) {
             </div>
 
             <div class="form-group">
-              <label>Addons To Wrap (Cinemeta required)</label>
+              <label>Addons To Wrap</label>
               <div id="addonList" class="url-display" style="white-space: normal;"><em>None yet. Cinemeta will be added automatically.</em></div>
-              <div class="help-text">Cinemeta will be wrapped and placed first automatically.</div>
+              <div class="help-text">Cinemeta will be wrapped and placed first automatically unless you're using a full metadata addon like AIO Metadata.</div>
+              <div id="cinemataNotice" style="display:none; background: #dbeafe; border: 1px solid #3b82f6; border-radius: 6px; padding: 10px; margin-top: 8px; font-size: 13px; color: #1e40af;">
+                <i class="fa-solid fa-info-circle" style="margin-right: 6px;"></i>
+                <strong>AIO Metadata Detected:</strong> Cinemeta has been automatically removed from your configuration since AIO Metadata provides complete metadata coverage. Adding both would cause duplicate requests.
+              </div>
             </div>
 
             <!-- Ratings Display Section -->
@@ -695,9 +699,41 @@ function generateConfigureHTML(protocol, host) {
             return row;
           }
 
+          function hasFullMetadataAddon() {
+            // Check if any addon provides full metadata (AIO Metadata, etc.)
+            return state.items.some(item => {
+              const url = item.url.toLowerCase();
+              return url.includes('aiometadata') ||
+                     url.includes('aio-metadata') ||
+                     url.includes('metahub') ||
+                     url.includes('midnightignite');
+            });
+          }
+
           function ensureCinemeta() {
+            // Skip Cinemeta if user has a full metadata addon like AIO Metadata
+            if (hasFullMetadataAddon()) {
+              // Remove Cinemeta if it exists
+              const cinemataIndex = state.items.findIndex(i => i.required || i.url === CINEMETA_URL);
+              if (cinemataIndex !== -1) {
+                state.items.splice(cinemataIndex, 1);
+                // Show notification
+                const notice = document.getElementById('cinemataNotice');
+                if (notice) {
+                  notice.style.display = 'block';
+                }
+              }
+              return;
+            }
+
+            // Add Cinemeta if not present and no full metadata addon
             if (!state.items.find(i => i.required)) {
               state.items.unshift({ url: CINEMETA_URL, name: 'Cinemeta with Ratings', required: true });
+              // Hide notification
+              const notice = document.getElementById('cinemataNotice');
+              if (notice) {
+                notice.style.display = 'none';
+              }
             }
           }
 
