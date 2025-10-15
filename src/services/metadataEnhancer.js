@@ -195,7 +195,8 @@ class MetadataEnhancerService {
       // Enhance episode titles if this is a series with videos (episodes) - only if episode ratings are enabled
       if (config.enableEpisodeRatings && meta.videos && Array.isArray(meta.videos) && meta.videos.length > 0) {
         logger.info(`Enhancing ${meta.videos.length} episode titles with ratings`);
-        logger.debug('First episode sample:', JSON.stringify(meta.videos[0]));
+        logger.info('First episode sample:', JSON.stringify(meta.videos[0]));
+        logger.info('First episode video.id:', meta.videos[0].id);
 
         // For episodes, we need to extract individual episode IMDb IDs
         // Different providers use different formats:
