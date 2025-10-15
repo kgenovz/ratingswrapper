@@ -272,10 +272,14 @@ class MetadataEnhancerService {
 
           // Update the appropriate field based on location
           if (config.ratingLocation === 'description') {
-            // Update description field
-            if (video.description !== undefined) {
+            // Update description/overview field
+            // Try to update existing fields, or add overview if neither exists
+            if ('overview' in video) {
+              enhancedVideo.overview = enhanced.description;
+            } else if ('description' in video) {
               enhancedVideo.description = enhanced.description;
-            } else if (video.overview !== undefined) {
+            } else {
+              // If neither exists, add overview (most common for episodes)
               enhancedVideo.overview = enhanced.description;
             }
           } else {
