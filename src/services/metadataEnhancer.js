@@ -294,23 +294,50 @@ class MetadataEnhancerService {
         enhancedMeta.videos = meta.videos.map(video => {
           if (!video.id) return video;
 
-          // Use the same logic to construct the ID as we did when fetching ratings
+          // Use the SAME logic to construct the ID as we did when fetching ratings
+          let lookupId = video.id;
+
           const episodeImdbId = video.imdb_id || video.imdbId;
           const season = video.season || video.imdbSeason;
           const episode = video.episode || video.imdbEpisode;
 
-          // Try to get rating using the constructed ID first
-          let episodeRating = null;
+          // If we have IMDb ID + season + episode, use that format
           if (episodeImdbId && episodeImdbId.startsWith('tt') && season && episode) {
-            const constructedId = `${episodeImdbId}:${season}:${episode}`;
-            episodeRating = episodeRatingsMap.get(constructedId);
-            logger.debug(`Looking up rating for ${constructedId}: ${episodeRating ? 'found' : 'not found'}`);
+            lookupId = `${episodeImdbId}:${season}:${episode}`;
+          }
+          // If just IMDb ID, use it directly
+          else if (episodeImdbId && episodeImdbId.startsWith('tt')) {
+            lookupId = episodeImdbId;
+          }
+          // If Kitsu format, reconstruct the mapped ID
+          else if (video.id && kitsuMappingService.isKitsuId(video.id)) {
+            const parts = video.id.split(':');
+            if (parts.length >= 3 && parts[0] === 'kitsu') {
+              const kitsuId = parts[1];
+              const episodeNum = parts[2];
+              const imdbId = kitsuMappingService.getImdbId(kitsuId);
+              if (imdbId) {
+                lookupId = `${imdbId}:1:${episodeNum}`;
+              }
+            }
+          }
+          // If MAL format, reconstruct the mapped ID
+          else if (video.id && kitsuMappingService.isMalId(video.id)) {
+            const parts = video.id.split(':');
+            if (parts.length >= 4 && parts[0] === 'mal') {
+              const malId = parts[1];
+              const seasonNum = parts[2];
+              const episodeNum = parts[3];
+              const imdbId = kitsuMappingService.getImdbIdFromMal(malId);
+              if (imdbId) {
+                lookupId = `${imdbId}:${seasonNum}:${episodeNum}`;
+              }
+            }
           }
 
-          // Fallback to original video ID
-          if (!episodeRating) {
-            episodeRating = episodeRatingsMap.get(video.id);
-          }
+          // Look up the rating using the constructed ID
+          const episodeRating = episodeRatingsMap.get(lookupId);
+          logger.debug(`Looking up rating for ${lookupId}: ${episodeRating ? 'found' : 'not found'}`);
 
           if (!episodeRating) return video;
 
