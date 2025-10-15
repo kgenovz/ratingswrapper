@@ -85,6 +85,24 @@ function generateConfigureHTML(protocol, host) {
             <!-- Ratings Display Section -->
             <div id="advancedOptions" class="advanced-options" style="background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-top: 22px;">
               <div class="section-title">Ratings Display</div>
+
+              <div class="form-group" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+                <div style="margin-bottom: 10px;"><strong>Enable Ratings For:</strong></div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <label class="checkbox-group" style="margin: 0;">
+                    <input type="checkbox" id="enableTitleRatings" checked />
+                    <span style="margin-left: 8px;">Catalog Titles (Movies/Series)</span>
+                  </label>
+                  <div class="help-text" style="margin-left: 28px; margin-top: -4px;">Note: Stremio already shows ratings for most titles, but not for custom catalogs</div>
+
+                  <label class="checkbox-group" style="margin: 0;">
+                    <input type="checkbox" id="enableEpisodeRatings" checked />
+                    <span style="margin-left: 8px;">Episode Titles</span>
+                  </label>
+                  <div class="help-text" style="margin-left: 28px; margin-top: -4px;">Recommended: Stremio doesn't show episode ratings by default</div>
+                </div>
+              </div>
+
               <div class="form-group">
                 <label>Rating Position</label>
                 <select id="ratingPosition"><option value="prefix">Prefix (★ 8.5 Movie)</option><option value="suffix">Suffix (Movie ★ 8.5)</option></select>
@@ -101,7 +119,6 @@ function generateConfigureHTML(protocol, host) {
                   <div class="help-text">Default: space + | + space</div>
                 </div>
               </div>
-              <div class="form-group"><label class="checkbox-group"><input type="checkbox" id="enableRatings" checked /> Enable rating injection</label></div>
               <div class="form-group">
                 <div class="help-text" style="margin-bottom:6px;">Preview</div>
                 <div id="ratingPreview" class="preview"></div>
@@ -332,17 +349,28 @@ function generateConfigureHTML(protocol, host) {
             var pos = document.getElementById('ratingPosition')?.value || 'prefix';
             var tpl = document.getElementById('ratingTemplate')?.value || '★ {rating}';
             var sep = document.getElementById('ratingSeparator')?.value || ' | ';
-            var enabled = document.getElementById('enableRatings')?.checked !== false;
+            var enableTitles = document.getElementById('enableTitleRatings')?.checked !== false;
+            var enableEpisodes = document.getElementById('enableEpisodeRatings')?.checked !== false;
             var sampleTitle = 'Example Title';
             var sampleRating = '8.5';
             var ratingText = tpl.split('{rating}').join(sampleRating);
             var result = sampleTitle;
-            if (enabled) {
+
+            if (enableTitles || enableEpisodes) {
               if (pos === 'prefix') result = ratingText + sep + sampleTitle;
               else result = sampleTitle + sep + ratingText;
             }
+
             var prev = document.getElementById('ratingPreview');
-            if (prev) prev.textContent = result;
+            if (prev) {
+              if (!enableTitles && !enableEpisodes) {
+                prev.textContent = result + ' (ratings disabled)';
+                prev.style.opacity = '0.5';
+              } else {
+                prev.textContent = result;
+                prev.style.opacity = '1';
+              }
+            }
           }
 
           function generateAll() {
@@ -350,10 +378,22 @@ function generateConfigureHTML(protocol, host) {
             const ratingPosition = document.getElementById('ratingPosition')?.value || 'prefix';
             const ratingTemplate = document.getElementById('ratingTemplate')?.value || '★ {rating}';
             const ratingSeparator = document.getElementById('ratingSeparator')?.value || ' | ';
-            const enableRatings = document.getElementById('enableRatings')?.checked !== false;
+            const enableTitleRatings = document.getElementById('enableTitleRatings')?.checked !== false;
+            const enableEpisodeRatings = document.getElementById('enableEpisodeRatings')?.checked !== false;
+
+            // If both are disabled, show warning
+            if (!enableTitleRatings && !enableEpisodeRatings) {
+              alert('Warning: Both title and episode ratings are disabled. No ratings will be shown.');
+            }
 
             state.items = state.items.map(it => {
-              const config = { wrappedAddonUrl: it.url, enableRatings, ratingFormat: { position: ratingPosition, template: ratingTemplate, separator: ratingSeparator } };
+              const config = {
+                wrappedAddonUrl: it.url,
+                enableRatings: enableTitleRatings || enableEpisodeRatings, // Keep global flag for backward compatibility
+                enableTitleRatings: enableTitleRatings,
+                enableEpisodeRatings: enableEpisodeRatings,
+                ratingFormat: { position: ratingPosition, template: ratingTemplate, separator: ratingSeparator }
+              };
               if (it.name) config.addonName = it.name;
               const encoded = encodeConfig(config);
               const wrapped = serverUrl + '/' + encoded + '/manifest.json';
@@ -370,11 +410,13 @@ function generateConfigureHTML(protocol, host) {
             var rp = document.getElementById('ratingPosition');
             var rt = document.getElementById('ratingTemplate');
             var rs = document.getElementById('ratingSeparator');
-            var en = document.getElementById('enableRatings');
+            var enTitles = document.getElementById('enableTitleRatings');
+            var enEpisodes = document.getElementById('enableEpisodeRatings');
             if (rp) rp.addEventListener('change', updateRatingPreview);
             if (rt) rt.addEventListener('input', updateRatingPreview);
             if (rs) rs.addEventListener('input', updateRatingPreview);
-            if (en) en.addEventListener('change', updateRatingPreview);
+            if (enTitles) enTitles.addEventListener('change', updateRatingPreview);
+            if (enEpisodes) enEpisodes.addEventListener('change', updateRatingPreview);
             updateRatingPreview();
           })();
 

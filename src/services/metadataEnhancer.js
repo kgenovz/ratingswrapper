@@ -58,9 +58,9 @@ class MetadataEnhancerService {
    */
   async enhanceCatalogMetas(metas, config) {
     try {
-      // If ratings are disabled, return original metas
-      if (!config.enableRatings) {
-        logger.debug('Ratings disabled, returning original metas');
+      // If ratings are disabled globally or for titles specifically, return original metas
+      if (!config.enableRatings || !config.enableTitleRatings) {
+        logger.debug('Title ratings disabled, returning original metas');
         return metas;
       }
 
@@ -155,17 +155,19 @@ class MetadataEnhancerService {
       // Clone meta to avoid mutation
       const enhancedMeta = { ...meta };
 
-      // Get rating for the main content (movie/series)
-      const mainRating = await ratingsService.getRating(meta.id, meta.type);
+      // Get rating for the main content (movie/series) - only if title ratings are enabled
+      if (config.enableTitleRatings) {
+        const mainRating = await ratingsService.getRating(meta.id, meta.type);
 
-      if (mainRating) {
-        // Add rating to main title
-        const enhancedWithName = this._enhanceMetaWithRating(meta, mainRating, config.ratingFormat);
-        enhancedMeta.name = enhancedWithName.name;
+        if (mainRating) {
+          // Add rating to main title
+          const enhancedWithName = this._enhanceMetaWithRating(meta, mainRating, config.ratingFormat);
+          enhancedMeta.name = enhancedWithName.name;
+        }
       }
 
-      // Enhance episode titles if this is a series with videos (episodes)
-      if (meta.videos && Array.isArray(meta.videos) && meta.videos.length > 0) {
+      // Enhance episode titles if this is a series with videos (episodes) - only if episode ratings are enabled
+      if (config.enableEpisodeRatings && meta.videos && Array.isArray(meta.videos) && meta.videos.length > 0) {
         logger.info(`Enhancing ${meta.videos.length} episode titles with ratings`);
         logger.info('First episode sample:', JSON.stringify(meta.videos[0]));
 

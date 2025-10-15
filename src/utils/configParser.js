@@ -54,8 +54,18 @@ function validateConfig(userConfig) {
     // Optional: custom addon name
     addonName: userConfig.addonName || appConfig.defaults.addonName,
 
-    // Optional: enable/disable rating injection
+    // Optional: enable/disable rating injection (global)
     enableRatings: userConfig.enableRatings !== false, // default true
+
+    // Optional: enable/disable title ratings (backward compatible)
+    enableTitleRatings: userConfig.enableTitleRatings !== undefined
+      ? userConfig.enableTitleRatings
+      : (userConfig.enableRatings !== false), // fallback to enableRatings for old configs
+
+    // Optional: enable/disable episode ratings (backward compatible)
+    enableEpisodeRatings: userConfig.enableEpisodeRatings !== undefined
+      ? userConfig.enableEpisodeRatings
+      : (userConfig.enableRatings !== false), // fallback to enableRatings for old configs
 
     // Optional: metadata provider for episodes
     metadataProvider: userConfig.metadataProvider || appConfig.defaults.metadataProvider

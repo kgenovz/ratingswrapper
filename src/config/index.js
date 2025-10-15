@@ -13,6 +13,11 @@ const config = {
     addonDescription: 'Wraps Stremio addons to inject IMDb ratings into catalog titles',
     version: '1.0.0',
 
+    // Rating injection settings
+    enableRatings: true, // Global enable/disable
+    enableTitleRatings: true, // Enable ratings on catalog titles (movies/series)
+    enableEpisodeRatings: true, // Enable ratings on episode titles
+
     // Rating display format
     ratingFormat: {
       position: 'prefix', // 'prefix' | 'suffix'
