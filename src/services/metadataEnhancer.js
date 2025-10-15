@@ -233,13 +233,29 @@ class MetadataEnhancerService {
               }
             }
 
-            // If video ID is MAL format, try to map the series
+            // If video ID is MAL format, try to map the series and preserve season/episode
             if (video.id && kitsuMappingService.isMalId(video.id)) {
-              const malId = kitsuMappingService.extractMalId(video.id);
-              const imdbId = kitsuMappingService.getImdbIdFromMal(malId);
-              if (imdbId) {
-                logger.debug(`Mapped MAL episode ${video.id} to series IMDb ID ${imdbId}`);
-                return { id: imdbId, type: 'series' };
+              // Check if video.id is in format mal:12345:1:1 (with season:episode)
+              const parts = video.id.split(':');
+              if (parts.length >= 4 && parts[0] === 'mal') {
+                const malId = parts[1];
+                const season = parts[2];
+                const episodeNum = parts[3];
+                const imdbId = kitsuMappingService.getImdbIdFromMal(malId);
+                if (imdbId) {
+                  // Format as IMDb series:season:episode
+                  const formattedId = `${imdbId}:${season}:${episodeNum}`;
+                  logger.debug(`Mapped MAL episode ${video.id} to ${formattedId}`);
+                  return { id: formattedId, type: 'series' };
+                }
+              } else {
+                // Just mal:12345 format
+                const malId = kitsuMappingService.extractMalId(video.id);
+                const imdbId = kitsuMappingService.getImdbIdFromMal(malId);
+                if (imdbId) {
+                  logger.debug(`Mapped MAL episode ${video.id} to series IMDb ID ${imdbId}`);
+                  return { id: imdbId, type: 'series' };
+                }
               }
             }
 
