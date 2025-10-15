@@ -268,10 +268,13 @@ function generateConfigureHTML(protocol, host) {
             <!-- Emergency Restore (bottom-most) -->
             <div style="background: #fff7ed; border: 2px solid #fdba74; border-radius: 8px; padding: 16px; margin-top: 22px;">
               <h3 style="color:#9a3412; margin-bottom:8px;">Emergency Restore</h3>
-              <p style="font-size: 13px; color: #7c2d12; margin-bottom: 10px;">If Stremio is in a broken state, reset to Cinemeta-only, then re-run configuration.</p>
-              <div id="emergencyAuthInput" style="display:flex; gap:8px; align-items: end;">
-                <div style="flex:1"><input type="text" id="emergencyAuthToken" placeholder="Paste your auth token" style="font-family: monospace;" /></div>
-                <button class="btn" onclick="emergencyRestore()"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px"></i>Emergency Restore</button>
+              <p style="font-size: 13px; color: #7c2d12; margin-bottom: 10px;">Unwraps all wrapped addons and restores originals with clean Cinemeta. Use if Stremio is broken.</p>
+              <div id="emergencyAuthInput">
+                <div class="help-text" style="margin-bottom: 8px; color: #7c2d12;">Paste your auth token or <a href="#" onclick="document.querySelector('.login-section').scrollIntoView({behavior:'smooth'}); return false;" style="color: #ea580c; text-decoration: underline;">login above</a> to auto-fill.</div>
+                <div style="display:flex; gap:8px; align-items: end;">
+                  <div style="flex:1"><input type="text" id="emergencyAuthToken" placeholder="Paste your auth token" style="font-family: monospace;" /></div>
+                  <button class="btn" onclick="emergencyRestore()"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px"></i>Emergency Restore</button>
+                </div>
               </div>
               <div id="emergencyAuthReady" style="display:none;">
                 <p style="font-size: 13px; color: #059669; margin-bottom: 10px; font-weight: 600;">✓ Already logged in - ready to restore</p>

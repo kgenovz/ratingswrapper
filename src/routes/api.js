@@ -538,16 +538,34 @@ router.post('/get-wrappable-addons', async (req, res) => {
           });
         });
 
-        // Check if addon has catalog or meta resources
-        const resources = manifestData.resources || [];
-        const hasCatalog = resources.includes('catalog');
-        const hasMeta = resources.includes('meta');
+        // Normalize resources: can be strings or objects with name/type
+        const rawResources = Array.isArray(manifestData.resources) ? manifestData.resources : [];
+        try { logger.debug(`Manifest resources for ${addonInfo.name}: ${JSON.stringify(manifestData.resources)?.substring(0,200)}`); } catch (_) {}
+
+        const resourceNames = rawResources
+          .map(r => {
+            if (typeof r === 'string') return r;
+            if (r && typeof r === 'object') {
+              return r.name || r.type || null;
+            }
+            return null;
+          })
+          .filter(Boolean);
+
+        // Fallback: some manifests omit resources but have catalogs array
+        if ((!resourceNames.length) && Array.isArray(manifestData.catalogs) && manifestData.catalogs.length) {
+          resourceNames.push('catalog');
+        }
+
+        const hasCatalog = resourceNames.includes('catalog');
+        const hasMeta = resourceNames.includes('meta');
 
         if (hasCatalog || hasMeta) {
           addonInfo.wrappable = true;
-          addonInfo.reason = `Has ${resources.filter(r => r === 'catalog' || r === 'meta').join(' and ')}`;
+          const present = resourceNames.filter(r => r === 'catalog' || r === 'meta');
+          addonInfo.reason = `Has ${present.join(' and ')}`;
         } else {
-          addonInfo.reason = `Missing catalog/meta (has: ${resources.join(', ') || 'none'})`;
+          addonInfo.reason = `Missing catalog/meta (has: ${resourceNames.join(', ') || 'none'})`;
         }
 
       } catch (error) {
