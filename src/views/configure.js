@@ -103,9 +103,26 @@ function generateConfigureHTML(protocol, host) {
                 </div>
               </div>
 
+              <div class="form-group" style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+                <div style="margin-bottom: 10px;"><strong>Inject Ratings Into:</strong></div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">
+                    <input type="radio" name="ratingLocation" id="ratingLocationTitle" value="title" checked style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Title/Name</span>
+                  </label>
+                  <div class="help-text" style="margin-left: 26px; margin-top: -4px;">Rating will be added to the title (e.g., "⭐ 8.5 | Movie Name")</div>
+
+                  <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">
+                    <input type="radio" name="ratingLocation" id="ratingLocationDescription" value="description" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Synopsis/Description</span>
+                  </label>
+                  <div class="help-text" style="margin-left: 26px; margin-top: -4px;">Rating will be added to the description text</div>
+                </div>
+              </div>
+
               <div class="form-group">
                 <label>Rating Position</label>
-                <select id="ratingPosition"><option value="prefix">Prefix (★ 8.5 Movie)</option><option value="suffix">Suffix (Movie ★ 8.5)</option></select>
+                <select id="ratingPosition"><option value="prefix">Prefix (★ 8.5 at start)</option><option value="suffix">Suffix (★ 8.5 at end)</option></select>
               </div>
               <div class="row-2">
                 <div class="form-group">
@@ -351,14 +368,15 @@ function generateConfigureHTML(protocol, host) {
             var sep = document.getElementById('ratingSeparator')?.value || ' | ';
             var enableTitles = document.getElementById('enableTitleRatings')?.checked !== false;
             var enableEpisodes = document.getElementById('enableEpisodeRatings')?.checked !== false;
-            var sampleTitle = 'Example Title';
+            var location = document.querySelector('input[name="ratingLocation"]:checked')?.value || 'title';
+            var sampleContent = location === 'title' ? 'Example Title' : 'This is an example description text...';
             var sampleRating = '8.5';
             var ratingText = tpl.split('{rating}').join(sampleRating);
-            var result = sampleTitle;
+            var result = sampleContent;
 
             if (enableTitles || enableEpisodes) {
-              if (pos === 'prefix') result = ratingText + sep + sampleTitle;
-              else result = sampleTitle + sep + ratingText;
+              if (pos === 'prefix') result = ratingText + sep + sampleContent;
+              else result = sampleContent + sep + ratingText;
             }
 
             var prev = document.getElementById('ratingPreview');
@@ -380,6 +398,7 @@ function generateConfigureHTML(protocol, host) {
             const ratingSeparator = document.getElementById('ratingSeparator')?.value || ' | ';
             const enableTitleRatings = document.getElementById('enableTitleRatings')?.checked !== false;
             const enableEpisodeRatings = document.getElementById('enableEpisodeRatings')?.checked !== false;
+            const ratingLocation = document.querySelector('input[name="ratingLocation"]:checked')?.value || 'title';
 
             // If both are disabled, show warning
             if (!enableTitleRatings && !enableEpisodeRatings) {
@@ -392,6 +411,7 @@ function generateConfigureHTML(protocol, host) {
                 enableRatings: enableTitleRatings || enableEpisodeRatings, // Keep global flag for backward compatibility
                 enableTitleRatings: enableTitleRatings,
                 enableEpisodeRatings: enableEpisodeRatings,
+                ratingLocation: ratingLocation,
                 ratingFormat: { position: ratingPosition, template: ratingTemplate, separator: ratingSeparator }
               };
               if (it.name) config.addonName = it.name;
@@ -412,11 +432,15 @@ function generateConfigureHTML(protocol, host) {
             var rs = document.getElementById('ratingSeparator');
             var enTitles = document.getElementById('enableTitleRatings');
             var enEpisodes = document.getElementById('enableEpisodeRatings');
+            var locTitle = document.getElementById('ratingLocationTitle');
+            var locDesc = document.getElementById('ratingLocationDescription');
             if (rp) rp.addEventListener('change', updateRatingPreview);
             if (rt) rt.addEventListener('input', updateRatingPreview);
             if (rs) rs.addEventListener('input', updateRatingPreview);
             if (enTitles) enTitles.addEventListener('change', updateRatingPreview);
             if (enEpisodes) enEpisodes.addEventListener('change', updateRatingPreview);
+            if (locTitle) locTitle.addEventListener('change', updateRatingPreview);
+            if (locDesc) locDesc.addEventListener('change', updateRatingPreview);
             updateRatingPreview();
           })();
 

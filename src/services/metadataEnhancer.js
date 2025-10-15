@@ -24,10 +24,11 @@ class MetadataEnhancerService {
    * @param {Object} meta - Meta object to enhance
    * @param {number|null} rating - Rating value or null
    * @param {Object} formatConfig - Rating format configuration
+   * @param {string} location - Where to inject rating: 'title' or 'description'
    * @returns {Object} Enhanced meta object
    * @private
    */
-  _enhanceMetaWithRating(meta, rating, formatConfig) {
+  _enhanceMetaWithRating(meta, rating, formatConfig, location = 'title') {
     if (!rating || !formatConfig) {
       return meta;
     }
@@ -38,14 +39,24 @@ class MetadataEnhancerService {
     // Clone meta to avoid mutation
     const enhancedMeta = { ...meta };
 
-    // Inject rating into name based on position
-    if (position === 'prefix') {
-      enhancedMeta.name = `${formattedRating}${separator}${meta.name}`;
-    } else if (position === 'suffix') {
-      enhancedMeta.name = `${meta.name}${separator}${formattedRating}`;
+    if (location === 'description') {
+      // Inject rating into description
+      const description = meta.description || '';
+      if (position === 'prefix') {
+        enhancedMeta.description = `${formattedRating}${separator}${description}`;
+      } else if (position === 'suffix') {
+        enhancedMeta.description = `${description}${separator}${formattedRating}`;
+      }
+      logger.debug(`Enhanced description: "${description.substring(0, 50)}..." -> "${enhancedMeta.description.substring(0, 50)}..."`);
+    } else {
+      // Inject rating into name/title (default behavior)
+      if (position === 'prefix') {
+        enhancedMeta.name = `${formattedRating}${separator}${meta.name}`;
+      } else if (position === 'suffix') {
+        enhancedMeta.name = `${meta.name}${separator}${formattedRating}`;
+      }
+      logger.debug(`Enhanced: "${meta.name}" -> "${enhancedMeta.name}"`);
     }
-
-    logger.debug(`Enhanced: "${meta.name}" -> "${enhancedMeta.name}"`);
 
     return enhancedMeta;
   }
@@ -121,7 +132,7 @@ class MetadataEnhancerService {
           logger.info(`Found rating ${rating} for ${id}`);
         }
 
-        return this._enhanceMetaWithRating(meta, rating, config.ratingFormat);
+        return this._enhanceMetaWithRating(meta, rating, config.ratingFormat, config.ratingLocation);
       });
 
       const enhancedCount = enhancedMetas.filter((meta, idx) =>
@@ -160,9 +171,13 @@ class MetadataEnhancerService {
         const mainRating = await ratingsService.getRating(meta.id, meta.type);
 
         if (mainRating) {
-          // Add rating to main title
-          const enhancedWithName = this._enhanceMetaWithRating(meta, mainRating, config.ratingFormat);
-          enhancedMeta.name = enhancedWithName.name;
+          // Add rating to main title or description
+          const enhancedWithRating = this._enhanceMetaWithRating(meta, mainRating, config.ratingFormat, config.ratingLocation);
+          if (config.ratingLocation === 'description') {
+            enhancedMeta.description = enhancedWithRating.description;
+          } else {
+            enhancedMeta.name = enhancedWithRating.name;
+          }
         }
       }
 
@@ -251,15 +266,26 @@ class MetadataEnhancerService {
           // Create a temporary meta-like object to use the enhancer
           // Different addons use different fields: Cinemeta uses 'name', others may use 'title'
           const episodeName = video.name || video.title;
-          const tempMeta = { name: episodeName };
-          const enhanced = this._enhanceMetaWithRating(tempMeta, episodeRating, config.ratingFormat);
+          const episodeDescription = video.description || video.overview || '';
+          const tempMeta = { name: episodeName, description: episodeDescription };
+          const enhanced = this._enhanceMetaWithRating(tempMeta, episodeRating, config.ratingFormat, config.ratingLocation);
 
-          // Update the appropriate field - maintain the original field name
-          if (video.name) {
-            enhancedVideo.name = enhanced.name;
-          }
-          if (video.title) {
-            enhancedVideo.title = enhanced.name;
+          // Update the appropriate field based on location
+          if (config.ratingLocation === 'description') {
+            // Update description field
+            if (video.description !== undefined) {
+              enhancedVideo.description = enhanced.description;
+            } else if (video.overview !== undefined) {
+              enhancedVideo.overview = enhanced.description;
+            }
+          } else {
+            // Update name/title field (default behavior)
+            if (video.name) {
+              enhancedVideo.name = enhanced.name;
+            }
+            if (video.title) {
+              enhancedVideo.title = enhanced.name;
+            }
           }
 
           return enhancedVideo;

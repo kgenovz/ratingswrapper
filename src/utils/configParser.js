@@ -67,6 +67,9 @@ function validateConfig(userConfig) {
       ? userConfig.enableEpisodeRatings
       : (userConfig.enableRatings !== false), // fallback to enableRatings for old configs
 
+    // Optional: rating injection location
+    ratingLocation: userConfig.ratingLocation || appConfig.defaults.ratingLocation || 'title',
+
     // Optional: metadata provider for episodes
     metadataProvider: userConfig.metadataProvider || appConfig.defaults.metadataProvider
   };
@@ -86,6 +89,11 @@ function validateConfig(userConfig) {
   // Validate position
   if (!['prefix', 'suffix'].includes(config.ratingFormat.position)) {
     throw new Error('ratingFormat.position must be "prefix" or "suffix"');
+  }
+
+  // Validate location
+  if (!['title', 'description'].includes(config.ratingLocation)) {
+    throw new Error('ratingLocation must be "title" or "description"');
   }
 
   return config;

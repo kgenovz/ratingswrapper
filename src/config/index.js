@@ -25,6 +25,9 @@ const config = {
       separator: ' | ' // separator between rating and title
     },
 
+    // Rating injection location
+    ratingLocation: 'title', // 'title' | 'description' - where to inject ratings
+
     // Metadata provider for episode data (when wrapped addon doesn't provide meta)
     metadataProvider: 'cinemeta' // 'cinemeta' | 'tmdb' | 'none'
   },
