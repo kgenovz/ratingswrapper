@@ -162,6 +162,8 @@ class MetadataEnhancerService {
 
         if (rating) {
           logger.info(`✓ Found rating ${rating} for ${item.id}`);
+          logger.info(`   config.ratingFormat: ${JSON.stringify(config.ratingFormat)}`);
+          logger.info(`   config.ratingLocation: ${config.ratingLocation}`);
         } else {
           logger.info(`✗ No rating found for ${item.id} in ratings map`);
         }
