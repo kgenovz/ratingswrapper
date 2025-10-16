@@ -125,12 +125,25 @@ class KitsuMappingService {
     const slug = rec && rec.animePlanetId ? String(rec.animePlanetId).toLowerCase() : '';
     let season = null;
 
-    // Strong signals in slug
-    // e.g., "arcane-season-2", "something-s2", "title-season-1"
+    // Heuristics in slug (no network calls)
+    // Examples we want to catch:
+    //  - "arcane-season-2", "title-s2", "title-season-1"
+    //  - "my-hero-academia-2" (trailing number)
+    //  - "attack-on-titan-2nd-season" (ordinal)
+    //  - "...-final-season" (heuristic special case)
+
+    // Special-case: "final-season" heuristic. In many cases (e.g., AoT), this maps to season 4.
+    if (slug.includes('final-season')) {
+      season = 4;
+      logger.info(`Kitsu season inference (slug heuristic): kitsuId=${kitsuId}, slug="${slug}", matched=final-season, season=4`);
+    }
+
     const patterns = [
-      /season[-_ ]?(\d+)/i,
-      /\bs(\d+)\b/i,
-      /part[-_ ]?(\d+)/i
+      /(?:^|[-_ ])season[-_ ]*(\d+)(?:st|nd|rd|th)?/i,            // season-2, season 2, season-2nd
+      /(?:^|[-_ ])(\d+)(?:st|nd|rd|th)[-_ ]*season/i,              // 2nd-season, 2nd season
+      /(?:^|[-_ ])s(\d+)(?:$|[-_ ])/i,                             // s2, s3 (delimited)
+      /part[-_ ]?(\d+)/i,                                         // part-2
+      /(?:^|[-_ ])(\d+)$/i                                        // trailing number at end
     ];
     for (const re of patterns) {
       const m = slug.match(re);
@@ -144,10 +157,18 @@ class KitsuMappingService {
       }
     }
 
-    // Weak fallback: parse from title if provided (e.g., "Season 2")
+    // Weak fallback: parse from title if provided (e.g., "Season 2", "2nd Season", "Final Season")
     if (!season && fallbackTitle) {
       const t = String(fallbackTitle).toLowerCase();
-      const mt = t.match(/season\s*(\d+)/i) || t.match(/s(\d+)/i) || t.match(/part\s*(\d+)/i);
+      if (t.includes('final season')) {
+        season = 4;
+        logger.info(`Kitsu season inference (title heuristic): kitsuId=${kitsuId}, title="${fallbackTitle}", matched=final season, season=4`);
+      }
+
+      const mt = t.match(/season\s*(\d+)/i)
+        || t.match(/(\d+)(?:st|nd|rd|th)\s*season/i)
+        || t.match(/s(\d+)/i)
+        || t.match(/part\s*(\d+)/i);
       if (mt && mt[1]) {
         const n = parseInt(mt[1], 10);
         if (Number.isFinite(n) && n > 0) {
