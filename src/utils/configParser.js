@@ -65,7 +65,15 @@ function validateConfig(userConfig) {
     titleFormat: {
       position: titleFormat?.position || userConfig.ratingFormat?.position || appConfig.defaults.ratingFormat.position,
       template: titleFormat?.template || userConfig.ratingFormat?.template || appConfig.defaults.ratingFormat.template,
-      separator: titleFormat?.separator || userConfig.ratingFormat?.separator || appConfig.defaults.ratingFormat.separator
+      separator: titleFormat?.separator || userConfig.ratingFormat?.separator || appConfig.defaults.ratingFormat.separator,
+      // Granular control: enable ratings for catalog items in title
+      enableCatalogItems: titleFormat?.enableCatalogItems !== undefined
+        ? titleFormat.enableCatalogItems
+        : (userConfig.enableTitleRatings !== false), // Fallback to global flag
+      // Granular control: enable ratings for episodes in title
+      enableEpisodes: titleFormat?.enableEpisodes !== undefined
+        ? titleFormat.enableEpisodes
+        : (userConfig.enableEpisodeRatings !== false) // Fallback to global flag
     },
 
     descriptionFormat: {
@@ -76,7 +84,17 @@ function validateConfig(userConfig) {
       includeVotes: descriptionFormat?.includeVotes || false,
       includeMpaa: descriptionFormat?.includeMpaa || false,
       includeYear: descriptionFormat?.includeYear || false,
-      includeRuntime: descriptionFormat?.includeRuntime || false
+      includeRuntime: descriptionFormat?.includeRuntime || false,
+      // Separator between metadata parts (rating, votes, MPAA)
+      metadataSeparator: descriptionFormat?.metadataSeparator || ' • ',
+      // Granular control: enable ratings for catalog items in description
+      enableCatalogItems: descriptionFormat?.enableCatalogItems !== undefined
+        ? descriptionFormat.enableCatalogItems
+        : (userConfig.enableTitleRatings !== false), // Fallback to global flag
+      // Granular control: enable ratings for episodes in description
+      enableEpisodes: descriptionFormat?.enableEpisodes !== undefined
+        ? descriptionFormat.enableEpisodes
+        : (userConfig.enableEpisodeRatings !== false) // Fallback to global flag
     },
 
     // Optional: custom addon name

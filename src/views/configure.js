@@ -196,6 +196,20 @@ function generateConfigureHTML(protocol, host) {
               <!-- Title Format Section (shows when title checkbox is checked) -->
               <div id="titleFormatSection" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
                 <div style="font-weight: 600; margin-bottom: 10px; color: #1e40af;">Title Format Settings</div>
+
+                <!-- Granular Control: Apply to which content types -->
+                <div class="form-group" style="background: #fff; border: 1px solid #93c5fd; border-radius: 6px; padding: 10px; margin-bottom: 12px;">
+                  <div style="font-weight: 600; margin-bottom: 8px; color: #1e40af;">Apply to:</div>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="titleEnableCatalogItems" checked style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Catalog Items (Movies/Series)</span>
+                  </label>
+                  <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="titleEnableEpisodes" checked style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Episodes</span>
+                  </label>
+                </div>
+
                 <div class="form-group">
                   <label>Position</label>
                   <select id="titlePosition"><option value="prefix">Prefix (* 8.5 at start)</option><option value="suffix">Suffix (* 8.5 at end)</option></select>
@@ -231,6 +245,20 @@ function generateConfigureHTML(protocol, host) {
               <!-- Description Format Section (shows when description checkbox is checked) -->
               <div id="descriptionFormatSection" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 12px; margin-bottom: 16px; display: none;">
                 <div style="font-weight: 600; margin-bottom: 10px; color: #15803d;">Description Format Settings</div>
+
+                <!-- Granular Control: Apply to which content types -->
+                <div class="form-group" style="background: #fff; border: 1px solid #86efac; border-radius: 6px; padding: 10px; margin-bottom: 12px;">
+                  <div style="font-weight: 600; margin-bottom: 8px; color: #15803d;">Apply to:</div>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="descriptionEnableCatalogItems" checked style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Catalog Items (Movies/Series)</span>
+                  </label>
+                  <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="descriptionEnableEpisodes" checked style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Episodes</span>
+                  </label>
+                </div>
+
                 <div class="form-group">
                   <label>Position</label>
                   <select id="descriptionPosition"><option value="prefix">Prefix (at start)</option><option value="suffix">Suffix (at end)</option></select>
@@ -1037,7 +1065,10 @@ function generateConfigureHTML(protocol, host) {
                 titleFormat: {
                   position: titlePosition,
                   template: titleTemplate,
-                  separator: titleSeparator
+                  separator: titleSeparator,
+                  // Granular control: catalog items and episodes for title
+                  enableCatalogItems: document.getElementById('titleEnableCatalogItems')?.checked !== false,
+                  enableEpisodes: document.getElementById('titleEnableEpisodes')?.checked !== false
                 },
                 descriptionFormat: {
                   position: descriptionPosition,
@@ -1045,7 +1076,10 @@ function generateConfigureHTML(protocol, host) {
                   separator: descriptionSeparator,
                   includeVotes: includeVotes,
                   includeMpaa: includeMpaa,
-                  metadataSeparator: metadataSeparator
+                  metadataSeparator: metadataSeparator,
+                  // Granular control: catalog items and episodes for description
+                  enableCatalogItems: document.getElementById('descriptionEnableCatalogItems')?.checked !== false,
+                  enableEpisodes: document.getElementById('descriptionEnableEpisodes')?.checked !== false
                 }
               };
               if (it.name) config.addonName = it.name;

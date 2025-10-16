@@ -98,17 +98,18 @@ class MetadataEnhancerService {
    * @param {Object} config - Full config object with titleFormat and descriptionFormat
    * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
    * @param {string} mpaaRating - Pre-fetched MPAA rating (optional)
+   * @param {string} locationOverride - Override the config location (optional)
    * @returns {Promise<Object>} Enhanced meta object
    * @private
    */
-  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null) {
+  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null, locationOverride = null) {
     if (!ratingData || !config) {
       return meta;
     }
 
     // Clone meta to avoid mutation
     const enhancedMeta = { ...meta };
-    const location = config.ratingLocation || 'title';
+    const location = locationOverride || config.ratingLocation || 'title';
 
     // Determine which formats to use (with backwards compatibility)
     const titleFormat = config.titleFormat || config.ratingFormat;
@@ -142,9 +143,20 @@ class MetadataEnhancerService {
    */
   async enhanceCatalogMetas(metas, config) {
     try {
-      // If ratings are disabled globally or for titles specifically, return original metas
-      if (!config.enableRatings || !config.enableTitleRatings) {
-        logger.debug('Title ratings disabled, returning original metas');
+      // Check if catalog ratings are enabled for ANY location
+      const titleFormat = config.titleFormat || config.ratingFormat;
+      const descriptionFormat = config.descriptionFormat || config.ratingFormat;
+      const location = config.ratingLocation || 'title';
+
+      // Determine if catalog items should get ratings based on location and format settings
+      const enableCatalogInTitle = (location === 'title' || location === 'both') &&
+                                    (titleFormat.enableCatalogItems !== false);
+      const enableCatalogInDescription = (location === 'description' || location === 'both') &&
+                                         (descriptionFormat.enableCatalogItems !== false);
+
+      // If catalog items disabled for all locations, return original metas
+      if (!enableCatalogInTitle && !enableCatalogInDescription) {
+        logger.debug('Catalog item ratings disabled for all locations, returning original metas');
         return metas;
       }
 
@@ -195,8 +207,6 @@ class MetadataEnhancerService {
 
       // Batch fetch MPAA ratings if enabled and using description location
       let mpaaMap = new Map();
-      const descriptionFormat = config.descriptionFormat || config.ratingFormat;
-      const location = config.ratingLocation || 'title';
 
       if (config.enableRatings && descriptionFormat && descriptionFormat.includeMpaa &&
           (location === 'description' || location === 'both')) {
@@ -222,6 +232,14 @@ class MetadataEnhancerService {
         }
       }
 
+      // Determine which locations should be used for catalog items
+      let catalogLocation = 'title'; // default
+      if (enableCatalogInTitle && enableCatalogInDescription) {
+        catalogLocation = 'both';
+      } else if (enableCatalogInDescription) {
+        catalogLocation = 'description';
+      }
+
       // Enhance each meta with its rating (now using async)
       // We need to map back using the same ID we used for fetching
       const enhancedMetas = await Promise.all(metas.map(async (meta, index) => {
@@ -241,7 +259,8 @@ class MetadataEnhancerService {
         const imdbId = meta.imdb_id || meta.imdbId || (item.id.startsWith('tt') ? item.id.split(':')[0] : null);
         const mpaaRating = imdbId ? mpaaMap.get(imdbId) : null;
 
-        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating);
+        // Pass catalogLocation to override the config location for catalog items
+        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating, catalogLocation);
       }));
 
       const enhancedCount = enhancedMetas.filter((meta, idx) =>
@@ -275,8 +294,19 @@ class MetadataEnhancerService {
       // Clone meta to avoid mutation
       const enhancedMeta = { ...meta };
 
-      // Get rating for the main content (movie/series) - only if title ratings are enabled
-      if (config.enableTitleRatings) {
+      // Get format configs
+      const titleFormat = config.titleFormat || config.ratingFormat;
+      const descriptionFormat = config.descriptionFormat || config.ratingFormat;
+      const location = config.ratingLocation || 'title';
+
+      // Main content (movie/series) rating
+      // Check if catalog items should get ratings for any location
+      const enableCatalogInTitle = (location === 'title' || location === 'both') &&
+                                    (titleFormat.enableCatalogItems !== false);
+      const enableCatalogInDescription = (location === 'description' || location === 'both') &&
+                                         (descriptionFormat.enableCatalogItems !== false);
+
+      if (enableCatalogInTitle || enableCatalogInDescription) {
         // Prefer imdb_id field if available, fall back to id
         const contentId = meta.imdb_id || meta.imdbId || meta.id;
         logger.debug(`Fetching rating for ${meta.type} "${meta.name}" using ID: ${contentId}`);
@@ -287,13 +317,20 @@ class MetadataEnhancerService {
           // Get IMDb ID for MPAA lookup
           const imdbId = meta.imdb_id || meta.imdbId || (contentId && contentId.startsWith('tt') ? contentId.split(':')[0] : null);
 
-          // Add rating to main title or description (or both)
-          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId);
+          // Build location string based on what's enabled for catalog items
+          let catalogLocation = 'title';
+          if (enableCatalogInTitle && enableCatalogInDescription) {
+            catalogLocation = 'both';
+          } else if (enableCatalogInDescription) {
+            catalogLocation = 'description';
+          }
 
-          const location = config.ratingLocation || 'title';
-          if (location === 'description') {
+          // Add rating to main title or description (or both)
+          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, catalogLocation);
+
+          if (catalogLocation === 'description') {
             enhancedMeta.description = enhancedWithRating.description;
-          } else if (location === 'both') {
+          } else if (catalogLocation === 'both') {
             enhancedMeta.name = enhancedWithRating.name;
             enhancedMeta.description = enhancedWithRating.description;
           } else {
@@ -305,8 +342,15 @@ class MetadataEnhancerService {
         }
       }
 
-      // Enhance episode titles if this is a series with videos (episodes) - only if episode ratings are enabled
-      if (config.enableEpisodeRatings && meta.videos && Array.isArray(meta.videos) && meta.videos.length > 0) {
+      // Episode ratings
+      // Check if episodes should get ratings for any location
+      const enableEpisodesInTitle = (location === 'title' || location === 'both') &&
+                                     (titleFormat.enableEpisodes !== false);
+      const enableEpisodesInDescription = (location === 'description' || location === 'both') &&
+                                          (descriptionFormat.enableEpisodes !== false);
+
+      if ((enableEpisodesInTitle || enableEpisodesInDescription) &&
+          meta.videos && Array.isArray(meta.videos) && meta.videos.length > 0) {
         logger.info(`Enhancing ${meta.videos.length} episode titles with ratings`);
 
         // For episodes, we need to extract individual episode IMDb IDs
@@ -387,6 +431,14 @@ class MetadataEnhancerService {
         // Fetch all episode ratings in batch
         const episodeRatingsMap = await ratingsService.getRatingsBatch(episodeItems);
 
+        // Build location string for episodes
+        let episodeLocation = 'title';
+        if (enableEpisodesInTitle && enableEpisodesInDescription) {
+          episodeLocation = 'both';
+        } else if (enableEpisodesInDescription) {
+          episodeLocation = 'description';
+        }
+
         // Enhance each episode title (now using async)
         enhancedMeta.videos = await Promise.all(meta.videos.map(async video => {
           if (!video.id) return video;
@@ -448,12 +500,10 @@ class MetadataEnhancerService {
           const episodeName = video.name || video.title;
           const episodeDescription = video.description || video.overview || '';
           const tempMeta = { name: episodeName, description: episodeDescription };
-          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId);
+          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId, null, episodeLocation);
 
-          const location = config.ratingLocation || 'title';
-
-          // Update the appropriate field(s) based on location
-          if (location === 'description') {
+          // Update the appropriate field(s) based on episodeLocation (not config.ratingLocation)
+          if (episodeLocation === 'description') {
             // Update description/overview field
             // Try to update existing fields, or add overview if neither exists
             if ('overview' in video) {
@@ -464,7 +514,7 @@ class MetadataEnhancerService {
               // If neither exists, add overview (most common for episodes)
               enhancedVideo.overview = enhanced.description;
             }
-          } else if (location === 'both') {
+          } else if (episodeLocation === 'both') {
             // Update both name/title and description
             if (video.name) {
               enhancedVideo.name = enhanced.name;
