@@ -624,12 +624,12 @@ app.post('/api/kitsu-mapping', (req, res) => {
  */
 async function fetchMpaaFromTmdb(imdbId) {
     if (!TMDB_API_KEY) {
-        console.log('[TMDB] API key not configured');
+        console.info('[TMDB] API key not configured');
         return null;
     }
 
     try {
-        console.log(`[TMDB] Fetching MPAA rating for ${imdbId}`);
+        console.info(`[TMDB] Fetching MPAA rating for ${imdbId}`);
 
         // Step 1: Find TMDB ID from IMDb ID
         const findUrl = `${TMDB_BASE_URL}/find/${imdbId}`;
@@ -657,7 +657,7 @@ async function fetchMpaaFromTmdb(imdbId) {
             mpaaRating = await fetchTvCertification(tmdbId, imdbId);
         }
         else {
-            console.log(`[TMDB] No results found for ${imdbId}`);
+            console.info(`[TMDB] No results found for ${imdbId}`);
         }
 
         // Store in database if found
@@ -669,7 +669,7 @@ async function fetchMpaaFromTmdb(imdbId) {
                     VALUES (?, ?, ?, ?)
                 `);
                 stmt.run(imdbId, mpaaRating, 'US', Date.now());
-                console.log(`[TMDB] Stored MPAA rating for ${imdbId}: ${mpaaRating}`);
+                console.info(`[TMDB] Stored MPAA rating for ${imdbId}: ${mpaaRating}`);
             } catch (dbError) {
                 console.error(`[TMDB] Error storing MPAA rating: ${dbError.message}`);
             }
@@ -681,7 +681,7 @@ async function fetchMpaaFromTmdb(imdbId) {
         if (error.response?.status === 429) {
             console.warn(`[TMDB] Rate limit hit for ${imdbId}`);
         } else if (error.response?.status === 404) {
-            console.log(`[TMDB] No data found for ${imdbId}`);
+            console.info(`[TMDB] No data found for ${imdbId}`);
         } else {
             console.warn(`[TMDB] Error fetching ${imdbId}: ${error.message}`);
         }
@@ -709,14 +709,14 @@ async function fetchMovieCertification(tmdbId, imdbId) {
 
             if (certified) {
                 const rating = certified.certification.trim();
-                console.log(`[TMDB] Found movie rating for ${imdbId}: ${rating}`);
+                console.info(`[TMDB] Found movie rating for ${imdbId}: ${rating}`);
                 return rating;
             }
         }
 
         return null;
     } catch (error) {
-        console.log(`[TMDB] Error fetching movie certification: ${error.message}`);
+        console.info(`[TMDB] Error fetching movie certification: ${error.message}`);
         return null;
     }
 }
@@ -736,13 +736,13 @@ async function fetchTvCertification(tmdbId, imdbId) {
 
         if (usRating && usRating.rating) {
             const rating = usRating.rating.trim();
-            console.log(`[TMDB] Found TV rating for ${imdbId}: ${rating}`);
+            console.info(`[TMDB] Found TV rating for ${imdbId}: ${rating}`);
             return rating;
         }
 
         return null;
     } catch (error) {
-        console.log(`[TMDB] Error fetching TV content rating: ${error.message}`);
+        console.info(`[TMDB] Error fetching TV content rating: ${error.message}`);
         return null;
     }
 }
@@ -753,7 +753,7 @@ async function fetchTvCertification(tmdbId, imdbId) {
 app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
     try {
         const { imdbId } = req.params;
-        console.log(`[MPAA] Request for: ${imdbId}`);
+        console.info(`[MPAA] Request for: ${imdbId}`);
 
         // Step 1: Check database first
         const result = db.prepare(
@@ -761,7 +761,7 @@ app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
         ).get(imdbId);
 
         if (result) {
-            console.log(`[MPAA] Found in database: ${result.mpaa_rating}`);
+            console.info(`[MPAA] Found in database: ${result.mpaa_rating}`);
             return res.json({
                 imdbId: imdbId,
                 mpaaRating: result.mpaa_rating,
@@ -774,11 +774,11 @@ app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
         }
 
         // Step 2: Not in database, try TMDB
-        console.log(`[MPAA] Not in database, fetching from TMDB: ${imdbId}`);
+        console.info(`[MPAA] Not in database, fetching from TMDB: ${imdbId}`);
         const tmdbRating = await fetchMpaaFromTmdb(imdbId);
 
         if (tmdbRating) {
-            console.log(`[MPAA] Fetched from TMDB: ${tmdbRating}`);
+            console.info(`[MPAA] Fetched from TMDB: ${tmdbRating}`);
             return res.json({
                 imdbId: imdbId,
                 mpaaRating: tmdbRating,
@@ -791,7 +791,7 @@ app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
         }
 
         // Step 3: Not found anywhere
-        console.log(`[MPAA] Not found in database or TMDB: ${imdbId}`);
+        console.info(`[MPAA] Not found in database or TMDB: ${imdbId}`);
         return res.status(404).json({ error: 'MPAA rating not found' });
 
     } catch (error) {
