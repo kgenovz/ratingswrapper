@@ -48,10 +48,11 @@ class MetadataEnhancerService {
    * @param {Object} ratingData - Rating data object {rating, votes}
    * @param {Object} formatConfig - Format configuration {position, template, separator, includeVotes, includeMpaa}
    * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
+   * @param {string} mpaaRating - Pre-fetched MPAA rating (optional, to avoid individual lookups)
    * @returns {Promise<string>} Enhanced description
    * @private
    */
-  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null) {
+  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null, mpaaRating = null) {
     if (!ratingData || !ratingData.rating) return description;
 
     // Build rating template
@@ -66,9 +67,10 @@ class MetadataEnhancerService {
       metadataParts.push(`${formattedVotes} votes`);
     }
 
-    // Add MPAA rating if enabled and IMDb ID available
-    if (formatConfig.includeMpaa && imdbId) {
-      const mpaa = await ratingsService.getMpaaRating(imdbId);
+    // Add MPAA rating if enabled and available
+    // Use pre-fetched rating if provided, otherwise fetch individually (fallback)
+    if (formatConfig.includeMpaa && (mpaaRating || imdbId)) {
+      const mpaa = mpaaRating || (imdbId ? await ratingsService.getMpaaRating(imdbId) : null);
       if (mpaa) {
         metadataParts.push(`Rated ${mpaa}`);
       }
@@ -95,10 +97,11 @@ class MetadataEnhancerService {
    * @param {Object} ratingData - Rating data object {rating, votes} or null
    * @param {Object} config - Full config object with titleFormat and descriptionFormat
    * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
+   * @param {string} mpaaRating - Pre-fetched MPAA rating (optional)
    * @returns {Promise<Object>} Enhanced meta object
    * @private
    */
-  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null) {
+  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null) {
     if (!ratingData || !config) {
       return meta;
     }
@@ -124,7 +127,8 @@ class MetadataEnhancerService {
         originalDesc,
         ratingData,
         descriptionFormat,
-        imdbId
+        imdbId,
+        mpaaRating
       );
       logger.debug(`Enhanced description: "${originalDesc.substring(0, 50)}..." -> "${enhancedMeta.description.substring(0, 50)}..."`);
     }
@@ -209,6 +213,35 @@ class MetadataEnhancerService {
       // Fetch all ratings in batch
       const ratingsMap = await ratingsService.getRatingsBatch(items);
 
+      // Batch fetch MPAA ratings if enabled and using description location
+      let mpaaMap = new Map();
+      const descriptionFormat = config.descriptionFormat || config.ratingFormat;
+      const location = config.ratingLocation || 'title';
+
+      if (config.enableRatings && descriptionFormat && descriptionFormat.includeMpaa &&
+          (location === 'description' || location === 'both')) {
+
+        // Extract unique IMDb IDs from metas that have ratings
+        const imdbIds = metas
+          .map((meta, index) => {
+            const item = items.find(i => i.originalIndex === index);
+            if (!item || !ratingsMap.has(item.id)) return null;
+
+            // Extract base IMDb ID (without episode format)
+            const imdbId = meta.imdb_id || meta.imdbId || (item.id.startsWith('tt') ? item.id.split(':')[0] : null);
+            return imdbId;
+          })
+          .filter(id => id !== null);
+
+        // Remove duplicates
+        const uniqueImdbIds = [...new Set(imdbIds)];
+
+        if (uniqueImdbIds.length > 0) {
+          logger.info(`Batch fetching MPAA ratings for ${uniqueImdbIds.length} unique titles`);
+          mpaaMap = await ratingsService.getMpaaRatingsBatch(uniqueImdbIds);
+        }
+      }
+
       // Enhance each meta with its rating (now using async)
       // We need to map back using the same ID we used for fetching
       const enhancedMetas = await Promise.all(metas.map(async (meta, index) => {
@@ -226,10 +259,11 @@ class MetadataEnhancerService {
           return meta;
         }
 
-        // Get IMDb ID for MPAA lookup
+        // Get IMDb ID and MPAA rating (if pre-fetched)
         const imdbId = meta.imdb_id || meta.imdbId || (item.id.startsWith('tt') ? item.id.split(':')[0] : null);
+        const mpaaRating = imdbId ? mpaaMap.get(imdbId) : null;
 
-        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId);
+        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating);
       }));
 
       const enhancedCount = enhancedMetas.filter((meta, idx) =>

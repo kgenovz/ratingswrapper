@@ -298,6 +298,71 @@ class RatingsService {
   }
 
   /**
+   * Fetches MPAA ratings for multiple IMDb IDs in batch with concurrency control and rate limiting
+   * This prevents overwhelming the TMDB API on initial catalog load
+   * @param {Array<string>} imdbIds - Array of IMDb IDs (e.g., ["tt1234567", "tt7654321"])
+   * @param {number} concurrency - Maximum number of concurrent requests (default: 5 for TMDB)
+   * @param {number} delayMs - Delay between batches in ms (default: 200ms for rate limiting)
+   * @returns {Promise<Map<string, string>>} Map of IMDb ID to MPAA rating
+   */
+  async getMpaaRatingsBatch(imdbIds, concurrency = 5, delayMs = 200) {
+    try {
+      const mpaaMap = new Map();
+
+      // Filter out invalid IDs
+      const validIds = imdbIds.filter(id => id && id.startsWith('tt'));
+
+      if (validIds.length === 0) {
+        logger.debug('No valid IMDb IDs for MPAA batch lookup');
+        return mpaaMap;
+      }
+
+      logger.info(`Fetching MPAA ratings for ${validIds.length} items with concurrency limit of ${concurrency}`);
+
+      // Process items in batches with controlled concurrency
+      for (let i = 0; i < validIds.length; i += concurrency) {
+        const batch = validIds.slice(i, i + concurrency);
+        const batchNumber = Math.floor(i / concurrency) + 1;
+        const totalBatches = Math.ceil(validIds.length / concurrency);
+
+        logger.debug(`Processing MPAA batch ${batchNumber}/${totalBatches} (${batch.length} items)`);
+
+        // Process this batch in parallel
+        const batchResults = await Promise.all(
+          batch.map(async (imdbId) => {
+            try {
+              const mpaaRating = await this.getMpaaRating(imdbId);
+              return { imdbId, mpaaRating };
+            } catch (error) {
+              logger.debug(`Error fetching MPAA rating for ${imdbId}: ${error.message}`);
+              return { imdbId, mpaaRating: null };
+            }
+          })
+        );
+
+        // Add results to map
+        batchResults.forEach(({ imdbId, mpaaRating }) => {
+          if (mpaaRating !== null) {
+            mpaaMap.set(imdbId, mpaaRating);
+          }
+        });
+
+        // Add delay between batches to respect TMDB rate limits
+        if (i + concurrency < validIds.length) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+
+      logger.info(`Fetched ${mpaaMap.size} MPAA ratings for ${validIds.length} items`);
+      return mpaaMap;
+
+    } catch (error) {
+      logger.error('Error fetching batch MPAA ratings:', error.message);
+      return new Map();
+    }
+  }
+
+  /**
    * Set custom ratings API endpoint
    * @param {string} apiUrl - URL to ratings addon/API
    */

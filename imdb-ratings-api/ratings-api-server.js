@@ -10,6 +10,11 @@ const Database = require('better-sqlite3');
 const app = express();
 const port = process.env.PORT || 3001;
 
+// TMDB API configuration
+const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const TMDB_TIMEOUT = 10000; // 10 seconds
+
 // Parse cron schedule from environment variable, default to 2 AM daily
 const UPDATE_CRON_SCHEDULE = process.env.UPDATE_CRON_SCHEDULE || '0 2 * * *';
 
@@ -610,29 +615,181 @@ app.post('/api/kitsu-mapping', (req, res) => {
     }
 });
 
+// *** TMDB HELPER FUNCTIONS FOR MPAA RATINGS ***
+
+/**
+ * Fetch MPAA rating from TMDB by IMDb ID
+ * @param {string} imdbId - IMDb ID (e.g., "tt0111161")
+ * @returns {Promise<string|null>} - MPAA rating or null
+ */
+async function fetchMpaaFromTmdb(imdbId) {
+    if (!TMDB_API_KEY) {
+        console.log('[TMDB] API key not configured');
+        return null;
+    }
+
+    try {
+        console.log(`[TMDB] Fetching MPAA rating for ${imdbId}`);
+
+        // Step 1: Find TMDB ID from IMDb ID
+        const findUrl = `${TMDB_BASE_URL}/find/${imdbId}`;
+        const findResponse = await axios.get(findUrl, {
+            params: {
+                api_key: TMDB_API_KEY,
+                external_source: 'imdb_id'
+            },
+            timeout: TMDB_TIMEOUT
+        });
+
+        const movieResults = findResponse.data.movie_results || [];
+        const tvResults = findResponse.data.tv_results || [];
+
+        let mpaaRating = null;
+
+        // Try movie first
+        if (movieResults.length > 0) {
+            const tmdbId = movieResults[0].id;
+            mpaaRating = await fetchMovieCertification(tmdbId, imdbId);
+        }
+        // Try TV show if no movie found
+        else if (tvResults.length > 0) {
+            const tmdbId = tvResults[0].id;
+            mpaaRating = await fetchTvCertification(tmdbId, imdbId);
+        }
+        else {
+            console.log(`[TMDB] No results found for ${imdbId}`);
+        }
+
+        // Store in database if found
+        if (mpaaRating) {
+            try {
+                const stmt = db.prepare(`
+                    INSERT OR REPLACE INTO mpaa_ratings
+                    (imdb_id, mpaa_rating, country, updated_at)
+                    VALUES (?, ?, ?, ?)
+                `);
+                stmt.run(imdbId, mpaaRating, 'US', Date.now());
+                console.log(`[TMDB] Stored MPAA rating for ${imdbId}: ${mpaaRating}`);
+            } catch (dbError) {
+                console.error(`[TMDB] Error storing MPAA rating: ${dbError.message}`);
+            }
+        }
+
+        return mpaaRating;
+
+    } catch (error) {
+        if (error.response?.status === 429) {
+            console.warn(`[TMDB] Rate limit hit for ${imdbId}`);
+        } else if (error.response?.status === 404) {
+            console.log(`[TMDB] No data found for ${imdbId}`);
+        } else {
+            console.warn(`[TMDB] Error fetching ${imdbId}: ${error.message}`);
+        }
+        return null;
+    }
+}
+
+/**
+ * Get US certification for a movie
+ */
+async function fetchMovieCertification(tmdbId, imdbId) {
+    try {
+        const url = `${TMDB_BASE_URL}/movie/${tmdbId}/release_dates`;
+        const response = await axios.get(url, {
+            params: { api_key: TMDB_API_KEY },
+            timeout: TMDB_TIMEOUT
+        });
+
+        const usReleases = response.data.results?.find(r => r.iso_3166_1 === 'US');
+
+        if (usReleases && usReleases.release_dates) {
+            const certified = usReleases.release_dates.find(
+                rd => rd.certification && rd.certification.trim() !== ''
+            );
+
+            if (certified) {
+                const rating = certified.certification.trim();
+                console.log(`[TMDB] Found movie rating for ${imdbId}: ${rating}`);
+                return rating;
+            }
+        }
+
+        return null;
+    } catch (error) {
+        console.log(`[TMDB] Error fetching movie certification: ${error.message}`);
+        return null;
+    }
+}
+
+/**
+ * Get US content rating for a TV show
+ */
+async function fetchTvCertification(tmdbId, imdbId) {
+    try {
+        const url = `${TMDB_BASE_URL}/tv/${tmdbId}/content_ratings`;
+        const response = await axios.get(url, {
+            params: { api_key: TMDB_API_KEY },
+            timeout: TMDB_TIMEOUT
+        });
+
+        const usRating = response.data.results?.find(r => r.iso_3166_1 === 'US');
+
+        if (usRating && usRating.rating) {
+            const rating = usRating.rating.trim();
+            console.log(`[TMDB] Found TV rating for ${imdbId}: ${rating}`);
+            return rating;
+        }
+
+        return null;
+    } catch (error) {
+        console.log(`[TMDB] Error fetching TV content rating: ${error.message}`);
+        return null;
+    }
+}
+
 // *** MPAA RATING API ENDPOINTS ***
 
-// GET /api/mpaa-rating/:imdbId - Get MPAA rating
-app.get('/api/mpaa-rating/:imdbId', (req, res) => {
+// GET /api/mpaa-rating/:imdbId - Get MPAA rating (with TMDB fallback)
+app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
     try {
         const { imdbId } = req.params;
 
+        // Step 1: Check database first
         const result = db.prepare(
             'SELECT mpaa_rating, country, updated_at FROM mpaa_ratings WHERE imdb_id = ?'
         ).get(imdbId);
 
         if (result) {
-            res.json({
+            return res.json({
                 imdbId: imdbId,
-                mpaaRating: result.mpaa_rating,  
-                mpaa_rating: result.mpaa_rating,   
+                mpaaRating: result.mpaa_rating,
+                mpaa_rating: result.mpaa_rating,
                 country: result.country,
                 updatedAt: new Date(result.updated_at).toISOString(),
-                updated_at: result.updated_at 
+                updated_at: result.updated_at,
+                source: 'database'
             });
-        } else {
-            res.status(404).json({ error: 'MPAA rating not found' });
         }
+
+        // Step 2: Not in database, try TMDB
+        console.log(`[MPAA] Not in database, fetching from TMDB: ${imdbId}`);
+        const tmdbRating = await fetchMpaaFromTmdb(imdbId);
+
+        if (tmdbRating) {
+            return res.json({
+                imdbId: imdbId,
+                mpaaRating: tmdbRating,
+                mpaa_rating: tmdbRating,
+                country: 'US',
+                updatedAt: new Date().toISOString(),
+                updated_at: Date.now(),
+                source: 'tmdb'
+            });
+        }
+
+        // Step 3: Not found anywhere
+        return res.status(404).json({ error: 'MPAA rating not found' });
+
     } catch (error) {
         console.error('MPAA rating read error:', error);
         res.status(500).json({ error: 'MPAA rating read failed' });
@@ -915,4 +1072,6 @@ app.listen(port, async () => {
     console.log('   - TMDB metadata caching for rich data');
     console.log('   - Automatic cache cleanup every 6 hours');
     console.log('   - Enhanced statistics and monitoring');
+    console.log('');
+    console.log(`🎬 TMDB Integration: ${TMDB_API_KEY ? '✅ ENABLED (MPAA ratings will be fetched from TMDB)' : '❌ DISABLED (set TMDB_API_KEY to enable)'}`);
 });

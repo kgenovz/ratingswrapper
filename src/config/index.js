@@ -7,6 +7,9 @@ const config = {
   // Server configuration
   port: process.env.PORT || 7000,
 
+  // External API keys
+  tmdbApiKey: process.env.TMDB_API_KEY || null,
+
   // Default addon settings
   defaults: {
     addonName: 'Ratings Wrapper',
