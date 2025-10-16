@@ -141,7 +141,11 @@ class MetadataEnhancerService {
       // Debug: Log what's in the ratings map
       if (ratingsMap.size > 0) {
         const firstKey = ratingsMap.keys().next().value;
-        logger.debug(`Ratings map has ${ratingsMap.size} entries. First key: ${firstKey}`);
+        const firstValue = ratingsMap.get(firstKey);
+        logger.info(`💡 Ratings map has ${ratingsMap.size} entries. First entry: ${firstKey} = ${firstValue}`);
+        logger.info(`💡 All rating keys: ${Array.from(ratingsMap.keys()).slice(0, 5).join(', ')}`);
+      } else {
+        logger.warn(`⚠️ Ratings map is empty despite fetching ratings!`);
       }
 
       // Enhance each meta with its rating
@@ -150,15 +154,16 @@ class MetadataEnhancerService {
         // Find the item we used for this meta
         const item = items.find(item => item.originalIndex === index);
         if (!item) {
+          logger.info(`No item found for meta at index ${index}`);
           return meta; // No item means we filtered it out
         }
 
         const rating = ratingsMap.get(item.id);
 
         if (rating) {
-          logger.debug(`Found rating ${rating} for ${item.id}`);
+          logger.info(`✓ Found rating ${rating} for ${item.id}`);
         } else {
-          logger.debug(`No rating found for ${item.id} in ratings map`);
+          logger.info(`✗ No rating found for ${item.id} in ratings map`);
         }
 
         return this._enhanceMetaWithRating(meta, rating, config.ratingFormat, config.ratingLocation);
