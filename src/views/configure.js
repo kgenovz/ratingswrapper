@@ -949,7 +949,7 @@ function generateConfigureHTML(protocol, host) {
               if (includeVotes) metadataParts.push('(1.2M votes)');
               if (includeMpaa) metadataParts.push('Rated PG-13');
 
-              var metadataLine = metadataParts.join(' - ');
+              var metadataLine = metadataParts.join(' • ');
               var sampleDescription = 'An epic tale of adventure and discovery...';
 
               var descResult = descPos === 'prefix'
