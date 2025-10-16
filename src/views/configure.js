@@ -183,7 +183,7 @@ function generateConfigureHTML(protocol, host) {
                     <input type="checkbox" id="ratingLocationTitle" checked style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Title/Name (space-constrained, quick glance)</span>
                   </label>
-                  <div class="help-text" style="margin-left: 26px; margin-top: -4px;">Rating will be added to the title (e.g., "* 8.5 | Movie Name")</div>
+                  <div class="help-text" style="margin-left: 26px; margin-top: -4px;">Rating will be added to the title (e.g., "★ 8.5 | Movie Name")</div>
 
                   <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">
                     <input type="checkbox" id="ratingLocationDescription" style="width: 18px; height: 18px;" />
@@ -203,12 +203,22 @@ function generateConfigureHTML(protocol, host) {
                 <div class="row-2">
                   <div class="form-group">
                     <label for="titleTemplate">Template</label>
-                    <input type="text" id="titleTemplate" value="* {rating}" />
+                    <input type="text" id="titleTemplate" value="★ {rating}" />
                     <div class="help-text">Use {rating} as placeholder</div>
                   </div>
                   <div class="form-group">
                     <label for="titleSeparator">Separator</label>
-                    <select id="titleSeparator"><option value=" | " selected>Pipe ( | )</option><option value=" - ">Dash ( - )</option><option value=", ">Comma + space ( , )</option><option value=" . ">Dot ( . )</option><option value=" ">Space</option></select>
+                    <select id="titleSeparator">
+                      <option value=" | " selected>Pipe ( | )</option>
+                      <option value=" - ">Dash ( - )</option>
+                      <option value=", ">Comma + space ( , )</option>
+                      <option value=" . ">Dot ( . )</option>
+                      <option value=" • ">Bullet ( • )</option>
+                      <option value=" ★ ">Star ( ★ )</option>
+                      <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
+                      <option value=" ✨ ">Sparkles ( ✨ )</option>
+                      <option value=" ">Space</option>
+                    </select>
                     <div class="help-text">Choose a basic separator for titles</div>
                   </div>
                 </div>
@@ -233,7 +243,18 @@ function generateConfigureHTML(protocol, host) {
                   </div>
                   <div class="form-group">
                     <label for="descriptionSeparator">Separator</label>
-                    <select id="descriptionSeparator"><option value="\n" selected>New line</option><option value=" - ">Dash ( - )</option><option value=" | ">Pipe ( | )</option><option value=", ">Comma + space ( , )</option><option value=" . ">Dot ( . )</option><option value=" ">Space</option></select>
+                    <select id="descriptionSeparator">
+                      <option value="\n" selected>New line</option>
+                      <option value=" - ">Dash ( - )</option>
+                      <option value=" | ">Pipe ( | )</option>
+                      <option value=", ">Comma + space ( , )</option>
+                      <option value=" . ">Dot ( . )</option>
+                      <option value=" • ">Bullet ( • )</option>
+                      <option value=" ★ ">Star ( ★ )</option>
+                      <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
+                      <option value=" ✨ ">Sparkles ( ✨ )</option>
+                      <option value=" ">Space</option>
+                    </select>
                     <div class="help-text">New line is recommended for readable descriptions</div>
                   </div>
                 </div>
@@ -892,7 +913,7 @@ function generateConfigureHTML(protocol, host) {
             // Update title preview
             if (enableTitleLocation) {
               var titlePos = document.getElementById('titlePosition')?.value || 'prefix';
-              var titleTpl = document.getElementById('titleTemplate')?.value || '* {rating}';
+              var titleTpl = document.getElementById('titleTemplate')?.value || '★ {rating}';
               var titleSep = document.getElementById('titleSeparator')?.value || ' | ';
               var sampleRating = '8.5';
               var ratingText = titleTpl.replace('{rating}', sampleRating);
@@ -962,7 +983,7 @@ function generateConfigureHTML(protocol, host) {
 
             // Get title format settings
             const titlePosition = document.getElementById('titlePosition')?.value || 'prefix';
-            const titleTemplate = document.getElementById('titleTemplate')?.value || '* {rating}';
+            const titleTemplate = document.getElementById('titleTemplate')?.value || '★ {rating}';
             const titleSeparator = document.getElementById('titleSeparator')?.value || ' | ';
 
             // Get description format settings
