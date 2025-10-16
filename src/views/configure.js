@@ -350,6 +350,15 @@ function generateConfigureHTML(protocol, host) {
 
               <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
                 <h3 style="margin-bottom: 10px;">Manual Installation URLs</h3>
+                <div class="help-text" style="font-size: 13px; color:#374151; margin-bottom: 10px;">
+                  Recommended: use <strong>Auto Replace</strong> above to avoid duplicates and ordering issues.
+                  If you prefer manual install, please ensure:
+                  <ul style="margin:6px 0 0 18px;">
+                    <li>Only one version of each addon exists in your library — keep the <strong>wrapped</strong> one.</li>
+                    <li>Install a <strong>wrapped Cinemeta</strong> and hide/remove the original Cinemeta.</li>
+                    <li>If you wrap a metadata addon (e.g., TMDB or AIO Metadata), remove the non‑wrapped Cinemeta.</li>
+                  </ul>
+                </div>
                 <div id="manualList"></div>
               </div>
             </div>
