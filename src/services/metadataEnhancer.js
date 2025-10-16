@@ -72,7 +72,7 @@ class MetadataEnhancerService {
     if (formatConfig.includeMpaa && (mpaaRating || imdbId)) {
       const mpaa = mpaaRating || (imdbId ? await ratingsService.getMpaaRating(imdbId) : null);
       if (mpaa) {
-        metadataParts.push(`Rated ${mpaa}`);
+        metadataParts.push(mpaa);
       }
     }
 
