@@ -262,7 +262,7 @@ function generateConfigureHTML(protocol, host) {
                   <div style="font-weight: 600; margin-bottom: 8px;">Extended Metadata</div>
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeVotes" style="width: 18px; height: 18px;" />
-                    <span style="margin-left: 8px;">Include vote count (e.g., "(1.2M votes)")</span>
+                    <span style="margin-left: 8px;">Include vote count (e.g., "1.2M votes")</span>
                   </label>
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeMpaa" style="width: 18px; height: 18px;" />
@@ -946,7 +946,7 @@ function generateConfigureHTML(protocol, host) {
 
               // Build metadata parts
               var metadataParts = [ratingText];
-              if (includeVotes) metadataParts.push('(1.2M votes)');
+              if (includeVotes) metadataParts.push('1.2M votes');
               if (includeMpaa) metadataParts.push('Rated PG-13');
 
               var metadataLine = metadataParts.join(' • ');

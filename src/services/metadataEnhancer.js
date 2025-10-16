@@ -63,7 +63,7 @@ class MetadataEnhancerService {
     // Add vote count if enabled and available
     if (formatConfig.includeVotes && ratingData.votes) {
       const formattedVotes = this._formatVoteCount(ratingData.votes);
-      metadataParts.push(`(${formattedVotes} votes)`);
+      metadataParts.push(`${formattedVotes} votes`);
     }
 
     // Add MPAA rating if enabled and IMDb ID available
