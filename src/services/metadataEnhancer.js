@@ -379,9 +379,18 @@ class MetadataEnhancerService {
 
             // If we have IMDb ID + season + episode, format as series:season:episode
             if (episodeImdbId && episodeImdbId.startsWith('tt') && season && episode) {
-              const id = `${episodeImdbId}:${season}:${episode}`;
+              let seasonUsed = season;
               if (kitsuContextId) {
-                logger.info(`Kitsu episode ID map (batch-existing): kitsuId=${kitsuContextId} imdb=${episodeImdbId} season=${season} ep=${episode} -> ${id}`);
+                const inferred = kitsuMappingService.getSeasonForKitsu(kitsuContextId, meta.name);
+                const seasonNum = parseInt(String(season), 10);
+                if (inferred && Number.isFinite(seasonNum) && inferred !== seasonNum) {
+                  logger.info(`Kitsu season override (batch-existing): kitsuId=${kitsuContextId} providedSeason=${seasonNum} inferredSeason=${inferred}`);
+                  seasonUsed = inferred;
+                }
+              }
+              const id = `${episodeImdbId}:${seasonUsed}:${episode}`;
+              if (kitsuContextId) {
+                logger.info(`Kitsu episode ID map (batch-existing): kitsuId=${kitsuContextId} imdb=${episodeImdbId} season=${seasonUsed} ep=${episode} -> ${id}`);
               }
               return { id: id, type: 'series' };
             }
@@ -477,10 +486,19 @@ class MetadataEnhancerService {
 
           // If we have IMDb ID + season + episode, use that format
           if (episodeImdbId && episodeImdbId.startsWith('tt') && season && episode) {
-            lookupId = `${episodeImdbId}:${season}:${episode}`;
+            let seasonUsed = season;
             if (meta && meta.id && kitsuMappingService.isKitsuId(meta.id)) {
               const kitsuId = kitsuMappingService.extractKitsuId(meta.id);
-              logger.info(`Kitsu episode ID map (enhance-existing): kitsuId=${kitsuId} imdb=${episodeImdbId} season=${season} ep=${episode} -> ${lookupId}`);
+              const inferred = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
+              const seasonNum = parseInt(String(season), 10);
+              if (inferred && Number.isFinite(seasonNum) && inferred !== seasonNum) {
+                logger.info(`Kitsu season override (enhance-existing): kitsuId=${kitsuId} providedSeason=${seasonNum} inferredSeason=${inferred}`);
+                seasonUsed = inferred;
+              }
+              lookupId = `${episodeImdbId}:${seasonUsed}:${episode}`;
+              logger.info(`Kitsu episode ID map (enhance-existing): kitsuId=${kitsuId} imdb=${episodeImdbId} season=${seasonUsed} ep=${episode} -> ${lookupId}`);
+            } else {
+              lookupId = `${episodeImdbId}:${season}:${episode}`;
             }
           }
           // If just IMDb ID, attempt season inference for Kitsu context when episode exists
