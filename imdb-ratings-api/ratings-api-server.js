@@ -753,6 +753,7 @@ async function fetchTvCertification(tmdbId, imdbId) {
 app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
     try {
         const { imdbId } = req.params;
+        console.log(`[MPAA] Request for: ${imdbId}`);
 
         // Step 1: Check database first
         const result = db.prepare(
@@ -760,6 +761,7 @@ app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
         ).get(imdbId);
 
         if (result) {
+            console.log(`[MPAA] Found in database: ${result.mpaa_rating}`);
             return res.json({
                 imdbId: imdbId,
                 mpaaRating: result.mpaa_rating,
@@ -776,6 +778,7 @@ app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
         const tmdbRating = await fetchMpaaFromTmdb(imdbId);
 
         if (tmdbRating) {
+            console.log(`[MPAA] Fetched from TMDB: ${tmdbRating}`);
             return res.json({
                 imdbId: imdbId,
                 mpaaRating: tmdbRating,
@@ -788,10 +791,11 @@ app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
         }
 
         // Step 3: Not found anywhere
+        console.log(`[MPAA] Not found in database or TMDB: ${imdbId}`);
         return res.status(404).json({ error: 'MPAA rating not found' });
 
     } catch (error) {
-        console.error('MPAA rating read error:', error);
+        console.error(`[MPAA] Error processing ${req.params.imdbId}:`, error);
         res.status(500).json({ error: 'MPAA rating read failed' });
     }
 });
