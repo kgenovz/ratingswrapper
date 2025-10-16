@@ -386,8 +386,9 @@ class MetadataEnhancerService {
                 const episodeNum = parts[2];
                 const imdbId = kitsuMappingService.getImdbId(kitsuId);
                 if (imdbId) {
-                  // Kitsu uses single season (season 1), format as IMDb series:1:episode
-                  const formattedId = `${imdbId}:1:${episodeNum}`;
+                  // Infer season number from mapping metadata (anime-planet slug), fallback to 1
+                  const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
+                  const formattedId = `${imdbId}:${seasonNum}:${episodeNum}`;
                   return { id: formattedId, type: 'series' };
                 }
               } else {
@@ -466,7 +467,8 @@ class MetadataEnhancerService {
               const episodeNum = parts[2];
               const imdbId = kitsuMappingService.getImdbId(kitsuId);
               if (imdbId) {
-                lookupId = `${imdbId}:1:${episodeNum}`;
+                const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
+                lookupId = `${imdbId}:${seasonNum}:${episodeNum}`;
               }
             }
           }

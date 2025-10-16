@@ -10,6 +10,7 @@ class KitsuMappingService {
   constructor() {
     this.kitsuMappings = new Map(); // kitsuId -> imdbId
     this.malMappings = new Map();   // malId -> imdbId
+    this.kitsuMeta = new Map();     // kitsuId -> { imdb_id, animePlanetId, type, thetvdb_id, themoviedb_id }
     this.loaded = false;
     this.loading = false;
   }
@@ -49,6 +50,14 @@ class KitsuMappingService {
             // Store both as string and number for flexible lookups
             this.kitsuMappings.set(String(anime.kitsu_id), anime.imdb_id);
             this.kitsuMappings.set(anime.kitsu_id, anime.imdb_id);
+            // Cache minimal metadata for season inference and debugging
+            this.kitsuMeta.set(String(anime.kitsu_id), {
+              imdb_id: anime.imdb_id,
+              animePlanetId: anime["anime-planet_id"] || null,
+              type: anime.type || null,
+              thetvdb_id: anime.thetvdb_id || null,
+              themoviedb_id: anime.themoviedb_id || null
+            });
             kitsuCount++;
           }
 
@@ -92,6 +101,67 @@ class KitsuMappingService {
     }
 
     return imdbId || null;
+  }
+
+  /**
+   * Returns cached mapping metadata for a Kitsu ID
+   * @param {string|number} kitsuId
+   * @returns {Object|null}
+   */
+  getRecord(kitsuId) {
+    if (!this.loaded) return null;
+    return this.kitsuMeta.get(String(kitsuId)) || null;
+  }
+
+  /**
+   * Attempts to infer the season number for a Kitsu ID using the anime-planet slug.
+   * No network calls; purely heuristic.
+   * @param {string|number} kitsuId
+   * @param {string} [fallbackTitle]
+   * @returns {number|null} season number if inferred; otherwise null
+   */
+  inferSeasonFromSlug(kitsuId, fallbackTitle = '') {
+    const rec = this.getRecord(kitsuId);
+    const slug = rec && rec.animePlanetId ? String(rec.animePlanetId).toLowerCase() : '';
+    let season = null;
+
+    // Strong signals in slug
+    // e.g., "arcane-season-2", "something-s2", "title-season-1"
+    const patterns = [
+      /season[-_ ]?(\d+)/i,
+      /\bs(\d+)\b/i,
+      /part[-_ ]?(\d+)/i
+    ];
+    for (const re of patterns) {
+      const m = slug.match(re);
+      if (m && m[1]) {
+        const n = parseInt(m[1], 10);
+        if (Number.isFinite(n) && n > 0) { season = n; break; }
+      }
+    }
+
+    // Weak fallback: parse from title if provided (e.g., "Season 2")
+    if (!season && fallbackTitle) {
+      const t = String(fallbackTitle).toLowerCase();
+      const mt = t.match(/season\s*(\d+)/i) || t.match(/s(\d+)/i) || t.match(/part\s*(\d+)/i);
+      if (mt && mt[1]) {
+        const n = parseInt(mt[1], 10);
+        if (Number.isFinite(n) && n > 0) season = n;
+      }
+    }
+
+    return season || null;
+  }
+
+  /**
+   * Returns a season number for Kitsu content, defaulting to 1 when unknown.
+   * @param {string|number} kitsuId
+   * @param {string} [fallbackTitle]
+   * @returns {number}
+   */
+  getSeasonForKitsu(kitsuId, fallbackTitle = '') {
+    const inferred = this.inferSeasonFromSlug(kitsuId, fallbackTitle);
+    return inferred || 1;
   }
 
   /**
