@@ -77,8 +77,9 @@ class MetadataEnhancerService {
     // Use provided separator as-is between metadata and description
     const sep = formatConfig.separator || ' ';
 
-    // Join all metadata with bullet between parts
-    const metadataLine = metadataParts.join(' • ');
+    // Join all metadata with configured separator (default to bullet)
+    const metadataSep = formatConfig.metadataSeparator || ' • ';
+    const metadataLine = metadataParts.join(metadataSep);
 
     // Add to description
     if (formatConfig.position === 'prefix') {

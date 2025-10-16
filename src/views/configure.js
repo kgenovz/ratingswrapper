@@ -268,7 +268,21 @@ function generateConfigureHTML(protocol, host) {
                     <input type="checkbox" id="includeMpaa" style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Include MPAA rating (e.g., "Rated PG-13")</span>
                   </label>
-                  <div class="help-text">Additional metadata will be separated with bullet points (•)</div>
+                  <div style="margin-top: 10px;">
+                    <label for="metadataSeparator" style="display: block; font-weight: 600; margin-bottom: 6px;">Metadata Separator</label>
+                    <select id="metadataSeparator">
+                      <option value=" • " selected>Bullet ( • )</option>
+                      <option value=" | ">Pipe ( | )</option>
+                      <option value=" - ">Dash ( - )</option>
+                      <option value=", ">Comma + space ( , )</option>
+                      <option value=" . ">Dot ( . )</option>
+                      <option value=" ★ ">Star ( ★ )</option>
+                      <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
+                      <option value=" ✨ ">Sparkles ( ✨ )</option>
+                      <option value=" ">Space</option>
+                    </select>
+                    <div class="help-text" style="margin-top: 5px;">Separator between rating, vote count, and MPAA rating</div>
+                  </div>
                 </div>
                 <div class="form-group">
                   <div class="help-text" style="margin-bottom:6px;">Preview</div>
@@ -937,6 +951,7 @@ function generateConfigureHTML(protocol, host) {
               var descSep = document.getElementById('descriptionSeparator')?.value || '\\n';
               var includeVotes = document.getElementById('includeVotes')?.checked || false;
               var includeMpaa = document.getElementById('includeMpaa')?.checked || false;
+              var metaSep = document.getElementById('metadataSeparator')?.value || ' • ';
 
               // Replace literal backslash-n with CRLF to maximize client compatibility
               descSep = descSep.replace(/\\n/g, String.fromCharCode(13) + String.fromCharCode(10));
@@ -949,7 +964,7 @@ function generateConfigureHTML(protocol, host) {
               if (includeVotes) metadataParts.push('1.2M votes');
               if (includeMpaa) metadataParts.push('Rated PG-13');
 
-              var metadataLine = metadataParts.join(' • ');
+              var metadataLine = metadataParts.join(metaSep);
               var sampleDescription = 'An epic tale of adventure and discovery...';
 
               var descResult = descPos === 'prefix'
@@ -996,6 +1011,7 @@ function generateConfigureHTML(protocol, host) {
             // Get extended metadata options
             const includeVotes = document.getElementById('includeVotes')?.checked || false;
             const includeMpaa = document.getElementById('includeMpaa')?.checked || false;
+            const metadataSeparator = document.getElementById('metadataSeparator')?.value || ' • ';
 
             // Get enable flags
             const enableTitleRatings = document.getElementById('enableTitleRatings')?.checked !== false;
@@ -1028,7 +1044,8 @@ function generateConfigureHTML(protocol, host) {
                   template: descriptionTemplate,
                   separator: descriptionSeparator,
                   includeVotes: includeVotes,
-                  includeMpaa: includeMpaa
+                  includeMpaa: includeMpaa,
+                  metadataSeparator: metadataSeparator
                 }
               };
               if (it.name) config.addonName = it.name;
@@ -1059,6 +1076,7 @@ function generateConfigureHTML(protocol, host) {
             var descSep = document.getElementById('descriptionSeparator');
             var includeVotes = document.getElementById('includeVotes');
             var includeMpaa = document.getElementById('includeMpaa');
+            var metaSep = document.getElementById('metadataSeparator');
 
             // Attach event listeners
             if (locTitle) locTitle.addEventListener('change', updateRatingPreview);
@@ -1073,6 +1091,7 @@ function generateConfigureHTML(protocol, host) {
             if (descSep) descSep.addEventListener('change', updateRatingPreview);
             if (includeVotes) includeVotes.addEventListener('change', updateRatingPreview);
             if (includeMpaa) includeMpaa.addEventListener('change', updateRatingPreview);
+            if (metaSep) metaSep.addEventListener('change', updateRatingPreview);
 
             // Initial update
             updateRatingPreview();
