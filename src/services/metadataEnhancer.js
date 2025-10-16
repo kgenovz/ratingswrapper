@@ -138,34 +138,20 @@ class MetadataEnhancerService {
       // Fetch all ratings in batch
       const ratingsMap = await ratingsService.getRatingsBatch(items);
 
-      // Debug: Log what's in the ratings map
-      if (ratingsMap.size > 0) {
-        const firstKey = ratingsMap.keys().next().value;
-        const firstValue = ratingsMap.get(firstKey);
-        logger.info(`💡 Ratings map has ${ratingsMap.size} entries. First entry: ${firstKey} = ${firstValue}`);
-        logger.info(`💡 All rating keys: ${Array.from(ratingsMap.keys()).slice(0, 5).join(', ')}`);
-      } else {
-        logger.warn(`⚠️ Ratings map is empty despite fetching ratings!`);
-      }
-
       // Enhance each meta with its rating
       // We need to map back using the same ID we used for fetching
       const enhancedMetas = metas.map((meta, index) => {
         // Find the item we used for this meta
         const item = items.find(item => item.originalIndex === index);
         if (!item) {
-          logger.info(`No item found for meta at index ${index}`);
+          logger.debug(`No item found for meta at index ${index}`);
           return meta; // No item means we filtered it out
         }
 
         const rating = ratingsMap.get(item.id);
 
-        if (rating) {
-          logger.info(`✓ Found rating ${rating} for ${item.id}`);
-          logger.info(`   config.ratingFormat: ${JSON.stringify(config.ratingFormat)}`);
-          logger.info(`   config.ratingLocation: ${config.ratingLocation}`);
-        } else {
-          logger.info(`✗ No rating found for ${item.id} in ratings map`);
+        if (!rating) {
+          logger.debug(`No rating found for ${item.id}`);
         }
 
         return this._enhanceMetaWithRating(meta, rating, config.ratingFormat, config.ratingLocation);
@@ -206,12 +192,11 @@ class MetadataEnhancerService {
       if (config.enableTitleRatings) {
         // Prefer imdb_id field if available, fall back to id
         const contentId = meta.imdb_id || meta.imdbId || meta.id;
-        logger.info(`🎬 Fetching rating for ${meta.type} "${meta.name}" using ID: ${contentId}`);
+        logger.debug(`Fetching rating for ${meta.type} "${meta.name}" using ID: ${contentId}`);
 
         const mainRating = await ratingsService.getRating(contentId, meta.type);
 
         if (mainRating) {
-          logger.info(`✓ Found rating ${mainRating} for ${meta.name}`);
           // Add rating to main title or description
           const enhancedWithRating = this._enhanceMetaWithRating(meta, mainRating, config.ratingFormat, config.ratingLocation);
           if (config.ratingLocation === 'description') {
@@ -219,9 +204,9 @@ class MetadataEnhancerService {
           } else {
             enhancedMeta.name = enhancedWithRating.name;
           }
-          logger.info(`✓ Enhanced movie/series title: "${meta.name}" -> "${enhancedMeta.name}"`);
+          logger.debug(`Enhanced ${meta.type}: "${meta.name}" with rating ${mainRating}`);
         } else {
-          logger.info(`✗ No rating found for ${meta.name} (ID: ${contentId})`);
+          logger.debug(`No rating found for ${meta.name} (ID: ${contentId})`);
         }
       }
 
