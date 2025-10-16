@@ -9,53 +9,120 @@ const kitsuMappingService = require('./kitsuMappingService');
 
 class MetadataEnhancerService {
   /**
-   * Formats rating according to template
-   * @param {number} rating - Numeric rating
-   * @param {Object} formatConfig - Rating format configuration
-   * @returns {string} Formatted rating string
+   * Formats vote count to human-readable format (e.g., 1.2M, 450K)
+   * @param {number} votes - Vote count
+   * @returns {string} Formatted vote count
    * @private
    */
-  _formatRating(rating, formatConfig) {
-    return formatConfig.template.replace('{rating}', rating.toFixed(1));
+  _formatVoteCount(votes) {
+    if (!votes) return '';
+    const count = typeof votes === 'string' ? parseInt(votes) : votes;
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${Math.floor(count / 1000)}K`;
+    return count.toString();
   }
 
   /**
-   * Enhances a single meta object with rating
-   * @param {Object} meta - Meta object to enhance
-   * @param {number|null} rating - Rating value or null
-   * @param {Object} formatConfig - Rating format configuration
-   * @param {string} location - Where to inject rating: 'title' or 'description'
-   * @returns {Object} Enhanced meta object
+   * Formats rating for title injection (simple template replacement)
+   * @param {string} title - Original title
+   * @param {Object} ratingData - Rating data object {rating, votes}
+   * @param {Object} formatConfig - Format configuration {position, template, separator}
+   * @returns {string} Enhanced title
    * @private
    */
-  _enhanceMetaWithRating(meta, rating, formatConfig, location = 'title') {
-    if (!rating || !formatConfig) {
+  _formatTitleRating(title, ratingData, formatConfig) {
+    if (!ratingData || !ratingData.rating) return title;
+
+    const ratingText = formatConfig.template.replace('{rating}', ratingData.rating.toFixed(1));
+
+    if (formatConfig.position === 'prefix') {
+      return `${ratingText}${formatConfig.separator}${title}`;
+    } else {
+      return `${title}${formatConfig.separator}${ratingText}`;
+    }
+  }
+
+  /**
+   * Formats rating for description injection (with extended metadata support)
+   * @param {string} description - Original description
+   * @param {Object} ratingData - Rating data object {rating, votes}
+   * @param {Object} formatConfig - Format configuration {position, template, separator, includeVotes, includeMpaa}
+   * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
+   * @returns {Promise<string>} Enhanced description
+   * @private
+   */
+  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null) {
+    if (!ratingData || !ratingData.rating) return description;
+
+    // Build rating template
+    let template = formatConfig.template.replace('{rating}', ratingData.rating.toFixed(1));
+
+    // Build metadata parts array
+    const metadataParts = [template];
+
+    // Add vote count if enabled and available
+    if (formatConfig.includeVotes && ratingData.votes) {
+      const formattedVotes = this._formatVoteCount(ratingData.votes);
+      metadataParts.push(`(${formattedVotes} votes)`);
+    }
+
+    // Add MPAA rating if enabled and IMDb ID available
+    if (formatConfig.includeMpaa && imdbId) {
+      const mpaa = await ratingsService.getMpaaRating(imdbId);
+      if (mpaa) {
+        metadataParts.push(`Rated ${mpaa}`);
+      }
+    }
+
+    // Join all metadata with bullet separator
+    const metadataLine = metadataParts.join(' • ');
+
+    // Add to description
+    if (formatConfig.position === 'prefix') {
+      return `${metadataLine}${formatConfig.separator}${description}`;
+    } else {
+      return `${description}${formatConfig.separator}${metadataLine}`;
+    }
+  }
+
+  /**
+   * Enhances a single meta object with rating (supports dual location injection)
+   * @param {Object} meta - Meta object to enhance
+   * @param {Object} ratingData - Rating data object {rating, votes} or null
+   * @param {Object} config - Full config object with titleFormat and descriptionFormat
+   * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
+   * @returns {Promise<Object>} Enhanced meta object
+   * @private
+   */
+  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null) {
+    if (!ratingData || !config) {
       return meta;
     }
 
-    const formattedRating = this._formatRating(rating, formatConfig);
-    const { position, separator } = formatConfig;
-
     // Clone meta to avoid mutation
     const enhancedMeta = { ...meta };
+    const location = config.ratingLocation || 'title';
 
-    if (location === 'description') {
-      // Inject rating into description
-      const description = meta.description || '';
-      if (position === 'prefix') {
-        enhancedMeta.description = `${formattedRating}${separator}${description}`;
-      } else if (position === 'suffix') {
-        enhancedMeta.description = `${description}${separator}${formattedRating}`;
-      }
-      logger.debug(`Enhanced description: "${description.substring(0, 50)}..." -> "${enhancedMeta.description.substring(0, 50)}..."`);
-    } else {
-      // Inject rating into name/title (default behavior)
-      if (position === 'prefix') {
-        enhancedMeta.name = `${formattedRating}${separator}${meta.name}`;
-      } else if (position === 'suffix') {
-        enhancedMeta.name = `${meta.name}${separator}${formattedRating}`;
-      }
-      logger.debug(`Enhanced: "${meta.name}" -> "${enhancedMeta.name}"`);
+    // Determine which formats to use (with backwards compatibility)
+    const titleFormat = config.titleFormat || config.ratingFormat;
+    const descriptionFormat = config.descriptionFormat || config.ratingFormat;
+
+    // Handle title injection
+    if (location === 'title' || location === 'both') {
+      enhancedMeta.name = this._formatTitleRating(meta.name, ratingData, titleFormat);
+      logger.debug(`Enhanced title: "${meta.name}" -> "${enhancedMeta.name}"`);
+    }
+
+    // Handle description injection
+    if (location === 'description' || location === 'both') {
+      const originalDesc = meta.description || '';
+      enhancedMeta.description = await this._formatDescriptionRating(
+        originalDesc,
+        ratingData,
+        descriptionFormat,
+        imdbId
+      );
+      logger.debug(`Enhanced description: "${originalDesc.substring(0, 50)}..." -> "${enhancedMeta.description.substring(0, 50)}..."`);
     }
 
     return enhancedMeta;
@@ -138,9 +205,9 @@ class MetadataEnhancerService {
       // Fetch all ratings in batch
       const ratingsMap = await ratingsService.getRatingsBatch(items);
 
-      // Enhance each meta with its rating
+      // Enhance each meta with its rating (now using async)
       // We need to map back using the same ID we used for fetching
-      const enhancedMetas = metas.map((meta, index) => {
+      const enhancedMetas = await Promise.all(metas.map(async (meta, index) => {
         // Find the item we used for this meta
         const item = items.find(item => item.originalIndex === index);
         if (!item) {
@@ -148,14 +215,18 @@ class MetadataEnhancerService {
           return meta; // No item means we filtered it out
         }
 
-        const rating = ratingsMap.get(item.id);
+        const ratingData = ratingsMap.get(item.id);
 
-        if (!rating) {
+        if (!ratingData) {
           logger.debug(`No rating found for ${item.id}`);
+          return meta;
         }
 
-        return this._enhanceMetaWithRating(meta, rating, config.ratingFormat, config.ratingLocation);
-      });
+        // Get IMDb ID for MPAA lookup
+        const imdbId = meta.imdb_id || meta.imdbId || (item.id.startsWith('tt') ? item.id.split(':')[0] : null);
+
+        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId);
+      }));
 
       const enhancedCount = enhancedMetas.filter((meta, idx) =>
         meta.name !== metas[idx].name
@@ -194,17 +265,25 @@ class MetadataEnhancerService {
         const contentId = meta.imdb_id || meta.imdbId || meta.id;
         logger.debug(`Fetching rating for ${meta.type} "${meta.name}" using ID: ${contentId}`);
 
-        const mainRating = await ratingsService.getRating(contentId, meta.type);
+        const mainRatingData = await ratingsService.getRating(contentId, meta.type);
 
-        if (mainRating) {
-          // Add rating to main title or description
-          const enhancedWithRating = this._enhanceMetaWithRating(meta, mainRating, config.ratingFormat, config.ratingLocation);
-          if (config.ratingLocation === 'description') {
+        if (mainRatingData) {
+          // Get IMDb ID for MPAA lookup
+          const imdbId = meta.imdb_id || meta.imdbId || (contentId && contentId.startsWith('tt') ? contentId.split(':')[0] : null);
+
+          // Add rating to main title or description (or both)
+          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId);
+
+          const location = config.ratingLocation || 'title';
+          if (location === 'description') {
+            enhancedMeta.description = enhancedWithRating.description;
+          } else if (location === 'both') {
+            enhancedMeta.name = enhancedWithRating.name;
             enhancedMeta.description = enhancedWithRating.description;
           } else {
             enhancedMeta.name = enhancedWithRating.name;
           }
-          logger.debug(`Enhanced ${meta.type}: "${meta.name}" with rating ${mainRating}`);
+          logger.debug(`Enhanced ${meta.type}: "${meta.name}" with rating ${mainRatingData.rating}`);
         } else {
           logger.debug(`No rating found for ${meta.name} (ID: ${contentId})`);
         }
@@ -308,8 +387,8 @@ class MetadataEnhancerService {
         const episodeRatingsMap = await ratingsService.getRatingsBatch(episodeItems);
         logger.debug(`Got ${episodeRatingsMap.size} episode ratings from ${episodeItems.length} episodes`);
 
-        // Enhance each episode title
-        enhancedMeta.videos = meta.videos.map(video => {
+        // Enhance each episode title (now using async)
+        enhancedMeta.videos = await Promise.all(meta.videos.map(async video => {
           if (!video.id) return video;
 
           // Use the SAME logic to construct the ID as we did when fetching ratings
@@ -354,23 +433,28 @@ class MetadataEnhancerService {
           }
 
           // Look up the rating using the constructed ID
-          const episodeRating = episodeRatingsMap.get(lookupId);
-          logger.debug(`Looking up rating for ${lookupId}: ${episodeRating ? 'found' : 'not found'}`);
+          const episodeRatingData = episodeRatingsMap.get(lookupId);
+          logger.debug(`Looking up rating for ${lookupId}: ${episodeRatingData ? 'found' : 'not found'}`);
 
-          if (!episodeRating) return video;
+          if (!episodeRatingData) return video;
 
           // Clone video object
           const enhancedVideo = { ...video };
+
+          // Get IMDb ID for MPAA lookup (use different variable name to avoid conflict)
+          const mpaaLookupId = video.imdb_id || video.imdbId || (lookupId.startsWith('tt') ? lookupId.split(':')[0] : null);
 
           // Create a temporary meta-like object to use the enhancer
           // Different addons use different fields: Cinemeta uses 'name', others may use 'title'
           const episodeName = video.name || video.title;
           const episodeDescription = video.description || video.overview || '';
           const tempMeta = { name: episodeName, description: episodeDescription };
-          const enhanced = this._enhanceMetaWithRating(tempMeta, episodeRating, config.ratingFormat, config.ratingLocation);
+          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId);
 
-          // Update the appropriate field based on location
-          if (config.ratingLocation === 'description') {
+          const location = config.ratingLocation || 'title';
+
+          // Update the appropriate field(s) based on location
+          if (location === 'description') {
             // Update description/overview field
             // Try to update existing fields, or add overview if neither exists
             if ('overview' in video) {
@@ -379,6 +463,22 @@ class MetadataEnhancerService {
               enhancedVideo.description = enhanced.description;
             } else {
               // If neither exists, add overview (most common for episodes)
+              enhancedVideo.overview = enhanced.description;
+            }
+          } else if (location === 'both') {
+            // Update both name/title and description
+            if (video.name) {
+              enhancedVideo.name = enhanced.name;
+            }
+            if (video.title) {
+              enhancedVideo.title = enhanced.name;
+            }
+            // Also update description
+            if ('overview' in video) {
+              enhancedVideo.overview = enhanced.description;
+            } else if ('description' in video) {
+              enhancedVideo.description = enhanced.description;
+            } else {
               enhancedVideo.overview = enhanced.description;
             }
           } else {
@@ -392,7 +492,7 @@ class MetadataEnhancerService {
           }
 
           return enhancedVideo;
-        });
+        }));
 
         const enhancedEpisodeCount = enhancedMeta.videos.filter((video, idx) =>
           video.name !== meta.videos[idx].name

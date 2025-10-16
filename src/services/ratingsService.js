@@ -97,7 +97,7 @@ class RatingsService {
    * Fetches rating for a single content item
    * @param {string} id - Content ID (IMDb ID or prefixed ID)
    * @param {string} type - Content type (movie, series, etc.)
-   * @returns {Promise<number|null>} Rating or null if not found
+   * @returns {Promise<Object|null>} Rating object {rating, votes} or null if not found
    */
   async getRating(id, type) {
     try {
@@ -124,9 +124,13 @@ class RatingsService {
           const response = await this._fetchFromApi(`/api/episode/${seriesId}/${season}/${episode}`);
 
           if (response && response.rating) {
-            const rating = parseFloat(response.rating);
-            logger.debug(`Episode rating for ${id}: ${rating} (episode ID: ${response.episodeId})`);
-            return rating;
+            const ratingData = {
+              rating: parseFloat(response.rating),
+              votes: response.votes ? parseInt(response.votes) : null,
+              voteCount: response.votes ? parseInt(response.votes) : null
+            };
+            logger.debug(`Episode rating for ${id}: ${ratingData.rating} (${ratingData.votes} votes, episode ID: ${response.episodeId})`);
+            return ratingData;
           }
 
           // Cache the not-found result
@@ -148,9 +152,13 @@ class RatingsService {
       const response = await this._fetchFromApi(`/api/rating/${imdbId}`);
 
       if (response && response.rating) {
-        const rating = parseFloat(response.rating);
-        logger.debug(`Rating for ${imdbId}: ${rating}`);
-        return rating;
+        const ratingData = {
+          rating: parseFloat(response.rating),
+          votes: response.votes ? parseInt(response.votes) : null,
+          voteCount: response.votes ? parseInt(response.votes) : null
+        };
+        logger.debug(`Rating for ${imdbId}: ${ratingData.rating} (${ratingData.votes} votes)`);
+        return ratingData;
       }
 
       // Cache the not-found result
@@ -195,7 +203,7 @@ class RatingsService {
    * Fetches ratings for multiple content items in batch with concurrency control
    * @param {Array<Object>} items - Array of {id, type} objects
    * @param {number} concurrency - Maximum number of concurrent requests (default: 10)
-   * @returns {Promise<Map<string, number>>} Map of ID to rating
+   * @returns {Promise<Map<string, Object>>} Map of ID to rating object {rating, votes}
    */
   async getRatingsBatch(items, concurrency = 10) {
     try {
@@ -228,19 +236,19 @@ class RatingsService {
         const batchResults = await Promise.all(
           batch.map(async (item) => {
             try {
-              const rating = await this.getRating(item.id, item.type);
-              return { id: item.id, rating };
+              const ratingData = await this.getRating(item.id, item.type);
+              return { id: item.id, ratingData };
             } catch (error) {
               logger.debug(`Error fetching rating for ${item.id}: ${error.message}`);
-              return { id: item.id, rating: null };
+              return { id: item.id, ratingData: null };
             }
           })
         );
 
         // Add results to map
-        batchResults.forEach(({ id, rating }) => {
-          if (rating !== null) {
-            ratingsMap.set(id, rating);
+        batchResults.forEach(({ id, ratingData }) => {
+          if (ratingData !== null) {
+            ratingsMap.set(id, ratingData);
           }
         });
 
@@ -257,6 +265,35 @@ class RatingsService {
     } catch (error) {
       logger.error('Error fetching batch ratings:', error.message);
       return new Map();
+    }
+  }
+
+  /**
+   * Fetches MPAA rating for a specific IMDb ID
+   * @param {string} imdbId - IMDb ID (e.g., "tt1234567")
+   * @returns {Promise<string|null>} MPAA rating or null if not found
+   */
+  async getMpaaRating(imdbId) {
+    try {
+      if (!imdbId || !imdbId.startsWith('tt')) {
+        logger.debug(`Invalid IMDb ID for MPAA lookup: ${imdbId}`);
+        return null;
+      }
+
+      const response = await this._fetchFromApi(`/api/mpaa-rating/${imdbId}`);
+
+      if (response && (response.mpaaRating || response.mpaa_rating)) {
+        const mpaa = response.mpaaRating || response.mpaa_rating;
+        logger.debug(`MPAA rating for ${imdbId}: ${mpaa}`);
+        return mpaa;
+      }
+
+      logger.debug(`No MPAA rating found for ${imdbId}`);
+      return null;
+
+    } catch (error) {
+      logger.debug(`Error fetching MPAA rating for ${imdbId}: ${error.message}`);
+      return null;
     }
   }
 

@@ -40,15 +40,43 @@ function decodeConfig(encodedConfig) {
  * @returns {Object} Validated configuration with defaults
  */
 function validateConfig(userConfig) {
+  // Backwards compatibility: migrate old single ratingFormat to separate formats
+  let titleFormat = userConfig.titleFormat;
+  let descriptionFormat = userConfig.descriptionFormat;
+
+  // If old config with single ratingFormat and no separate formats, use it for both
+  if (userConfig.ratingFormat && !titleFormat && !descriptionFormat) {
+    titleFormat = userConfig.ratingFormat;
+    descriptionFormat = userConfig.ratingFormat;
+  }
+
   const config = {
     // Required: wrapped addon URL
     wrappedAddonUrl: userConfig.wrappedAddonUrl || null,
 
-    // Optional: rating format settings
+    // Optional: rating format settings (legacy single format - kept for backwards compatibility)
     ratingFormat: {
       position: userConfig.ratingFormat?.position || appConfig.defaults.ratingFormat.position,
       template: userConfig.ratingFormat?.template || appConfig.defaults.ratingFormat.template,
       separator: userConfig.ratingFormat?.separator || appConfig.defaults.ratingFormat.separator
+    },
+
+    // New: separate formats for title and description
+    titleFormat: {
+      position: titleFormat?.position || userConfig.ratingFormat?.position || appConfig.defaults.ratingFormat.position,
+      template: titleFormat?.template || userConfig.ratingFormat?.template || appConfig.defaults.ratingFormat.template,
+      separator: titleFormat?.separator || userConfig.ratingFormat?.separator || appConfig.defaults.ratingFormat.separator
+    },
+
+    descriptionFormat: {
+      position: descriptionFormat?.position || userConfig.ratingFormat?.position || appConfig.defaults.ratingFormat.position,
+      template: descriptionFormat?.template || userConfig.ratingFormat?.template || appConfig.defaults.ratingFormat.template,
+      separator: descriptionFormat?.separator || userConfig.ratingFormat?.separator || appConfig.defaults.ratingFormat.separator,
+      // Extended metadata options (only for description)
+      includeVotes: descriptionFormat?.includeVotes || false,
+      includeMpaa: descriptionFormat?.includeMpaa || false,
+      includeYear: descriptionFormat?.includeYear || false,
+      includeRuntime: descriptionFormat?.includeRuntime || false
     },
 
     // Optional: custom addon name
@@ -67,7 +95,7 @@ function validateConfig(userConfig) {
       ? userConfig.enableEpisodeRatings
       : (userConfig.enableRatings !== false), // fallback to enableRatings for old configs
 
-    // Optional: rating injection location
+    // Optional: rating injection location - now supports "both"
     ratingLocation: userConfig.ratingLocation || appConfig.defaults.ratingLocation || 'title',
 
     // Optional: metadata provider for episodes
@@ -86,14 +114,22 @@ function validateConfig(userConfig) {
     throw new Error('wrappedAddonUrl must be a valid URL');
   }
 
-  // Validate position
+  // Validate position for legacy format
   if (!['prefix', 'suffix'].includes(config.ratingFormat.position)) {
     throw new Error('ratingFormat.position must be "prefix" or "suffix"');
   }
 
-  // Validate location
-  if (!['title', 'description'].includes(config.ratingLocation)) {
-    throw new Error('ratingLocation must be "title" or "description"');
+  // Validate positions for new formats
+  if (!['prefix', 'suffix'].includes(config.titleFormat.position)) {
+    throw new Error('titleFormat.position must be "prefix" or "suffix"');
+  }
+  if (!['prefix', 'suffix'].includes(config.descriptionFormat.position)) {
+    throw new Error('descriptionFormat.position must be "prefix" or "suffix"');
+  }
+
+  // Validate location - now supports "both"
+  if (!['title', 'description', 'both'].includes(config.ratingLocation)) {
+    throw new Error('ratingLocation must be "title", "description", or "both"');
   }
 
   return config;

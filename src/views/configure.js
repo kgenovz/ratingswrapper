@@ -180,38 +180,79 @@ function generateConfigureHTML(protocol, host) {
                 <div style="margin-bottom: 10px;"><strong>Inject Ratings Into:</strong></div>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                   <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">
-                    <input type="radio" name="ratingLocation" id="ratingLocationTitle" value="title" checked style="width: 18px; height: 18px;" />
-                    <span style="margin-left: 8px;">Title/Name</span>
+                    <input type="checkbox" id="ratingLocationTitle" checked style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Title/Name (space-constrained, quick glance)</span>
                   </label>
                   <div class="help-text" style="margin-left: 26px; margin-top: -4px;">Rating will be added to the title (e.g., "⭐ 8.5 | Movie Name")</div>
 
                   <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">
-                    <input type="radio" name="ratingLocation" id="ratingLocationDescription" value="description" style="width: 18px; height: 18px;" />
-                    <span style="margin-left: 8px;">Synopsis/Description</span>
+                    <input type="checkbox" id="ratingLocationDescription" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Synopsis/Description (detailed metadata)</span>
                   </label>
-                  <div class="help-text" style="margin-left: 26px; margin-top: -4px;">Rating will be added to the description text</div>
+                  <div class="help-text" style="margin-left: 26px; margin-top: -4px;">Rating will be added to the description with extended metadata options</div>
                 </div>
               </div>
 
-              <div class="form-group">
-                <label>Rating Position</label>
-                <select id="ratingPosition"><option value="prefix">Prefix (★ 8.5 at start)</option><option value="suffix">Suffix (★ 8.5 at end)</option></select>
-              </div>
-              <div class="row-2">
+              <!-- Title Format Section (shows when title checkbox is checked) -->
+              <div id="titleFormatSection" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+                <div style="font-weight: 600; margin-bottom: 10px; color: #1e40af;">Title Format Settings</div>
                 <div class="form-group">
-                  <label for="ratingTemplate">Rating Template</label>
-                  <input type="text" id="ratingTemplate" value="★ {rating}" />
-                  <div class="help-text">Use {rating} as placeholder</div>
+                  <label>Position</label>
+                  <select id="titlePosition"><option value="prefix">Prefix (★ 8.5 at start)</option><option value="suffix">Suffix (★ 8.5 at end)</option></select>
+                </div>
+                <div class="row-2">
+                  <div class="form-group">
+                    <label for="titleTemplate">Template</label>
+                    <input type="text" id="titleTemplate" value="★ {rating}" />
+                    <div class="help-text">Use {rating} as placeholder</div>
+                  </div>
+                  <div class="form-group">
+                    <label for="titleSeparator">Separator</label>
+                    <input type="text" id="titleSeparator" value=" | " />
+                    <div class="help-text">Default: space + | + space</div>
+                  </div>
                 </div>
                 <div class="form-group">
-                  <label for="ratingSeparator">Separator</label>
-                  <input type="text" id="ratingSeparator" value=" | " />
-                  <div class="help-text">Default: space + | + space</div>
+                  <div class="help-text" style="margin-bottom:6px;">Preview</div>
+                  <div id="titlePreview" class="preview"></div>
                 </div>
               </div>
-              <div class="form-group">
-                <div class="help-text" style="margin-bottom:6px;">Preview</div>
-                <div id="ratingPreview" class="preview"></div>
+
+              <!-- Description Format Section (shows when description checkbox is checked) -->
+              <div id="descriptionFormatSection" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 12px; margin-bottom: 16px; display: none;">
+                <div style="font-weight: 600; margin-bottom: 10px; color: #15803d;">Description Format Settings</div>
+                <div class="form-group">
+                  <label>Position</label>
+                  <select id="descriptionPosition"><option value="prefix">Prefix (at start)</option><option value="suffix">Suffix (at end)</option></select>
+                </div>
+                <div class="row-2">
+                  <div class="form-group">
+                    <label for="descriptionTemplate">Template</label>
+                    <input type="text" id="descriptionTemplate" value="{rating}/10" />
+                    <div class="help-text">Use {rating} as placeholder</div>
+                  </div>
+                  <div class="form-group">
+                    <label for="descriptionSeparator">Separator</label>
+                    <input type="text" id="descriptionSeparator" value="\n" />
+                    <div class="help-text">Use \n for newline</div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <div style="font-weight: 600; margin-bottom: 8px;">Extended Metadata</div>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeVotes" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include vote count (e.g., "(1.2M votes)")</span>
+                  </label>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeMpaa" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include MPAA rating (e.g., "Rated PG-13")</span>
+                  </label>
+                  <div class="help-text">Additional metadata will be separated with bullet points (•)</div>
+                </div>
+                <div class="form-group">
+                  <div class="help-text" style="margin-bottom:6px;">Preview</div>
+                  <div id="descriptionPreview" class="preview"></div>
+                </div>
               </div>
             </div>
 
@@ -834,46 +875,118 @@ function generateConfigureHTML(protocol, host) {
           }
 
           function updateRatingPreview() {
-            var pos = document.getElementById('ratingPosition')?.value || 'prefix';
-            var tpl = document.getElementById('ratingTemplate')?.value || '★ {rating}';
-            var sep = document.getElementById('ratingSeparator')?.value || ' | ';
-            var enableTitles = document.getElementById('enableTitleRatings')?.checked !== false;
-            var enableEpisodes = document.getElementById('enableEpisodeRatings')?.checked !== false;
-            var location = document.querySelector('input[name="ratingLocation"]:checked')?.value || 'title';
-            var sampleContent = location === 'title' ? 'Example Title' : 'This is an example description text...';
-            var sampleRating = '8.5';
-            var ratingText = tpl.split('{rating}').join(sampleRating);
-            var result = sampleContent;
+            var enableTitleLocation = document.getElementById('ratingLocationTitle')?.checked || false;
+            var enableDescriptionLocation = document.getElementById('ratingLocationDescription')?.checked || false;
 
-            if (enableTitles || enableEpisodes) {
-              if (pos === 'prefix') result = ratingText + sep + sampleContent;
-              else result = sampleContent + sep + ratingText;
+            // Show/hide format sections based on checkbox states
+            var titleSection = document.getElementById('titleFormatSection');
+            var descSection = document.getElementById('descriptionFormatSection');
+
+            if (titleSection) {
+              titleSection.style.display = enableTitleLocation ? 'block' : 'none';
+            }
+            if (descSection) {
+              descSection.style.display = enableDescriptionLocation ? 'block' : 'none';
             }
 
-            var prev = document.getElementById('ratingPreview');
-            if (prev) {
-              if (!enableTitles && !enableEpisodes) {
-                prev.textContent = result + ' (ratings disabled)';
-                prev.style.opacity = '0.5';
-              } else {
-                prev.textContent = result;
-                prev.style.opacity = '1';
+            // Update title preview
+            if (enableTitleLocation) {
+              var titlePos = document.getElementById('titlePosition')?.value || 'prefix';
+              var titleTpl = document.getElementById('titleTemplate')?.value || '★ {rating}';
+              var titleSep = document.getElementById('titleSeparator')?.value || ' | ';
+              var sampleRating = '8.5';
+              var ratingText = titleTpl.replace('{rating}', sampleRating);
+              var sampleTitle = 'Example Movie Title';
+
+              var titleResult = titlePos === 'prefix'
+                ? ratingText + titleSep + sampleTitle
+                : sampleTitle + titleSep + ratingText;
+
+              var titlePrev = document.getElementById('titlePreview');
+              if (titlePrev) {
+                titlePrev.textContent = titleResult;
+                titlePrev.style.opacity = '1';
+              }
+            }
+
+            // Update description preview
+            if (enableDescriptionLocation) {
+              var descPos = document.getElementById('descriptionPosition')?.value || 'prefix';
+              var descTpl = document.getElementById('descriptionTemplate')?.value || '{rating}/10';
+              var descSep = document.getElementById('descriptionSeparator')?.value || '\\n';
+              var includeVotes = document.getElementById('includeVotes')?.checked || false;
+              var includeMpaa = document.getElementById('includeMpaa')?.checked || false;
+
+              // Replace literal backslash-n with actual newline (avoid template literal escape issues)
+              descSep = descSep.replace(/\\n/g, String.fromCharCode(10));
+
+              var sampleRating = '8.5';
+              var ratingText = descTpl.replace('{rating}', sampleRating);
+
+              // Build metadata parts
+              var metadataParts = [ratingText];
+              if (includeVotes) metadataParts.push('(1.2M votes)');
+              if (includeMpaa) metadataParts.push('Rated PG-13');
+
+              var metadataLine = metadataParts.join(' • ');
+              var sampleDescription = 'An epic tale of adventure and discovery...';
+
+              var descResult = descPos === 'prefix'
+                ? metadataLine + descSep + sampleDescription
+                : sampleDescription + descSep + metadataLine;
+
+              var descPrev = document.getElementById('descriptionPreview');
+              if (descPrev) {
+                descPrev.textContent = descResult;
+                descPrev.style.opacity = '1';
               }
             }
           }
 
           function generateAll() {
             ensureCinemeta();
-            const ratingPosition = document.getElementById('ratingPosition')?.value || 'prefix';
-            const ratingTemplate = document.getElementById('ratingTemplate')?.value || '★ {rating}';
-            const ratingSeparator = document.getElementById('ratingSeparator')?.value || ' | ';
+
+            // Get location checkboxes
+            const enableTitleLocation = document.getElementById('ratingLocationTitle')?.checked || false;
+            const enableDescLocation = document.getElementById('ratingLocationDescription')?.checked || false;
+
+            // Determine ratingLocation value
+            let ratingLocation = 'title'; // default
+            if (enableTitleLocation && enableDescLocation) {
+              ratingLocation = 'both';
+            } else if (enableDescLocation) {
+              ratingLocation = 'description';
+            } else if (enableTitleLocation) {
+              ratingLocation = 'title';
+            }
+
+            // Get title format settings
+            const titlePosition = document.getElementById('titlePosition')?.value || 'prefix';
+            const titleTemplate = document.getElementById('titleTemplate')?.value || '★ {rating}';
+            const titleSeparator = document.getElementById('titleSeparator')?.value || ' | ';
+
+            // Get description format settings
+            const descriptionPosition = document.getElementById('descriptionPosition')?.value || 'prefix';
+            const descriptionTemplate = document.getElementById('descriptionTemplate')?.value || '{rating}/10';
+            let descriptionSeparator = document.getElementById('descriptionSeparator')?.value || '\\n';
+            // Replace literal backslash-n with actual newline for storage
+            descriptionSeparator = descriptionSeparator.replace(/\\n/g, String.fromCharCode(10));
+
+            // Get extended metadata options
+            const includeVotes = document.getElementById('includeVotes')?.checked || false;
+            const includeMpaa = document.getElementById('includeMpaa')?.checked || false;
+
+            // Get enable flags
             const enableTitleRatings = document.getElementById('enableTitleRatings')?.checked !== false;
             const enableEpisodeRatings = document.getElementById('enableEpisodeRatings')?.checked !== false;
-            const ratingLocation = document.querySelector('input[name="ratingLocation"]:checked')?.value || 'title';
 
-            // If both are disabled, show warning
+            // If both title/episode ratings are disabled OR both locations are unchecked, show warning
             if (!enableTitleRatings && !enableEpisodeRatings) {
               alert('Warning: Both title and episode ratings are disabled. No ratings will be shown.');
+            }
+            if (!enableTitleLocation && !enableDescLocation) {
+              alert('Warning: Neither title nor description location is selected. Please select at least one location.');
+              return;
             }
 
             state.items = state.items.map(it => {
@@ -883,7 +996,19 @@ function generateConfigureHTML(protocol, host) {
                 enableTitleRatings: enableTitleRatings,
                 enableEpisodeRatings: enableEpisodeRatings,
                 ratingLocation: ratingLocation,
-                ratingFormat: { position: ratingPosition, template: ratingTemplate, separator: ratingSeparator }
+                // Separate formats for title and description
+                titleFormat: {
+                  position: titlePosition,
+                  template: titleTemplate,
+                  separator: titleSeparator
+                },
+                descriptionFormat: {
+                  position: descriptionPosition,
+                  template: descriptionTemplate,
+                  separator: descriptionSeparator,
+                  includeVotes: includeVotes,
+                  includeMpaa: includeMpaa
+                }
               };
               if (it.name) config.addonName = it.name;
               const encoded = encodeConfig(config);
@@ -898,20 +1023,37 @@ function generateConfigureHTML(protocol, host) {
 
           // Wire up live preview
           (function(){
-            var rp = document.getElementById('ratingPosition');
-            var rt = document.getElementById('ratingTemplate');
-            var rs = document.getElementById('ratingSeparator');
-            var enTitles = document.getElementById('enableTitleRatings');
-            var enEpisodes = document.getElementById('enableEpisodeRatings');
+            // Location checkboxes
             var locTitle = document.getElementById('ratingLocationTitle');
             var locDesc = document.getElementById('ratingLocationDescription');
-            if (rp) rp.addEventListener('change', updateRatingPreview);
-            if (rt) rt.addEventListener('input', updateRatingPreview);
-            if (rs) rs.addEventListener('input', updateRatingPreview);
-            if (enTitles) enTitles.addEventListener('change', updateRatingPreview);
-            if (enEpisodes) enEpisodes.addEventListener('change', updateRatingPreview);
+
+            // Title format fields
+            var titlePos = document.getElementById('titlePosition');
+            var titleTpl = document.getElementById('titleTemplate');
+            var titleSep = document.getElementById('titleSeparator');
+
+            // Description format fields
+            var descPos = document.getElementById('descriptionPosition');
+            var descTpl = document.getElementById('descriptionTemplate');
+            var descSep = document.getElementById('descriptionSeparator');
+            var includeVotes = document.getElementById('includeVotes');
+            var includeMpaa = document.getElementById('includeMpaa');
+
+            // Attach event listeners
             if (locTitle) locTitle.addEventListener('change', updateRatingPreview);
             if (locDesc) locDesc.addEventListener('change', updateRatingPreview);
+
+            if (titlePos) titlePos.addEventListener('change', updateRatingPreview);
+            if (titleTpl) titleTpl.addEventListener('input', updateRatingPreview);
+            if (titleSep) titleSep.addEventListener('input', updateRatingPreview);
+
+            if (descPos) descPos.addEventListener('change', updateRatingPreview);
+            if (descTpl) descTpl.addEventListener('input', updateRatingPreview);
+            if (descSep) descSep.addEventListener('input', updateRatingPreview);
+            if (includeVotes) includeVotes.addEventListener('change', updateRatingPreview);
+            if (includeMpaa) includeMpaa.addEventListener('change', updateRatingPreview);
+
+            // Initial update
             updateRatingPreview();
           })();
 
