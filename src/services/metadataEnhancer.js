@@ -80,13 +80,17 @@ class MetadataEnhancerService {
       // Debug: Log first item to see structure
       if (metas.length > 0) {
         logger.debug('Sample catalog item structure:', JSON.stringify(metas[0]).substring(0, 500));
+        logger.debug('Sample item IDs - imdb_id:', metas[0].imdb_id, 'imdbId:', metas[0].imdbId, 'id:', metas[0].id);
       }
 
       // Extract items for batch rating fetch, filtering out invalid items
       // Try to find IMDb ID from various possible fields
+      // We also need to track the original meta index to map results back
       const items = metas
-        .filter(meta => meta.imdb_id || meta.imdbId || meta.id) // Check multiple fields
-        .map(meta => {
+        .map((meta, index) => ({ meta, index }))
+        .filter(({ meta }) => meta.imdb_id || meta.imdbId || meta.id) // Check multiple fields
+        .map(({ meta, index }) => {
+          // Prioritize explicit IMDb ID fields over generic ID field
           let id = meta.imdb_id || meta.imdbId || meta.id;
 
           // If this is a Kitsu ID, try to map it to IMDb ID
@@ -115,7 +119,8 @@ class MetadataEnhancerService {
 
           return {
             id: id,
-            type: meta.type
+            type: meta.type,
+            originalIndex: index
           };
         });
 
@@ -133,14 +138,27 @@ class MetadataEnhancerService {
       // Fetch all ratings in batch
       const ratingsMap = await ratingsService.getRatingsBatch(items);
 
+      // Debug: Log what's in the ratings map
+      if (ratingsMap.size > 0) {
+        const firstKey = ratingsMap.keys().next().value;
+        logger.debug(`Ratings map has ${ratingsMap.size} entries. First key: ${firstKey}`);
+      }
+
       // Enhance each meta with its rating
-      const enhancedMetas = metas.map(meta => {
-        // Use the same logic to find IMDb ID as above
-        const id = meta.imdb_id || meta.imdbId || meta.id;
-        const rating = ratingsMap.get(id);
+      // We need to map back using the same ID we used for fetching
+      const enhancedMetas = metas.map((meta, index) => {
+        // Find the item we used for this meta
+        const item = items.find(item => item.originalIndex === index);
+        if (!item) {
+          return meta; // No item means we filtered it out
+        }
+
+        const rating = ratingsMap.get(item.id);
 
         if (rating) {
-          logger.debug(`Found rating ${rating} for ${id}`);
+          logger.debug(`Found rating ${rating} for ${item.id}`);
+        } else {
+          logger.debug(`No rating found for ${item.id} in ratings map`);
         }
 
         return this._enhanceMetaWithRating(meta, rating, config.ratingFormat, config.ratingLocation);

@@ -48,7 +48,7 @@ const config = {
   // Logging
   logging: {
     enabled: true,
-    level: process.env.LOG_LEVEL || 'info' // 'debug' | 'info' | 'warn' | 'error'
+    level: process.env.LOG_LEVEL || 'debug' // 'debug' | 'info' | 'warn' | 'error'
   }
 };
 
