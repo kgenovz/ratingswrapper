@@ -74,14 +74,21 @@ class MetadataEnhancerService {
       }
     }
 
-    // Join all metadata with bullet separator
+    // Determine separator with cross-client newline support
+    let sep = formatConfig.separator || ' ';
+    // Some Stremio clients collapse \r/\n; use Unicode LINE SEPARATOR for a reliable break
+    if (/\r|\n/.test(sep)) {
+      sep = '\u2028';
+    }
+
+    // Join all metadata with chosen separator (default bullet between parts)
     const metadataLine = metadataParts.join(' • ');
 
     // Add to description
     if (formatConfig.position === 'prefix') {
-      return `${metadataLine}${formatConfig.separator}${description}`;
+      return `${metadataLine}${sep}${description}`;
     } else {
-      return `${description}${formatConfig.separator}${metadataLine}`;
+      return `${description}${sep}${metadataLine}`;
     }
   }
 
