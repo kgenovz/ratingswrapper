@@ -37,45 +37,46 @@ function createMetaHandler(config) {
           const enhancedMeta = await metadataEnhancer.enhanceFullMeta(meta, config);
 
           logger.info(`Meta response enhanced from wrapped addon: ${enhancedMeta.name}`);
+          logger.info(`✅ Meta response sent with ${enhancedMeta.videos ? enhancedMeta.videos.length : 0} episodes`);
 
           return { meta: enhancedMeta };
         }
       } catch (error) {
         logger.warn(`Wrapped addon doesn't support meta endpoint: ${error.message}`);
-      }
 
-      // Fallback to metadata provider ONLY if wrapping Cinemeta AND id is IMDb format
-      const metadataProvider = config.metadataProvider || appConfig.defaults.metadataProvider;
-      const isCinemeta = config.wrappedAddonUrl && config.wrappedAddonUrl.includes('v3-cinemeta.strem.io');
-      const isImdbId = id.startsWith('tt');
+        // ONLY fallback to Cinemeta if:
+        // 1. We're wrapping Cinemeta itself, OR
+        // 2. The wrapped addon explicitly failed AND the ID is IMDb format
+        const metadataProvider = config.metadataProvider || appConfig.defaults.metadataProvider;
+        const isCinemeta = config.wrappedAddonUrl && config.wrappedAddonUrl.includes('v3-cinemeta.strem.io');
+        const isImdbId = id.startsWith('tt');
 
-      if (metadataProvider === 'cinemeta' && isCinemeta && isImdbId) {
-        logger.info('Falling back to Cinemeta for episode metadata');
+        // Only use Cinemeta fallback for IMDb IDs when wrapping Cinemeta
+        if (metadataProvider === 'cinemeta' && isCinemeta && isImdbId) {
+          logger.info('Falling back to Cinemeta for episode metadata');
 
-        try {
-          const cinemataResponse = await addonProxy.fetchMetaFromCinemeta(type, id);
-          let meta = cinemataResponse.meta;
+          try {
+            const cinemataResponse = await addonProxy.fetchMetaFromCinemeta(type, id);
+            let meta = cinemataResponse.meta;
 
-          if (meta) {
-            // Enhance the meta object with ratings
-            const enhancedMeta = await metadataEnhancer.enhanceFullMeta(meta, config);
+            if (meta) {
+              // Enhance the meta object with ratings
+              const enhancedMeta = await metadataEnhancer.enhanceFullMeta(meta, config);
 
-            logger.info(`Meta response enhanced from Cinemeta: ${enhancedMeta.name}`);
+              logger.info(`Meta response enhanced from Cinemeta: ${enhancedMeta.name}`);
+              logger.info(`✅ Meta response sent with ${enhancedMeta.videos ? enhancedMeta.videos.length : 0} episodes`);
 
-            // Debug: verify we have enhanced videos
-            if (enhancedMeta.videos && enhancedMeta.videos.length > 0) {
-              logger.debug(`Returning ${enhancedMeta.videos.length} episodes to Stremio`);
+              return { meta: enhancedMeta };
             }
-
-            return { meta: enhancedMeta };
+          } catch (cinemataError) {
+            logger.error(`Cinemeta fallback failed: ${cinemataError.message}`);
           }
-        } catch (cinemataError) {
-          logger.error(`Cinemeta fallback failed: ${cinemataError.message}`);
         }
       }
 
       // If wrapped addon doesn't provide meta, return null to let Stremio use other addons
       logger.info('No metadata available from wrapped addon, returning null');
+      logger.info(`✅ Meta response sent with 0 episodes`);
       return { meta: null };
 
     } catch (error) {

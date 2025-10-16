@@ -108,13 +108,6 @@ router.get('/:config/meta/:type/:id.json', async (req, res) => {
     const metaHandler = createMetaHandler(userConfig);
     const result = await metaHandler({ type, id });
 
-    logger.info(`✅ Meta response sent with ${result.meta?.videos?.length || 0} episodes`);
-
-    // Debug: Log the first video to verify structure
-    if (result.meta?.videos && result.meta.videos.length > 0) {
-      logger.debug('Sample video:', JSON.stringify(result.meta.videos[0]));
-    }
-
     // Ensure proper Content-Type
     res.setHeader('Content-Type', 'application/json');
     res.json(result);

@@ -41,7 +41,7 @@ const config = {
 
   // Addon proxy settings
   proxy: {
-    timeout: 10000, // 10 seconds
+    timeout: 20000, // 20 seconds (increased for slow TMDB addons)
     retries: 3
   },
 
