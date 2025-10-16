@@ -363,6 +363,12 @@ class MetadataEnhancerService {
           ? kitsuMappingService.extractKitsuId(meta.id)
           : null;
 
+        if (kitsuContextId) {
+          const rec = kitsuMappingService.getRecord(kitsuContextId);
+          const inferred = kitsuMappingService.getSeasonForKitsu(kitsuContextId, meta.name);
+          logger.info(`Kitsu context: meta.id=${meta.id}, kitsuId=${kitsuContextId}, inferredSeason=${inferred}, slug="${rec && rec.animePlanetId ? rec.animePlanetId : ''}", type=${rec && rec.type ? rec.type : ''}`);
+        }
+
         const episodeItems = meta.videos
           .filter(video => video.id) // Only videos with IDs
           .map(video => {
@@ -374,6 +380,9 @@ class MetadataEnhancerService {
             // If we have IMDb ID + season + episode, format as series:season:episode
             if (episodeImdbId && episodeImdbId.startsWith('tt') && season && episode) {
               const id = `${episodeImdbId}:${season}:${episode}`;
+              if (kitsuContextId) {
+                logger.info(`Kitsu episode ID map (batch-existing): kitsuId=${kitsuContextId} imdb=${episodeImdbId} season=${season} ep=${episode} -> ${id}`);
+              }
               return { id: id, type: 'series' };
             }
 
@@ -469,6 +478,10 @@ class MetadataEnhancerService {
           // If we have IMDb ID + season + episode, use that format
           if (episodeImdbId && episodeImdbId.startsWith('tt') && season && episode) {
             lookupId = `${episodeImdbId}:${season}:${episode}`;
+            if (meta && meta.id && kitsuMappingService.isKitsuId(meta.id)) {
+              const kitsuId = kitsuMappingService.extractKitsuId(meta.id);
+              logger.info(`Kitsu episode ID map (enhance-existing): kitsuId=${kitsuId} imdb=${episodeImdbId} season=${season} ep=${episode} -> ${lookupId}`);
+            }
           }
           // If just IMDb ID, attempt season inference for Kitsu context when episode exists
           else if (episodeImdbId && episodeImdbId.startsWith('tt')) {
