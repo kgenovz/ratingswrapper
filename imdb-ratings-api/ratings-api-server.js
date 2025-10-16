@@ -22,8 +22,12 @@ if (!UPDATE_CRON_SCHEDULE.match(/^(\S+\s+){4}\S+$/)) {
 // Add JSON body parser for new endpoints
 app.use(express.json());
 
-// Database setup
-const dbPath = path.join(__dirname, 'ratings.db');
+// Database setup - store in data/ subdirectory for volume mounting
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+}
+const dbPath = path.join(dataDir, 'ratings.db');
 let db;
 let lastUpdated = null;
 let ratingsCount = 0;
