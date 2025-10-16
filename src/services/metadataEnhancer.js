@@ -202,9 +202,14 @@ class MetadataEnhancerService {
 
       // Get rating for the main content (movie/series) - only if title ratings are enabled
       if (config.enableTitleRatings) {
-        const mainRating = await ratingsService.getRating(meta.id, meta.type);
+        // Prefer imdb_id field if available, fall back to id
+        const contentId = meta.imdb_id || meta.imdbId || meta.id;
+        logger.info(`🎬 Fetching rating for ${meta.type} "${meta.name}" using ID: ${contentId}`);
+
+        const mainRating = await ratingsService.getRating(contentId, meta.type);
 
         if (mainRating) {
+          logger.info(`✓ Found rating ${mainRating} for ${meta.name}`);
           // Add rating to main title or description
           const enhancedWithRating = this._enhanceMetaWithRating(meta, mainRating, config.ratingFormat, config.ratingLocation);
           if (config.ratingLocation === 'description') {
@@ -212,6 +217,9 @@ class MetadataEnhancerService {
           } else {
             enhancedMeta.name = enhancedWithRating.name;
           }
+          logger.info(`✓ Enhanced movie/series title: "${meta.name}" -> "${enhancedMeta.name}"`);
+        } else {
+          logger.info(`✗ No rating found for ${meta.name} (ID: ${contentId})`);
         }
       }
 
