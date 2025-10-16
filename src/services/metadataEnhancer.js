@@ -389,10 +389,10 @@ class MetadataEnhancerService {
                   // Infer season number from mapping metadata (anime-planet slug), fallback to 1
                   const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
                   const formattedId = `${imdbId}:${seasonNum}:${episodeNum}`;
-                  logger.debug(`Kitsu episode ID map (batch): kitsuId=${kitsuId} imdb=${imdbId} season=${seasonNum} ep=${episodeNum} -> ${formattedId}`);
+                  logger.info(`Kitsu episode ID map (batch): kitsuId=${kitsuId} imdb=${imdbId} season=${seasonNum} ep=${episodeNum} -> ${formattedId}`);
                   return { id: formattedId, type: 'series' };
                 } else {
-                  logger.debug(`Kitsu episode ID map (batch): kitsuId=${kitsuId} has no imdb mapping`);
+                  logger.info(`Kitsu episode ID map (batch): kitsuId=${kitsuId} has no imdb mapping`);
                 }
               } else {
                 // Just kitsu:12345 format
@@ -472,9 +472,9 @@ class MetadataEnhancerService {
               if (imdbId) {
                 const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
                 lookupId = `${imdbId}:${seasonNum}:${episodeNum}`;
-                logger.debug(`Kitsu episode ID map (enhance): kitsuId=${kitsuId} imdb=${imdbId} season=${seasonNum} ep=${episodeNum} -> ${lookupId}`);
+                logger.info(`Kitsu episode ID map (enhance): kitsuId=${kitsuId} imdb=${imdbId} season=${seasonNum} ep=${episodeNum} -> ${lookupId}`);
               } else {
-                logger.debug(`Kitsu episode ID map (enhance): kitsuId=${kitsuId} has no imdb mapping`);
+                logger.info(`Kitsu episode ID map (enhance): kitsuId=${kitsuId} has no imdb mapping`);
               }
             }
           }

@@ -138,7 +138,7 @@ class KitsuMappingService {
         const n = parseInt(m[1], 10);
         if (Number.isFinite(n) && n > 0) {
           season = n;
-          logger.debug(`Kitsu season inference: kitsuId=${kitsuId}, slug="${slug}", pattern=${re}, season=${n}`);
+          logger.info(`Kitsu season inference: kitsuId=${kitsuId}, slug="${slug}", pattern=${re}, season=${n}`);
           break;
         }
       }
@@ -152,7 +152,7 @@ class KitsuMappingService {
         const n = parseInt(mt[1], 10);
         if (Number.isFinite(n) && n > 0) {
           season = n;
-          logger.debug(`Kitsu season inference (title fallback): kitsuId=${kitsuId}, title="${fallbackTitle}", season=${n}`);
+          logger.info(`Kitsu season inference (title fallback): kitsuId=${kitsuId}, title="${fallbackTitle}", season=${n}`);
         }
       }
     }
@@ -171,7 +171,7 @@ class KitsuMappingService {
     if (inferred) {
       return inferred;
     }
-    logger.debug(`Kitsu season inference: no season detected for kitsuId=${kitsuId}, defaulting to 1`);
+    logger.info(`Kitsu season inference: no season detected for kitsuId=${kitsuId}, defaulting to 1`);
     return 1;
   }
 
