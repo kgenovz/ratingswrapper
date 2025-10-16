@@ -159,22 +159,7 @@ function generateConfigureHTML(protocol, host) {
             <div id="advancedOptions" class="advanced-options" style="background: #f8fafc; border: 2px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-top: 22px;">
               <div class="section-title">Ratings Display</div>
 
-              <div class="form-group" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
-                <div style="margin-bottom: 10px;"><strong>Enable Ratings For:</strong></div>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                  <label class="checkbox-group" style="margin: 0;">
-                    <input type="checkbox" id="enableTitleRatings" checked />
-                    <span style="margin-left: 8px;">Catalog Titles (Movies/Series)</span>
-                  </label>
-                  <div class="help-text" style="margin-left: 28px; margin-top: -4px;">Note: Stremio already shows ratings for most titles, but not for custom catalogs</div>
-
-                  <label class="checkbox-group" style="margin: 0;">
-                    <input type="checkbox" id="enableEpisodeRatings" checked />
-                    <span style="margin-left: 8px;">Episode Titles</span>
-                  </label>
-                  <div class="help-text" style="margin-left: 28px; margin-top: -4px;">Recommended: Stremio doesn't show episode ratings by default</div>
-                </div>
-              </div>
+              <!-- Removed global enable toggles; per-location settings now control behavior -->
 
               <div class="form-group" style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
                 <div style="margin-bottom: 10px;"><strong>Inject Ratings Into:</strong></div>
@@ -1041,14 +1026,7 @@ function generateConfigureHTML(protocol, host) {
             const includeMpaa = document.getElementById('includeMpaa')?.checked || false;
             const metadataSeparator = document.getElementById('metadataSeparator')?.value || ' • ';
 
-            // Get enable flags
-            const enableTitleRatings = document.getElementById('enableTitleRatings')?.checked !== false;
-            const enableEpisodeRatings = document.getElementById('enableEpisodeRatings')?.checked !== false;
-
-            // If both title/episode ratings are disabled OR both locations are unchecked, show warning
-            if (!enableTitleRatings && !enableEpisodeRatings) {
-              alert('Warning: Both title and episode ratings are disabled. No ratings will be shown.');
-            }
+            // Global enable toggles removed; per-location settings control behavior
             if (!enableTitleLocation && !enableDescLocation) {
               alert('Warning: Neither title nor description location is selected. Please select at least one location.');
               return;
@@ -1057,9 +1035,7 @@ function generateConfigureHTML(protocol, host) {
             state.items = state.items.map(it => {
               const config = {
                 wrappedAddonUrl: it.url,
-                enableRatings: enableTitleRatings || enableEpisodeRatings, // Keep global flag for backward compatibility
-                enableTitleRatings: enableTitleRatings,
-                enableEpisodeRatings: enableEpisodeRatings,
+                enableRatings: true, // Inferred from granular settings; keep global flag for compatibility
                 ratingLocation: ratingLocation,
                 // Separate formats for title and description
                 titleFormat: {
