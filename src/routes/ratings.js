@@ -37,4 +37,17 @@ router.get('/api/episode/:seriesId/:season/:episode', async (req, res) => {
   );
 });
 
+/**
+ * MPAA rating by IMDb ID
+ */
+router.get('/api/mpaa-rating/:imdbId', async (req, res) => {
+  const { imdbId } = req.params;
+  await proxyOrPlaceholder(
+    res,
+    `/api/mpaa-rating/${encodeURIComponent(imdbId)}`,
+    [imdbId],
+    { mpaaRating: 'PG-13', mpaa_rating: 'PG-13' }
+  );
+});
+
 module.exports = router;
