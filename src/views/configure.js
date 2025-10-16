@@ -183,7 +183,7 @@ function generateConfigureHTML(protocol, host) {
                     <input type="checkbox" id="ratingLocationTitle" checked style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Title/Name (space-constrained, quick glance)</span>
                   </label>
-                  <div class="help-text" style="margin-left: 26px; margin-top: -4px;">Rating will be added to the title (e.g., "⭐ 8.5 | Movie Name")</div>
+                  <div class="help-text" style="margin-left: 26px; margin-top: -4px;">Rating will be added to the title (e.g., "* 8.5 | Movie Name")</div>
 
                   <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">
                     <input type="checkbox" id="ratingLocationDescription" style="width: 18px; height: 18px;" />
@@ -198,12 +198,12 @@ function generateConfigureHTML(protocol, host) {
                 <div style="font-weight: 600; margin-bottom: 10px; color: #1e40af;">Title Format Settings</div>
                 <div class="form-group">
                   <label>Position</label>
-                  <select id="titlePosition"><option value="prefix">Prefix (★ 8.5 at start)</option><option value="suffix">Suffix (★ 8.5 at end)</option></select>
+                  <select id="titlePosition"><option value="prefix">Prefix (* 8.5 at start)</option><option value="suffix">Suffix (* 8.5 at end)</option></select>
                 </div>
                 <div class="row-2">
                   <div class="form-group">
                     <label for="titleTemplate">Template</label>
-                    <input type="text" id="titleTemplate" value="★ {rating}" />
+                    <input type="text" id="titleTemplate" value="* {rating}" />
                     <div class="help-text">Use {rating} as placeholder</div>
                   </div>
                   <div class="form-group">
@@ -892,7 +892,7 @@ function generateConfigureHTML(protocol, host) {
             // Update title preview
             if (enableTitleLocation) {
               var titlePos = document.getElementById('titlePosition')?.value || 'prefix';
-              var titleTpl = document.getElementById('titleTemplate')?.value || '★ {rating}';
+              var titleTpl = document.getElementById('titleTemplate')?.value || '* {rating}';
               var titleSep = document.getElementById('titleSeparator')?.value || ' | ';
               var sampleRating = '8.5';
               var ratingText = titleTpl.replace('{rating}', sampleRating);
@@ -928,7 +928,7 @@ function generateConfigureHTML(protocol, host) {
               if (includeVotes) metadataParts.push('(1.2M votes)');
               if (includeMpaa) metadataParts.push('Rated PG-13');
 
-              var metadataLine = metadataParts.join(' • ');
+              var metadataLine = metadataParts.join(' - ');
               var sampleDescription = 'An epic tale of adventure and discovery...';
 
               var descResult = descPos === 'prefix'
@@ -962,7 +962,7 @@ function generateConfigureHTML(protocol, host) {
 
             // Get title format settings
             const titlePosition = document.getElementById('titlePosition')?.value || 'prefix';
-            const titleTemplate = document.getElementById('titleTemplate')?.value || '★ {rating}';
+            const titleTemplate = document.getElementById('titleTemplate')?.value || '* {rating}';
             const titleSeparator = document.getElementById('titleSeparator')?.value || ' | ';
 
             // Get description format settings

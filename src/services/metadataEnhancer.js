@@ -75,7 +75,7 @@ class MetadataEnhancerService {
     }
 
     // Join all metadata with bullet separator
-    const metadataLine = metadataParts.join(' • ');
+    const metadataLine = metadataParts.join(' - ');
 
     // Add to description
     if (formatConfig.position === 'prefix') {
