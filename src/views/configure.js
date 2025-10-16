@@ -956,7 +956,7 @@ function generateConfigureHTML(protocol, host) {
               const link = document.createElement('a');
               link.className = 'install-btn';
               // Convert https:// to stremio:// for deeplink
-              link.href = url.replace(/^https:\/\//, 'stremio://');
+              link.href = url.replace(/^https:\\/\\//, 'stremio://');
               link.target = '_blank';
               const plug = document.createElement('i');
               plug.className = 'fa-solid fa-plug';
