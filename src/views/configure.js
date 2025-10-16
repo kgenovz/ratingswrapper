@@ -213,7 +213,7 @@ function generateConfigureHTML(protocol, host) {
                       <option value=" - ">Dash ( - )</option>
                       <option value=", ">Comma + space ( , )</option>
                       <option value=" . ">Dot ( . )</option>
-                      <option value=" • ">Bullet ( � )</option>
+                      <option value=" • ">Bullet ( � )</option>
                       <option value=" ★ ">Star ( ? )</option>
                       <option value=" ⭐ ">Emoji Star ( ? )</option>
                       <option value=" ✨ ">Sparkles ( ? )</option>
@@ -249,13 +249,13 @@ function generateConfigureHTML(protocol, host) {
                       <option value=" | ">Pipe ( | )</option>
                       <option value=", ">Comma + space ( , )</option>
                       <option value=" . ">Dot ( . )</option>
-                      <option value=" • ">Bullet ( � )</option>
+                      <option value=" • ">Bullet ( � )</option>
                       <option value=" ★ ">Star ( ? )</option>
                       <option value=" ⭐ ">Emoji Star ( ? )</option>
                       <option value=" ✨ ">Sparkles ( ? )</option>
                       <option value=" ">Space</option>
                     </select>
-                    <div class="help-text">New line (LF) is recommended for readable descriptions</div>
+                    <div class="help-text">New line works on Android Mobile/TV; Desktop/Web may collapse it. If you use Desktop/Web primarily, pick Bullet/Star/Pipe.</div>
                   </div>
                 </div>
                 <div class="form-group">

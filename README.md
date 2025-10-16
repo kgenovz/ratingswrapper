@@ -345,3 +345,8 @@ Built with:
 - [Stremio Addon SDK](https://github.com/Stremio/stremio-addon-sdk)
 - [Express](https://expressjs.com/)
 - [IMDb Ratings API](https://github.com/yourusername/imdb-ratings-api)
+
+### Platform Notes: New Line Separator
+- Android Mobile/TV: New line works (CRLF/LF)
+- Desktop/Web: Many views collapse line breaks; pick a visible separator (Bullet •, Star ?, Pipe |) for consistent display.
+- The UI lets you choose separators; preview shows multi-line but the Stremio client may render differently.
