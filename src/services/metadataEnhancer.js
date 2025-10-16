@@ -358,6 +358,11 @@ class MetadataEnhancerService {
         // - Cinemeta: tt12345:1:1 (series:season:episode)
         // - Kitsu: kitsu:11469:1 but provides imdb_id field
         // - TMDB: tmdb:12345:1:1 but provides imdb_id field
+        // Detect if the parent meta originated from Kitsu to allow season inference
+        const kitsuContextId = (meta && meta.id && kitsuMappingService.isKitsuId(meta.id))
+          ? kitsuMappingService.extractKitsuId(meta.id)
+          : null;
+
         const episodeItems = meta.videos
           .filter(video => video.id) // Only videos with IDs
           .map(video => {
@@ -372,8 +377,15 @@ class MetadataEnhancerService {
               return { id: id, type: 'series' };
             }
 
-            // If just IMDb ID, use it directly (might be series-level)
+            // If just IMDb ID, try to infer season if coming from Kitsu and episode exists
             if (episodeImdbId && episodeImdbId.startsWith('tt')) {
+              if (kitsuContextId && episode && !season) {
+                const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuContextId, meta.name);
+                const id = `${episodeImdbId}:${seasonNum}:${episode}`;
+                logger.info(`Kitsu episode ID map (batch-direct): kitsuId=${kitsuContextId} imdb=${episodeImdbId} season=${seasonNum} ep=${episode} -> ${id}`);
+                return { id: id, type: 'series' };
+              }
+              // No season/episode info; fall back to series-level
               return { id: episodeImdbId, type: 'series' };
             }
 
@@ -458,9 +470,16 @@ class MetadataEnhancerService {
           if (episodeImdbId && episodeImdbId.startsWith('tt') && season && episode) {
             lookupId = `${episodeImdbId}:${season}:${episode}`;
           }
-          // If just IMDb ID, use it directly
+          // If just IMDb ID, attempt season inference for Kitsu context when episode exists
           else if (episodeImdbId && episodeImdbId.startsWith('tt')) {
-            lookupId = episodeImdbId;
+            if (meta && meta.id && kitsuMappingService.isKitsuId(meta.id) && episode && !season) {
+              const kitsuId = kitsuMappingService.extractKitsuId(meta.id);
+              const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
+              lookupId = `${episodeImdbId}:${seasonNum}:${episode}`;
+              logger.info(`Kitsu episode ID map (enhance-direct): kitsuId=${kitsuId} imdb=${episodeImdbId} season=${seasonNum} ep=${episode} -> ${lookupId}`);
+            } else {
+              lookupId = episodeImdbId;
+            }
           }
           // If Kitsu format, reconstruct the mapped ID
           else if (video.id && kitsuMappingService.isKitsuId(video.id)) {
