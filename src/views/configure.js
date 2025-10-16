@@ -208,8 +208,8 @@ function generateConfigureHTML(protocol, host) {
                   </div>
                   <div class="form-group">
                     <label for="titleSeparator">Separator</label>
-                    <input type="text" id="titleSeparator" value=" | " />
-                    <div class="help-text">Default: space + | + space</div>
+                    <select id="titleSeparator"><option value=" | " selected>Pipe ( | )</option><option value=" - ">Dash ( - )</option><option value=", ">Comma + space ( , )</option><option value=" . ">Dot ( . )</option><option value=" ">Space</option></select>
+                    <div class="help-text">Choose a basic separator for titles</div>
                   </div>
                 </div>
                 <div class="form-group">
@@ -233,8 +233,8 @@ function generateConfigureHTML(protocol, host) {
                   </div>
                   <div class="form-group">
                     <label for="descriptionSeparator">Separator</label>
-                    <input type="text" id="descriptionSeparator" value="\n" />
-                    <div class="help-text">Use \n for newline</div>
+                    <select id="descriptionSeparator"><option value="\n" selected>New line</option><option value=" - ">Dash ( - )</option><option value=" | ">Pipe ( | )</option><option value=", ">Comma + space ( , )</option><option value=" . ">Dot ( . )</option><option value=" ">Space</option></select>
+                    <div class="help-text">New line is recommended for readable descriptions</div>
                   </div>
                 </div>
                 <div class="form-group">
@@ -1045,11 +1045,11 @@ function generateConfigureHTML(protocol, host) {
 
             if (titlePos) titlePos.addEventListener('change', updateRatingPreview);
             if (titleTpl) titleTpl.addEventListener('input', updateRatingPreview);
-            if (titleSep) titleSep.addEventListener('input', updateRatingPreview);
+            if (titleSep) titleSep.addEventListener('change', updateRatingPreview);
 
             if (descPos) descPos.addEventListener('change', updateRatingPreview);
             if (descTpl) descTpl.addEventListener('input', updateRatingPreview);
-            if (descSep) descSep.addEventListener('input', updateRatingPreview);
+            if (descSep) descSep.addEventListener('change', updateRatingPreview);
             if (includeVotes) includeVotes.addEventListener('change', updateRatingPreview);
             if (includeMpaa) includeMpaa.addEventListener('change', updateRatingPreview);
 
