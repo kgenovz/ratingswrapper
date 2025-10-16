@@ -937,11 +937,25 @@ function generateConfigureHTML(protocol, host) {
               copyIcon.className = 'fa-solid fa-copy';
               copyIcon.style.marginRight = '6px';
               copyBtn.appendChild(copyIcon);
-              copyBtn.appendChild(document.createTextNode('Copy'));
-              copyBtn.addEventListener('click', () => navigator.clipboard.writeText(url));
+              const copyText = document.createTextNode('Copy');
+              copyBtn.appendChild(copyText);
+              copyBtn.addEventListener('click', async () => {
+                await navigator.clipboard.writeText(url);
+                // Visual feedback: change icon and text
+                copyIcon.className = 'fa-solid fa-check';
+                copyBtn.style.background = '#059669';
+                copyText.textContent = 'Copied!';
+                // Reset after 2 seconds
+                setTimeout(() => {
+                  copyIcon.className = 'fa-solid fa-copy';
+                  copyBtn.style.background = '#22c55e';
+                  copyText.textContent = 'Copy';
+                }, 2000);
+              });
               const link = document.createElement('a');
               link.className = 'install-btn';
-              link.href = url;
+              // Convert https:// to stremio:// for deeplink
+              link.href = url.replace(/^https:\/\//, 'stremio://');
               link.target = '_blank';
               const plug = document.createElement('i');
               plug.className = 'fa-solid fa-plug';
