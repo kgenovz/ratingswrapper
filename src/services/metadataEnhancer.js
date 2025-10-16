@@ -74,14 +74,10 @@ class MetadataEnhancerService {
       }
     }
 
-    // Determine separator with cross-client newline support
-    let sep = formatConfig.separator || ' ';
-    // Some Stremio clients collapse \r/\n; use Unicode LINE SEPARATOR for a reliable break
-    if (/\r|\n/.test(sep)) {
-      sep = '\u2028';
-    }
+    // Use provided separator as-is between metadata and description
+    const sep = formatConfig.separator || ' ';
 
-    // Join all metadata with chosen separator (default bullet between parts)
+    // Join all metadata with bullet between parts
     const metadataLine = metadataParts.join(' • ');
 
     // Add to description

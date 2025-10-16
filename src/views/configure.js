@@ -213,10 +213,10 @@ function generateConfigureHTML(protocol, host) {
                       <option value=" - ">Dash ( - )</option>
                       <option value=", ">Comma + space ( , )</option>
                       <option value=" . ">Dot ( . )</option>
-                      <option value=" • ">Bullet ( • )</option>
-                      <option value=" ★ ">Star ( ★ )</option>
-                      <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
-                      <option value=" ✨ ">Sparkles ( ✨ )</option>
+                      <option value=" • ">Bullet ( � )</option>
+                      <option value=" ★ ">Star ( ? )</option>
+                      <option value=" ⭐ ">Emoji Star ( ? )</option>
+                      <option value=" ✨ ">Sparkles ( ? )</option>
                       <option value=" ">Space</option>
                     </select>
                     <div class="help-text">Choose a basic separator for titles</div>
@@ -244,18 +244,18 @@ function generateConfigureHTML(protocol, host) {
                   <div class="form-group">
                     <label for="descriptionSeparator">Separator</label>
                     <select id="descriptionSeparator">
-                      <option value="\n" selected>New line</option>
+                      <option value="\n" selected>New line (LF)</option>
                       <option value=" - ">Dash ( - )</option>
                       <option value=" | ">Pipe ( | )</option>
                       <option value=", ">Comma + space ( , )</option>
                       <option value=" . ">Dot ( . )</option>
-                      <option value=" • ">Bullet ( • )</option>
-                      <option value=" ★ ">Star ( ★ )</option>
-                      <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
-                      <option value=" ✨ ">Sparkles ( ✨ )</option>
+                      <option value=" • ">Bullet ( � )</option>
+                      <option value=" ★ ">Star ( ? )</option>
+                      <option value=" ⭐ ">Emoji Star ( ? )</option>
+                      <option value=" ✨ ">Sparkles ( ? )</option>
                       <option value=" ">Space</option>
                     </select>
-                    <div class="help-text">New line is recommended for readable descriptions</div>
+                    <div class="help-text">New line (LF) is recommended for readable descriptions</div>
                   </div>
                 </div>
                 <div class="form-group">
