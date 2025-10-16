@@ -938,8 +938,8 @@ function generateConfigureHTML(protocol, host) {
               var includeVotes = document.getElementById('includeVotes')?.checked || false;
               var includeMpaa = document.getElementById('includeMpaa')?.checked || false;
 
-              // Replace literal backslash-n with actual newline (avoid template literal escape issues)
-              descSep = descSep.replace(/\\n/g, String.fromCharCode(10));
+              // Replace literal backslash-n with CRLF to maximize client compatibility
+              descSep = descSep.replace(/\\n/g, String.fromCharCode(13) + String.fromCharCode(10));
 
               var sampleRating = '8.5';
               var ratingText = descTpl.replace('{rating}', sampleRating);
@@ -990,8 +990,8 @@ function generateConfigureHTML(protocol, host) {
             const descriptionPosition = document.getElementById('descriptionPosition')?.value || 'prefix';
             const descriptionTemplate = document.getElementById('descriptionTemplate')?.value || '{rating}/10';
             let descriptionSeparator = document.getElementById('descriptionSeparator')?.value || '\\n';
-            // Replace literal backslash-n with actual newline for storage
-            descriptionSeparator = descriptionSeparator.replace(/\\n/g, String.fromCharCode(10));
+            // Replace literal backslash-n with CRLF for storage to maximize client compatibility
+            descriptionSeparator = descriptionSeparator.replace(/\\n/g, String.fromCharCode(13) + String.fromCharCode(10));
 
             // Get extended metadata options
             const includeVotes = document.getElementById('includeVotes')?.checked || false;
