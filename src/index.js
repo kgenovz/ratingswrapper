@@ -69,8 +69,8 @@ app.listen(PORT, async () => {
   if (EMBED_RATINGS_API) {
     try {
       logger.info(`Starting embedded ratings API on port ${RATINGS_PORT}...`);
-      const child = spawn(process.execPath, ['ratings-api-server.js'], {
-        cwd: require('path').join(__dirname, '..', 'imdb-ratings-api'),
+      const ratingsApiPath = require('path').join(__dirname, '..', 'imdb-ratings-api', 'ratings-api-server.js');
+      const child = spawn(process.execPath, [ratingsApiPath], {
         env: { ...process.env, PORT: String(RATINGS_PORT) },
         stdio: ['ignore', 'pipe', 'pipe']
       });
