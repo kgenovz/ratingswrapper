@@ -37,7 +37,7 @@ function generateConfigureHTML(protocol, host) {
           .advanced-toggle { display: none; }
           .advanced-options { display: block; margin-top: 8px; }
           .section-title { font-size: 16px; font-weight: 700; margin: 6px 0 8px 0; color: #1f2937; }
-          .preview { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: #111827; }
+          .preview { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: #111827; white-space: pre-wrap; }
           .install-btn { background: #0ea5e9; color: white; text-decoration: none; padding: 8px 14px; border-radius: 6px; display: inline-block; font-size: 13px; font-weight: 600; margin-left: 8px; }
           .copy-btn { background: #22c55e; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
           .help-text { font-size: 12px; color: #666; margin-top: 5px; }
