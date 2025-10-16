@@ -624,12 +624,10 @@ app.post('/api/kitsu-mapping', (req, res) => {
  */
 async function fetchMpaaFromTmdb(imdbId) {
     if (!TMDB_API_KEY) {
-        console.info('[TMDB] API key not configured');
         return null;
     }
 
     try {
-        console.info(`[TMDB] Fetching MPAA rating for ${imdbId}`);
 
         // Step 1: Find TMDB ID from IMDb ID
         const findUrl = `${TMDB_BASE_URL}/find/${imdbId}`;
@@ -657,7 +655,7 @@ async function fetchMpaaFromTmdb(imdbId) {
             mpaaRating = await fetchTvCertification(tmdbId, imdbId);
         }
         else {
-            console.info(`[TMDB] No results found for ${imdbId}`);
+            // No results found - silent fallback
         }
 
         // Store in database if found
@@ -709,14 +707,12 @@ async function fetchMovieCertification(tmdbId, imdbId) {
 
             if (certified) {
                 const rating = certified.certification.trim();
-                console.info(`[TMDB] Found movie rating for ${imdbId}: ${rating}`);
                 return rating;
             }
         }
 
         return null;
     } catch (error) {
-        console.info(`[TMDB] Error fetching movie certification: ${error.message}`);
         return null;
     }
 }
@@ -736,13 +732,11 @@ async function fetchTvCertification(tmdbId, imdbId) {
 
         if (usRating && usRating.rating) {
             const rating = usRating.rating.trim();
-            console.info(`[TMDB] Found TV rating for ${imdbId}: ${rating}`);
             return rating;
         }
 
         return null;
     } catch (error) {
-        console.info(`[TMDB] Error fetching TV content rating: ${error.message}`);
         return null;
     }
 }

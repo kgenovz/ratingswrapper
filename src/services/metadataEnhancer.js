@@ -117,7 +117,6 @@ class MetadataEnhancerService {
     // Handle title injection
     if (location === 'title' || location === 'both') {
       enhancedMeta.name = this._formatTitleRating(meta.name, ratingData, titleFormat);
-      logger.debug(`Enhanced title: "${meta.name}" -> "${enhancedMeta.name}"`);
     }
 
     // Handle description injection
@@ -130,7 +129,6 @@ class MetadataEnhancerService {
         imdbId,
         mpaaRating
       );
-      logger.debug(`Enhanced description: "${originalDesc.substring(0, 50)}..." -> "${enhancedMeta.description.substring(0, 50)}..."`);
     }
 
     return enhancedMeta;
@@ -152,12 +150,6 @@ class MetadataEnhancerService {
 
       logger.info(`Enhancing ${metas.length} catalog items with ratings`);
 
-      // Debug: Log first item to see structure
-      if (metas.length > 0) {
-        logger.debug('Sample catalog item structure:', JSON.stringify(metas[0]).substring(0, 500));
-        logger.debug('Sample item IDs - imdb_id:', metas[0].imdb_id, 'imdbId:', metas[0].imdbId, 'id:', metas[0].id);
-      }
-
       // Extract items for batch rating fetch, filtering out invalid items
       // Try to find IMDb ID from various possible fields
       // We also need to track the original meta index to map results back
@@ -173,10 +165,7 @@ class MetadataEnhancerService {
             const kitsuId = kitsuMappingService.extractKitsuId(id);
             const imdbId = kitsuMappingService.getImdbId(kitsuId);
             if (imdbId) {
-              logger.debug(`Mapped Kitsu ID ${kitsuId} to IMDb ID ${imdbId}`);
               id = imdbId;
-            } else {
-              logger.debug(`No IMDb mapping found for Kitsu ID ${kitsuId}`);
             }
           }
 
@@ -185,10 +174,7 @@ class MetadataEnhancerService {
             const malId = kitsuMappingService.extractMalId(id);
             const imdbId = kitsuMappingService.getImdbIdFromMal(malId);
             if (imdbId) {
-              logger.debug(`Mapped MAL ID ${malId} to IMDb ID ${imdbId}`);
               id = imdbId;
-            } else {
-              logger.debug(`No IMDb mapping found for MAL ID ${malId}`);
             }
           }
 
@@ -201,13 +187,7 @@ class MetadataEnhancerService {
 
       if (items.length === 0) {
         logger.warn('No valid items with IDs found in catalog');
-        logger.debug('Sample meta object:', JSON.stringify(metas[0]));
         return metas;
-      }
-
-      // Debug: Log sample to see ID format
-      if (items.length > 0) {
-        logger.debug(`Sample catalog item ID: ${items[0].id} (type: ${items[0].type})`);
       }
 
       // Fetch all ratings in batch
@@ -248,14 +228,12 @@ class MetadataEnhancerService {
         // Find the item we used for this meta
         const item = items.find(item => item.originalIndex === index);
         if (!item) {
-          logger.debug(`No item found for meta at index ${index}`);
           return meta; // No item means we filtered it out
         }
 
         const ratingData = ratingsMap.get(item.id);
 
         if (!ratingData) {
-          logger.debug(`No rating found for ${item.id}`);
           return meta;
         }
 
@@ -330,8 +308,6 @@ class MetadataEnhancerService {
       // Enhance episode titles if this is a series with videos (episodes) - only if episode ratings are enabled
       if (config.enableEpisodeRatings && meta.videos && Array.isArray(meta.videos) && meta.videos.length > 0) {
         logger.info(`Enhancing ${meta.videos.length} episode titles with ratings`);
-        logger.info('First episode sample:', JSON.stringify(meta.videos[0]));
-        logger.info('First episode video.id:', meta.videos[0].id);
 
         // For episodes, we need to extract individual episode IMDb IDs
         // Different providers use different formats:
@@ -349,13 +325,11 @@ class MetadataEnhancerService {
             // If we have IMDb ID + season + episode, format as series:season:episode
             if (episodeImdbId && episodeImdbId.startsWith('tt') && season && episode) {
               const id = `${episodeImdbId}:${season}:${episode}`;
-              logger.debug(`Episode ${video.id} formatted as: ${id}`);
               return { id: id, type: 'series' };
             }
 
             // If just IMDb ID, use it directly (might be series-level)
             if (episodeImdbId && episodeImdbId.startsWith('tt')) {
-              logger.debug(`Episode ${video.id} has IMDb ID: ${episodeImdbId}`);
               return { id: episodeImdbId, type: 'series' };
             }
 
@@ -370,7 +344,6 @@ class MetadataEnhancerService {
                 if (imdbId) {
                   // Kitsu uses single season (season 1), format as IMDb series:1:episode
                   const formattedId = `${imdbId}:1:${episodeNum}`;
-                  logger.debug(`Mapped Kitsu episode ${video.id} to ${formattedId}`);
                   return { id: formattedId, type: 'series' };
                 }
               } else {
@@ -378,7 +351,6 @@ class MetadataEnhancerService {
                 const kitsuId = kitsuMappingService.extractKitsuId(video.id);
                 const imdbId = kitsuMappingService.getImdbId(kitsuId);
                 if (imdbId) {
-                  logger.debug(`Mapped Kitsu episode ${video.id} to series IMDb ID ${imdbId}`);
                   return { id: imdbId, type: 'series' };
                 }
               }
@@ -396,7 +368,6 @@ class MetadataEnhancerService {
                 if (imdbId) {
                   // Format as IMDb series:season:episode
                   const formattedId = `${imdbId}:${season}:${episodeNum}`;
-                  logger.debug(`Mapped MAL episode ${video.id} to ${formattedId}`);
                   return { id: formattedId, type: 'series' };
                 }
               } else {
@@ -404,7 +375,6 @@ class MetadataEnhancerService {
                 const malId = kitsuMappingService.extractMalId(video.id);
                 const imdbId = kitsuMappingService.getImdbIdFromMal(malId);
                 if (imdbId) {
-                  logger.debug(`Mapped MAL episode ${video.id} to series IMDb ID ${imdbId}`);
                   return { id: imdbId, type: 'series' };
                 }
               }
@@ -414,16 +384,8 @@ class MetadataEnhancerService {
             return { id: video.id, type: 'series' };
           });
 
-        logger.info(`Extracted ${episodeItems.length} episode IDs`);
-        if (episodeItems.length > 0) {
-          logger.info('First episode ID sample:', episodeItems[0].id);
-          logger.info('First 5 episode IDs:', episodeItems.slice(0, 5).map(e => e.id));
-          logger.info('Original first episode video.id:', meta.videos[0].id);
-        }
-
         // Fetch all episode ratings in batch
         const episodeRatingsMap = await ratingsService.getRatingsBatch(episodeItems);
-        logger.debug(`Got ${episodeRatingsMap.size} episode ratings from ${episodeItems.length} episodes`);
 
         // Enhance each episode title (now using async)
         enhancedMeta.videos = await Promise.all(meta.videos.map(async video => {
@@ -472,7 +434,6 @@ class MetadataEnhancerService {
 
           // Look up the rating using the constructed ID
           const episodeRatingData = episodeRatingsMap.get(lookupId);
-          logger.debug(`Looking up rating for ${lookupId}: ${episodeRatingData ? 'found' : 'not found'}`);
 
           if (!episodeRatingData) return video;
 
@@ -537,12 +498,6 @@ class MetadataEnhancerService {
         ).length;
 
         logger.info(`✓ Enhanced ${enhancedEpisodeCount}/${meta.videos.length} episode titles`);
-
-        // Debug: log a sample episode before/after
-        if (meta.videos.length > 0) {
-          logger.debug(`Sample episode BEFORE: "${meta.videos[0].name}"`);
-          logger.debug(`Sample episode AFTER: "${enhancedMeta.videos[0].name}"`);
-        }
       }
 
       return enhancedMeta;
