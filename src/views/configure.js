@@ -279,7 +279,7 @@ function generateConfigureHTML(protocol, host) {
                   </label>
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeMpaa" style="width: 18px; height: 18px;" />
-                    <span style="margin-left: 8px;">Include MPAA rating (e.g., "Rated PG-13")</span>
+                    <span style="margin-left: 8px;">Include MPAA rating (e.g., "PG-13")</span>
                   </label>
                   <div style="margin-top: 10px;">
                     <label for="metadataSeparator" style="display: block; font-weight: 600; margin-bottom: 6px;">Metadata Separator</label>
@@ -975,7 +975,7 @@ function generateConfigureHTML(protocol, host) {
               // Build metadata parts
               var metadataParts = [ratingText];
               if (includeVotes) metadataParts.push('1.2M votes');
-              if (includeMpaa) metadataParts.push('Rated PG-13');
+              if (includeMpaa) metadataParts.push('PG-13');
 
               var metadataLine = metadataParts.join(metaSep);
               var sampleDescription = 'An epic tale of adventure and discovery...';
