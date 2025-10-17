@@ -1304,7 +1304,20 @@ app.get('/api/omdb-data/:imdbId', async (req, res) => {
             });
         }
 
-        // Step 3: Not found anywhere
+        // Step 3: Not found anywhere — write negative cache entry to avoid repeated fetches
+        try {
+            const now = Date.now();
+            const stmt = db.prepare(`
+                INSERT OR REPLACE INTO omdb_metadata
+                (imdb_id, rotten_tomatoes, metacritic, updated_at, ratings_cached_at)
+                VALUES (?, NULL, NULL, ?, ?)
+            `);
+            stmt.run(imdbId, now, now);
+            console.info(`[OMDB-DATA] Negative cache stored for ${imdbId} (no OMDB data)`);
+        } catch (dbErr) {
+            console.warn(`[OMDB-DATA] Failed to store negative cache for ${imdbId}: ${dbErr.message}`);
+        }
+
         console.info(`[OMDB-DATA] Not found in database or OMDB: ${imdbId}`);
         return res.status(404).json({ error: 'OMDB data not found' });
 
