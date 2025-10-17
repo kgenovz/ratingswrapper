@@ -1,0 +1,32 @@
+{
+  "$schema": "split-cour-mappings-schema",
+  "description": "Manual mappings for split-cour anime to handle episode offset calculations. Kitsu/MAL split seasons into parts, but IMDb treats them as continuous. This maps Kitsu/MAL part episodes to correct IMDb episode numbers.",
+  "version": "1.0.0",
+  "mappings": {
+    "kitsu:43247": {
+      "title": "Re:Zero kara Hajimeru Isekai Seikatsu 2nd Season Part 2",
+      "imdb_id": "tt5607976",
+      "imdb_season": 2,
+      "part": 2,
+      "episode_offset": 13,
+      "notes": "Part 1 has episodes 1-13, Part 2 has episodes 1-12 (mapped to IMDb 14-25)",
+      "kitsu_slug": "rezero-season-2-part-2"
+    }
+  },
+  "_instructions": {
+    "description": "How to add new split-cour mappings",
+    "why_this_exists": "Kitsu/MAL split seasons into parts (e.g., Part 1: episodes 1-13, Part 2: episodes 1-12), but IMDb numbers them continuously (1-25). When a Kitsu/MAL addon provides episode 5 of Part 2, we need to add offset 13 to get IMDb episode 18.",
+    "how_to_add": [
+      "1. Find the Kitsu or MAL ID for the specific part (e.g., kitsu:39587 for Re:Zero S2P2)",
+      "2. Add a key with format 'kitsu:ID' or 'mal:ID'",
+      "3. Specify the IMDb ID and season number for the series",
+      "4. Set episode_offset (number of episodes before this part starts)",
+      "5. For Part 2 starting at IMDb episode 14, offset = 13"
+    ],
+    "example": {
+      "scenario": "Kitsu addon returns: kitsu:39587:5 (Part 2, Episode 5)",
+      "without_offset": "Would try to fetch rating for IMDb S2E5",
+      "with_offset": "Correctly fetches rating for IMDb S2E18 (5 + 13)"
+    }
+  }
+}

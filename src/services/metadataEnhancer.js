@@ -435,11 +435,20 @@ class MetadataEnhancerService {
               const parts = video.id.split(':');
               if (parts.length >= 3 && parts[0] === 'kitsu') {
                 const kitsuId = parts[1];
-                const episodeNum = parts[2];
+                let episodeNum = parseInt(parts[2], 10);
                 const imdbId = kitsuMappingService.getImdbId(kitsuId);
                 if (imdbId) {
                   // Infer season number from mapping metadata (anime-planet slug), fallback to 1
                   const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
+
+                  // Check for split-cour episode offset
+                  const splitCourKey = `kitsu:${kitsuId}`;
+                  const splitCourData = kitsuMappingService.getSplitCourOffset(splitCourKey);
+                  if (splitCourData && splitCourData.episode_offset) {
+                    episodeNum += splitCourData.episode_offset;
+                    logger.info(`Split-cour offset applied (batch): ${splitCourKey} ep ${parts[2]} + offset ${splitCourData.episode_offset} = ${episodeNum}`);
+                  }
+
                   const formattedId = `${imdbId}:${seasonNum}:${episodeNum}`;
                   logger.info(`Kitsu episode ID map (batch): kitsuId=${kitsuId} imdb=${imdbId} season=${seasonNum} ep=${episodeNum} -> ${formattedId}`);
                   return { id: formattedId, type: 'series' };
@@ -539,10 +548,19 @@ class MetadataEnhancerService {
             const parts = video.id.split(':');
             if (parts.length >= 3 && parts[0] === 'kitsu') {
               const kitsuId = parts[1];
-              const episodeNum = parts[2];
+              let episodeNum = parseInt(parts[2], 10);
               const imdbId = kitsuMappingService.getImdbId(kitsuId);
               if (imdbId) {
                 const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
+
+                // Check for split-cour episode offset
+                const splitCourKey = `kitsu:${kitsuId}`;
+                const splitCourData = kitsuMappingService.getSplitCourOffset(splitCourKey);
+                if (splitCourData && splitCourData.episode_offset) {
+                  episodeNum += splitCourData.episode_offset;
+                  logger.info(`Split-cour offset applied (enhance): ${splitCourKey} ep ${parts[2]} + offset ${splitCourData.episode_offset} = ${episodeNum}`);
+                }
+
                 lookupId = `${imdbId}:${seasonNum}:${episodeNum}`;
                 logger.info(`Kitsu episode ID map (enhance): kitsuId=${kitsuId} imdb=${imdbId} season=${seasonNum} ep=${episodeNum} -> ${lookupId}`);
               } else {

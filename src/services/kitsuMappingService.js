@@ -4,6 +4,8 @@
  */
 
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const logger = require('../utils/logger');
 
 class KitsuMappingService {
@@ -11,6 +13,7 @@ class KitsuMappingService {
     this.kitsuMappings = new Map(); // kitsuId -> imdbId
     this.malMappings = new Map();   // malId -> imdbId
     this.kitsuMeta = new Map();     // kitsuId -> { imdb_id, animePlanetId, type, thetvdb_id, themoviedb_id }
+    this.splitCourMappings = new Map(); // 'kitsu:ID' or 'mal:ID' -> { episode_offset, imdb_id, imdb_season, part }
     this.loaded = false;
     this.loading = false;
   }
@@ -73,6 +76,9 @@ class KitsuMappingService {
       this.loaded = true;
       logger.info(`Loaded ${kitsuCount} Kitsu and ${malCount} MAL → IMDb mappings (from ${animeList.length} total anime)`);
 
+      // Load split-cour mappings from local JSON file
+      this.loadSplitCourMappings();
+
     } catch (error) {
       logger.error('Failed to load anime mappings:', error.message);
       this.loading = false;
@@ -80,6 +86,37 @@ class KitsuMappingService {
     }
 
     this.loading = false;
+  }
+
+  /**
+   * Loads split-cour episode offset mappings from local JSON file
+   * @returns {void}
+   */
+  loadSplitCourMappings() {
+    try {
+      const mappingsPath = path.join(__dirname, '../data/split-cour-mappings.json');
+      const data = fs.readFileSync(mappingsPath, 'utf8');
+      const json = JSON.parse(data);
+
+      if (json.mappings) {
+        for (const [key, value] of Object.entries(json.mappings)) {
+          this.splitCourMappings.set(key, value);
+        }
+        logger.info(`Loaded ${this.splitCourMappings.size} split-cour episode offset mappings`);
+      }
+    } catch (error) {
+      logger.warn('Failed to load split-cour mappings (non-critical):', error.message);
+      // Non-critical error, continue without split-cour support
+    }
+  }
+
+  /**
+   * Gets split-cour episode offset for a Kitsu or MAL ID
+   * @param {string} id - Full ID in format 'kitsu:12345' or 'mal:12345'
+   * @returns {Object|null} - { episode_offset, imdb_id, imdb_season, part } or null
+   */
+  getSplitCourOffset(id) {
+    return this.splitCourMappings.get(id) || null;
   }
 
   /**
@@ -140,10 +177,10 @@ class KitsuMappingService {
 
     const patterns = [
       /(?:^|[-_ ])season[-_ ]*(\d+)(?:st|nd|rd|th)?/i,            // season-2, season 2, season-2nd
-      /(?:^|[-_ ])(\d+)(?:st|nd|rd|th)[-_ ]*season/i,              // 2nd-season, 2nd season
+      /(\d+)(?:st|nd|rd|th)[-_ ]*season/i,                         // 2nd-season, 2nd season (anywhere in slug)
       /(?:^|[-_ ])s(\d+)(?:$|[-_ ])/i,                             // s2, s3 (delimited)
-      /part[-_ ]?(\d+)/i,                                         // part-2
-      /(?:^|[-_ ])(\d+)$/i                                        // trailing number at end
+      /part[-_ ]?(\d+)/i,                                         // part-2, part 2
+      /[-_ ](\d+)$/i                                              // word-2, word 2 (any word followed by number at end)
     ];
     for (const re of patterns) {
       const m = slug.match(re);
