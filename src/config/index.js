@@ -9,6 +9,10 @@ const config = {
 
   // External API keys
   tmdbApiKey: process.env.TMDB_API_KEY || null,
+  omdbApiKey: process.env.OMDB_API_KEY || null,
+
+  // Ratings API configuration
+  ratingsApiUrl: process.env.RATINGS_API_URL || 'http://localhost:3001',
 
   // Default addon settings
   defaults: {

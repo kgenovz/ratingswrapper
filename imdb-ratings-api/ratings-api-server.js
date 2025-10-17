@@ -15,6 +15,11 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_TIMEOUT = 10000; // 10 seconds
 
+// OMDB API configuration
+const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
+const OMDB_BASE_URL = 'http://www.omdbapi.com';
+const OMDB_TIMEOUT = 10000; // 10 seconds
+
 // Parse cron schedule from environment variable, default to 2 AM daily
 const UPDATE_CRON_SCHEDULE = process.env.UPDATE_CRON_SCHEDULE || '0 2 * * *';
 
@@ -120,6 +125,15 @@ function initDatabase() {
             mpaa_rating TEXT NOT NULL,
             country TEXT DEFAULT 'US',
             updated_at INTEGER NOT NULL
+        ) WITHOUT ROWID`);
+
+        // Table for OMDB ratings cache (Rotten Tomatoes, Metacritic)
+        db.exec(`CREATE TABLE IF NOT EXISTS omdb_metadata (
+            imdb_id TEXT PRIMARY KEY,
+            rotten_tomatoes TEXT,
+            metacritic INTEGER,
+            updated_at INTEGER NOT NULL,
+            ratings_cached_at INTEGER
         ) WITHOUT ROWID`);
 
         // Optimized indexes
@@ -1129,6 +1143,211 @@ app.post('/api/tmdb-data', (req, res) => {
     } catch (error) {
         console.error('TMDB data write error:', error);
         res.status(500).json({ error: 'TMDB data write failed' });
+    }
+});
+
+// *** OMDB HELPER FUNCTIONS ***
+
+/**
+ * Fetch OMDB data (Rotten Tomatoes, Metacritic) by IMDb ID
+ * @param {string} imdbId - IMDb ID (e.g., "tt0111161")
+ * @returns {Promise<Object|null>} - OMDB data object or null
+ */
+async function fetchOmdbDataByImdbId(imdbId) {
+    if (!OMDB_API_KEY) {
+        return null;
+    }
+
+    try {
+        const url = `${OMDB_BASE_URL}`;
+        const response = await axios.get(url, {
+            params: {
+                apikey: OMDB_API_KEY,
+                i: imdbId,
+                plot: 'short'
+            },
+            timeout: OMDB_TIMEOUT
+        });
+
+        const data = response.data;
+
+        if (data.Response === 'False') {
+            console.info(`[OMDB] No data found for ${imdbId}`);
+            return null;
+        }
+
+        // Parse ratings from the Ratings array
+        let rottenTomatoes = null;
+        let metacritic = null;
+
+        if (data.Ratings && Array.isArray(data.Ratings)) {
+            const rtRating = data.Ratings.find(r => r.Source === 'Rotten Tomatoes');
+            if (rtRating) {
+                rottenTomatoes = rtRating.Value; // e.g., "83%"
+            }
+
+            const mcRating = data.Ratings.find(r => r.Source === 'Metacritic');
+            if (mcRating) {
+                // Parse "68/100" to integer 68
+                const match = mcRating.Value.match(/^(\d+)/);
+                if (match) {
+                    metacritic = parseInt(match[1]);
+                }
+            }
+        }
+
+        // Fallback to Metascore field if Metacritic not in Ratings array
+        if (!metacritic && data.Metascore && data.Metascore !== 'N/A') {
+            metacritic = parseInt(data.Metascore);
+        }
+
+        const omdbData = {
+            rottenTomatoes,
+            metacritic
+        };
+
+        // Store in database if we have any data
+        if (rottenTomatoes || metacritic) {
+            try {
+                const now = Date.now();
+                const stmt = db.prepare(`
+                    INSERT OR REPLACE INTO omdb_metadata
+                    (imdb_id, rotten_tomatoes, metacritic, updated_at, ratings_cached_at)
+                    VALUES (?, ?, ?, ?, ?)
+                `);
+
+                stmt.run(
+                    imdbId,
+                    rottenTomatoes,
+                    metacritic,
+                    now,
+                    now
+                );
+
+                console.info(`[OMDB] Stored OMDB data for ${imdbId}: RT=${rottenTomatoes}, MC=${metacritic}`);
+            } catch (dbError) {
+                console.error(`[OMDB] Error storing OMDB data: ${dbError.message}`);
+            }
+        }
+
+        return omdbData;
+
+    } catch (error) {
+        if (error.response?.status === 429) {
+            console.warn(`[OMDB] Rate limit hit for ${imdbId}`);
+        } else if (error.response?.status === 401) {
+            console.error(`[OMDB] Invalid API key`);
+        } else {
+            console.warn(`[OMDB] Error fetching ${imdbId}: ${error.message}`);
+        }
+        return null;
+    }
+}
+
+// *** OMDB DATA API ENDPOINTS ***
+
+// GET /api/omdb-data/:imdbId - Get OMDB data (Rotten Tomatoes, Metacritic) with caching
+app.get('/api/omdb-data/:imdbId', async (req, res) => {
+    try {
+        const { imdbId } = req.params;
+        console.info(`[OMDB-DATA] Request for: ${imdbId}`);
+
+        if (!imdbId || !imdbId.startsWith('tt')) {
+            return res.status(400).json({ error: 'Invalid IMDb ID. Must start with "tt"' });
+        }
+
+        // Step 1: Check database first
+        const result = db.prepare(`
+            SELECT rotten_tomatoes, metacritic, updated_at, ratings_cached_at
+            FROM omdb_metadata WHERE imdb_id = ?
+        `).get(imdbId);
+
+        if (result) {
+            const now = Date.now();
+            const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
+
+            // Check if ratings need refresh (older than 1 week)
+            const ratingsNeedRefresh = result.ratings_cached_at && (now - result.ratings_cached_at) > oneWeek;
+
+            if (!ratingsNeedRefresh) {
+                console.info(`[OMDB-DATA] Found in database (cached): RT=${result.rotten_tomatoes}, MC=${result.metacritic}`);
+                return res.json({
+                    imdbId,
+                    rottenTomatoes: result.rotten_tomatoes,
+                    metacritic: result.metacritic,
+                    updatedAt: new Date(result.updated_at).toISOString(),
+                    ratingsCachedAt: result.ratings_cached_at ? new Date(result.ratings_cached_at).toISOString() : null,
+                    source: 'database',
+                    cached: true
+                });
+            } else {
+                console.info(`[OMDB-DATA] Ratings stale for ${imdbId}, will refetch from OMDB`);
+            }
+        }
+
+        // Step 2: Not in database or ratings are stale, fetch from OMDB
+        if (!OMDB_API_KEY) {
+            console.warn('[OMDB-DATA] OMDB_API_KEY not configured');
+            return res.status(503).json({ error: 'OMDB API not configured' });
+        }
+
+        console.info(`[OMDB-DATA] Fetching from OMDB: ${imdbId}`);
+        const omdbData = await fetchOmdbDataByImdbId(imdbId);
+
+        if (omdbData && (omdbData.rottenTomatoes || omdbData.metacritic)) {
+            console.info(`[OMDB-DATA] Fetched from OMDB: RT=${omdbData.rottenTomatoes}, MC=${omdbData.metacritic}`);
+            return res.json({
+                ...omdbData,
+                imdbId,
+                source: 'omdb',
+                cached: false
+            });
+        }
+
+        // Step 3: Not found anywhere
+        console.info(`[OMDB-DATA] Not found in database or OMDB: ${imdbId}`);
+        return res.status(404).json({ error: 'OMDB data not found' });
+
+    } catch (error) {
+        console.error(`[OMDB-DATA] Error processing ${req.params.imdbId}:`, error);
+        res.status(500).json({ error: 'OMDB data fetch failed' });
+    }
+});
+
+// POST /api/omdb-data - Store OMDB data
+app.post('/api/omdb-data', (req, res) => {
+    try {
+        const {
+            imdbId, rottenTomatoes, metacritic
+        } = req.body;
+
+        if (!imdbId) {
+            return res.status(400).json({ error: 'Missing imdbId' });
+        }
+
+        const now = Date.now();
+
+        const stmt = db.prepare(`
+            INSERT OR REPLACE INTO omdb_metadata
+            (imdb_id, rotten_tomatoes, metacritic, updated_at, ratings_cached_at)
+            VALUES (?, ?, ?, ?, ?)
+        `);
+
+        stmt.run(
+            imdbId,
+            rottenTomatoes || null,
+            metacritic || null,
+            now,
+            now
+        );
+
+        res.json({
+            success: true,
+            data: { imdbId, rottenTomatoes, metacritic }
+        });
+    } catch (error) {
+        console.error('OMDB data write error:', error);
+        res.status(500).json({ error: 'OMDB data write failed' });
     }
 });
 

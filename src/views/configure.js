@@ -315,6 +315,27 @@ function generateConfigureHTML(protocol, host) {
                     </select>
                     <div class="help-text" style="margin-top: 5px;">Choose how to display release dates</div>
                   </div>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeRottenTomatoes" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include Rotten Tomatoes rating</span>
+                  </label>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeMetacritic" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include Metacritic score</span>
+                  </label>
+                  <div id="metacriticFormatSection" style="margin-left: 26px; margin-bottom: 10px; display: none;">
+                    <label for="metacriticFormat" style="display: block; font-weight: 600; margin-bottom: 6px;">Metacritic Format</label>
+                    <select id="metacriticFormat">
+                      <option value="score" selected>Score only (68 MC)</option>
+                      <option value="outof100">Out of 100 (68/100 MC)</option>
+                    </select>
+                    <div class="help-text" style="margin-top: 5px;">Choose how to display Metacritic scores</div>
+                  </div>
+                  <div id="metadataOrderSection" style="margin-top: 10px; display:none;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 6px;">Order</label>
+                    <ul id="metadataOrderList" style="list-style: none; padding: 0; margin: 0;"></ul>
+                    <div class="help-text" style="margin-top: 5px;">Use arrows to arrange how metadata appears after the rating.</div>
+                  </div>
                   <div style="margin-top: 10px;">
                     <label for="metadataSeparator" style="display: block; font-weight: 600; margin-bottom: 6px;">Metadata Separator</label>
                     <select id="metadataSeparator">
@@ -328,7 +349,7 @@ function generateConfigureHTML(protocol, host) {
                       <option value=" ✨ ">Sparkles ( ✨ )</option>
                       <option value=" ">Space</option>
                     </select>
-                    <div class="help-text" style="margin-top: 5px;">Separator between rating, vote count, MPAA rating, TMDB rating, and release date</div>
+                    <div class="help-text" style="margin-top: 5px;">Separator between rating, vote count, MPAA rating, TMDB rating, release date, Rotten Tomatoes, and Metacritic</div>
                   </div>
                 </div>
                 <div class="form-group">
@@ -965,6 +986,90 @@ function generateConfigureHTML(protocol, host) {
             return btoa(binaryString).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
           }
 
+          function getMetadataOrder() {
+            var list = document.getElementById('metadataOrderList');
+            if (!list) return ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+            var keys = [];
+            list.querySelectorAll('li').forEach(function(li){
+              var k = li.getAttribute('data-key'); if (k) keys.push(k);
+            });
+            return keys.length ? keys : ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+          }
+
+          function createOrderItem(key, label) {
+            var li = document.createElement('li');
+            li.setAttribute('data-key', key);
+            li.style.display = 'flex';
+            li.style.alignItems = 'center';
+            li.style.justifyContent = 'space-between';
+            li.style.padding = '4px 0';
+            var text = document.createElement('span');
+            text.textContent = label;
+            var actions = document.createElement('span');
+            var up = document.createElement('button');
+            up.type = 'button'; up.className = 'btn'; up.style.padding = '2px 6px'; up.textContent = '▲';
+            up.onclick = function(){ moveOrderItem(key, 'up'); };
+            var down = document.createElement('button');
+            down.type = 'button'; down.className = 'btn'; down.style.padding = '2px 6px'; down.style.marginLeft = '4px'; down.textContent = '▼';
+            down.onclick = function(){ moveOrderItem(key, 'down'); };
+            actions.appendChild(up); actions.appendChild(down);
+            li.appendChild(text); li.appendChild(actions);
+            return li;
+          }
+
+          function renderMetadataOrderList() {
+            var section = document.getElementById('metadataOrderSection');
+            var list = document.getElementById('metadataOrderList');
+            if (!section || !list) return;
+            // Read checkbox states
+            var includes = {
+              votes: document.getElementById('includeVotes')?.checked || false,
+              mpaa: document.getElementById('includeMpaa')?.checked || false,
+              tmdb: document.getElementById('includeTmdbRating')?.checked || false,
+              releaseDate: document.getElementById('includeReleaseDate')?.checked || false,
+              rottenTomatoes: document.getElementById('includeRottenTomatoes')?.checked || false,
+              metacritic: document.getElementById('includeMetacritic')?.checked || false
+            };
+            var labels = {
+              votes: 'Vote count',
+              mpaa: 'MPAA rating',
+              tmdb: 'TMDB rating',
+              releaseDate: 'Release date',
+              rottenTomatoes: 'Rotten Tomatoes',
+              metacritic: 'Metacritic'
+            };
+            var defaultOrder = ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+            var selected = defaultOrder.filter(function(k){ return includes[k]; });
+            if (selected.length === 0) {
+              section.style.display = 'none';
+              list.innerHTML = '';
+              return;
+            }
+            section.style.display = 'block';
+            // Keep existing order where possible
+            var current = getMetadataOrder();
+            var desired = current.filter(function(k){ return includes[k]; });
+            // Append newly included keys at the end in default order
+            selected.forEach(function(k){ if (desired.indexOf(k) === -1) desired.push(k); });
+            // Rebuild list
+            list.innerHTML = '';
+            desired.forEach(function(k){ list.appendChild(createOrderItem(k, labels[k])); });
+          }
+
+          function moveOrderItem(key, dir) {
+            var list = document.getElementById('metadataOrderList');
+            if (!list) return;
+            var items = Array.from(list.children);
+            var idx = items.findIndex(function(li){ return li.getAttribute('data-key') === key; });
+            if (idx === -1) return;
+            if (dir === 'up' && idx > 0) {
+              list.insertBefore(items[idx], items[idx - 1]);
+            } else if (dir === 'down' && idx < items.length - 1) {
+              list.insertBefore(items[idx + 1], items[idx]);
+            }
+            updateRatingPreview();
+          }
+
           function updateRatingPreview() {
             var enableTitleLocation = document.getElementById('ratingLocationTitle')?.checked || false;
             var enableDescriptionLocation = document.getElementById('ratingLocationDescription')?.checked || false;
@@ -1001,6 +1106,16 @@ function generateConfigureHTML(protocol, host) {
               releaseDateFormatSection.style.display = includeReleaseDate ? 'block' : 'none';
             }
 
+            // Show/hide Metacritic format dropdown based on includeMetacritic checkbox
+            var includeMetacritic = document.getElementById('includeMetacritic')?.checked || false;
+            var metacriticFormatSection = document.getElementById('metacriticFormatSection');
+            if (metacriticFormatSection) {
+              metacriticFormatSection.style.display = includeMetacritic ? 'block' : 'none';
+            }
+
+            // Rebuild ordering list when toggles change
+            renderMetadataOrderList();
+
             // Update title preview
             if (enableTitleLocation) {
               var titlePos = document.getElementById('titlePosition')?.value || 'prefix';
@@ -1030,10 +1145,13 @@ function generateConfigureHTML(protocol, host) {
               var includeMpaa = document.getElementById('includeMpaa')?.checked || false;
               var includeTmdbRating = document.getElementById('includeTmdbRating')?.checked || false;
               var includeReleaseDate = document.getElementById('includeReleaseDate')?.checked || false;
+              var includeRottenTomatoes = document.getElementById('includeRottenTomatoes')?.checked || false;
+              var includeMetacritic = document.getElementById('includeMetacritic')?.checked || false;
               var metaSep = document.getElementById('metadataSeparator')?.value || ' • ';
               var voteCountFormat = document.getElementById('voteCountFormat')?.value || 'short';
               var tmdbRatingFormat = document.getElementById('tmdbRatingFormat')?.value || 'decimal';
               var releaseDateFormat = document.getElementById('releaseDateFormat')?.value || 'year';
+              var metacriticFormat = document.getElementById('metacriticFormat')?.value || 'score';
 
               // Replace literal backslash-n with CRLF to maximize client compatibility
               descSep = descSep.replace(/\\n/g, String.fromCharCode(13) + String.fromCharCode(10));
@@ -1041,30 +1159,37 @@ function generateConfigureHTML(protocol, host) {
               var sampleRating = '8.5';
               var ratingText = descTpl.replace('{rating}', sampleRating);
 
-              // Build metadata parts
+              // Build metadata parts with configurable order
               var metadataParts = [ratingText];
+              var order = getMetadataOrder();
+              var partTexts = {};
               if (includeVotes) {
                 var voteText = '';
-                if (voteCountFormat === 'short') {
-                  voteText = '1.2M votes';
-                } else if (voteCountFormat === 'full') {
-                  voteText = '1,200,000 votes';
-                } else if (voteCountFormat === 'both') {
-                  voteText = '1,200,000 / 1.2M votes';
-                }
-                metadataParts.push(voteText);
+                if (voteCountFormat === 'short') voteText = '1.2M votes';
+                else if (voteCountFormat === 'full') voteText = '1,200,000 votes';
+                else if (voteCountFormat === 'both') voteText = '1,200,000 / 1.2M votes';
+                partTexts.votes = voteText;
               }
-              if (includeMpaa) metadataParts.push('PG-13');
+              if (includeMpaa) partTexts.mpaa = 'PG-13';
               if (includeTmdbRating) {
                 var tmdbText = tmdbRatingFormat === 'decimal' ? '8.5 TMDB' : '8.5/10 TMDB';
-                metadataParts.push(tmdbText);
+                partTexts.tmdb = tmdbText;
               }
               if (includeReleaseDate) {
-                var dateText = releaseDateFormat === 'year' ? '2023' :
-                               releaseDateFormat === 'short' ? 'Jan 15, 2023' :
-                               'January 15, 2023';
-                metadataParts.push(dateText);
+                var dateText = releaseDateFormat === 'year' ? '2023'
+                  : (releaseDateFormat === 'short' ? 'Jan 15, 2023' : 'January 15, 2023');
+                partTexts.releaseDate = dateText;
               }
+              if (includeRottenTomatoes) partTexts.rottenTomatoes = '83% RT';
+              if (includeMetacritic) {
+                var mcText = metacriticFormat === 'score' ? '68 MC' : '68/100 MC';
+                partTexts.metacritic = mcText;
+              }
+
+              var allowed = ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+              order.forEach(function(k){ if (allowed.indexOf(k) !== -1 && partTexts[k]) metadataParts.push(partTexts[k]); });
+              // Append any parts not in the order list
+              allowed.forEach(function(k){ if (order.indexOf(k) === -1 && partTexts[k]) metadataParts.push(partTexts[k]); });
 
               var metadataLine = metadataParts.join(metaSep);
               var sampleDescription = 'An epic tale of adventure and discovery...';
@@ -1119,6 +1244,10 @@ function generateConfigureHTML(protocol, host) {
             const voteCountFormat = document.getElementById('voteCountFormat')?.value || 'short';
             const tmdbRatingFormat = document.getElementById('tmdbRatingFormat')?.value || 'decimal';
             const releaseDateFormat = document.getElementById('releaseDateFormat')?.value || 'year';
+            const includeRottenTomatoes = document.getElementById('includeRottenTomatoes')?.checked || false;
+            const includeMetacritic = document.getElementById('includeMetacritic')?.checked || false;
+            const metacriticFormat = document.getElementById('metacriticFormat')?.value || 'score';
+            const metadataOrder = getMetadataOrder();
 
             // Global enable toggles removed; per-location settings control behavior
             if (!enableTitleLocation && !enableDescLocation) {
@@ -1148,10 +1277,14 @@ function generateConfigureHTML(protocol, host) {
                   includeMpaa: includeMpaa,
                   includeTmdbRating: includeTmdbRating,
                   includeReleaseDate: includeReleaseDate,
+                  includeRottenTomatoes: includeRottenTomatoes,
+                  includeMetacritic: includeMetacritic,
                   metadataSeparator: metadataSeparator,
                   voteCountFormat: voteCountFormat,
                   tmdbRatingFormat: tmdbRatingFormat,
                   releaseDateFormat: releaseDateFormat,
+                  metacriticFormat: metacriticFormat,
+                  metadataOrder: metadataOrder,
                   // Granular control: catalog items and episodes for description
                   enableCatalogItems: document.getElementById('descriptionEnableCatalogItems')?.checked !== false,
                   enableEpisodes: document.getElementById('descriptionEnableEpisodes')?.checked !== false
@@ -1187,10 +1320,13 @@ function generateConfigureHTML(protocol, host) {
             var includeMpaa = document.getElementById('includeMpaa');
             var includeTmdbRating = document.getElementById('includeTmdbRating');
             var includeReleaseDate = document.getElementById('includeReleaseDate');
+            var includeRottenTomatoes = document.getElementById('includeRottenTomatoes');
+            var includeMetacritic = document.getElementById('includeMetacritic');
             var metaSep = document.getElementById('metadataSeparator');
             var voteCountFormat = document.getElementById('voteCountFormat');
             var tmdbRatingFormat = document.getElementById('tmdbRatingFormat');
             var releaseDateFormat = document.getElementById('releaseDateFormat');
+            var metacriticFormat = document.getElementById('metacriticFormat');
 
             // Attach event listeners
             if (locTitle) locTitle.addEventListener('change', updateRatingPreview);
@@ -1207,10 +1343,13 @@ function generateConfigureHTML(protocol, host) {
             if (includeMpaa) includeMpaa.addEventListener('change', updateRatingPreview);
             if (includeTmdbRating) includeTmdbRating.addEventListener('change', updateRatingPreview);
             if (includeReleaseDate) includeReleaseDate.addEventListener('change', updateRatingPreview);
+            if (includeRottenTomatoes) includeRottenTomatoes.addEventListener('change', updateRatingPreview);
+            if (includeMetacritic) includeMetacritic.addEventListener('change', updateRatingPreview);
             if (metaSep) metaSep.addEventListener('change', updateRatingPreview);
             if (voteCountFormat) voteCountFormat.addEventListener('change', updateRatingPreview);
             if (tmdbRatingFormat) tmdbRatingFormat.addEventListener('change', updateRatingPreview);
             if (releaseDateFormat) releaseDateFormat.addEventListener('change', updateRatingPreview);
+            if (metacriticFormat) metacriticFormat.addEventListener('change', updateRatingPreview);
 
             // Initial update
             updateRatingPreview();

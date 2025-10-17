@@ -7,6 +7,7 @@ const logger = require('../utils/logger');
 const ratingsService = require('./ratingsService');
 const kitsuMappingService = require('./kitsuMappingService');
 const tmdbService = require('./tmdbService');
+const omdbService = require('./omdbService');
 
 /**
  * Format release date based on format preference
@@ -96,14 +97,15 @@ class MetadataEnhancerService {
    * Formats rating for description injection (with extended metadata support)
    * @param {string} description - Original description
    * @param {Object} ratingData - Rating data object {rating, votes}
-   * @param {Object} formatConfig - Format configuration {position, template, separator, includeVotes, includeMpaa, includeTmdbRating, includeReleaseDate}
+   * @param {Object} formatConfig - Format configuration {position, template, separator, includeVotes, includeMpaa, includeTmdbRating, includeReleaseDate, includeRottenTomatoes, includeMetacritic}
    * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
    * @param {string} mpaaRating - Pre-fetched MPAA rating (optional, to avoid individual lookups)
    * @param {Object} tmdbData - Pre-fetched TMDB data (optional)
+   * @param {Object} omdbData - Pre-fetched OMDB data (optional)
    * @returns {Promise<string>} Enhanced description
    * @private
    */
-  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null, mpaaRating = null, tmdbData = null) {
+  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null) {
     if (!ratingData || !ratingData.rating) return description;
 
     // Build rating template
@@ -112,41 +114,63 @@ class MetadataEnhancerService {
     // Build metadata parts array
     const metadataParts = [template];
 
-    // Add vote count if enabled and available
+    // Compute each extended metadata text (do not push yet)
+    const partTexts = {};
+
+    // Vote count
     if (formatConfig.includeVotes && ratingData.votes) {
       const voteCountFormat = formatConfig.voteCountFormat || 'short';
       const formattedVotes = this._formatVoteCount(ratingData.votes, voteCountFormat);
-      metadataParts.push(`${formattedVotes} votes`);
+      partTexts.votes = `${formattedVotes} votes`;
     }
 
-    // Add MPAA rating if enabled and available
-    // Use pre-fetched rating if provided, otherwise fetch individually (fallback)
+    // MPAA rating (may require fetch)
     if (formatConfig.includeMpaa && (mpaaRating || imdbId)) {
       const mpaa = mpaaRating || (imdbId ? await ratingsService.getMpaaRating(imdbId) : null);
-      if (mpaa) {
-        metadataParts.push(mpaa);
-      }
+      if (mpaa) partTexts.mpaa = mpaa;
     }
 
-    // Add TMDB rating if enabled and available
+    // TMDB rating
     if (formatConfig.includeTmdbRating && tmdbData && tmdbData.tmdbRating) {
       const tmdbRatingFormat = formatConfig.tmdbRatingFormat || 'decimal';
-      const formatted = tmdbRatingFormat === 'decimal'
+      partTexts.tmdb = tmdbRatingFormat === 'decimal'
         ? `${tmdbData.tmdbRating.toFixed(1)} TMDB`
         : `${tmdbData.tmdbRating.toFixed(1)}/10 TMDB`;
-      metadataParts.push(formatted);
     }
 
-    // Add release date if enabled and available
+    // Release date
     if (formatConfig.includeReleaseDate && tmdbData) {
       const dateString = tmdbData.releaseDate || tmdbData.firstAirDate;
       if (dateString) {
         const releaseDateFormat = formatConfig.releaseDateFormat || 'year';
         const formatted = formatReleaseDate(dateString, releaseDateFormat);
-        if (formatted) {
-          metadataParts.push(formatted);
-        }
+        if (formatted) partTexts.releaseDate = formatted;
       }
+    }
+
+    // Rotten Tomatoes (OMDb)
+    if (formatConfig.includeRottenTomatoes && omdbData && omdbData.rottenTomatoes) {
+      partTexts.rottenTomatoes = `${omdbData.rottenTomatoes} RT`;
+    }
+
+    // Metacritic (OMDb)
+    if (formatConfig.includeMetacritic && omdbData && omdbData.metacritic) {
+      const metacriticFormat = formatConfig.metacriticFormat || 'score';
+      partTexts.metacritic = metacriticFormat === 'outof100'
+        ? `${omdbData.metacritic}/100 MC`
+        : `${omdbData.metacritic} MC`;
+    }
+
+    // Apply ordering if provided; otherwise keep default order
+    const allowedKeys = ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+    if (Array.isArray(formatConfig.metadataOrder)) {
+      const order = formatConfig.metadataOrder;
+      order.forEach(k => { if (allowedKeys.includes(k) && partTexts[k]) metadataParts.push(partTexts[k]); });
+      // Append any remaining parts not specified
+      allowedKeys.forEach(k => { if (!order.includes(k) && partTexts[k]) metadataParts.push(partTexts[k]); });
+    } else {
+      // Default push order (backwards compatible)
+      allowedKeys.forEach(k => { if (partTexts[k]) metadataParts.push(partTexts[k]); });
     }
 
     // Use provided separator as-is between metadata and description
@@ -172,11 +196,12 @@ class MetadataEnhancerService {
    * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
    * @param {string} mpaaRating - Pre-fetched MPAA rating (optional)
    * @param {Object} tmdbData - Pre-fetched TMDB data (optional)
+   * @param {Object} omdbData - Pre-fetched OMDB data (optional)
    * @param {string} locationOverride - Override the config location (optional)
    * @returns {Promise<Object>} Enhanced meta object
    * @private
    */
-  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null, tmdbData = null, locationOverride = null) {
+  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null, locationOverride = null) {
     if (!ratingData || !config) {
       return meta;
     }
@@ -203,7 +228,8 @@ class MetadataEnhancerService {
         descriptionFormat,
         imdbId,
         mpaaRating,
-        tmdbData
+        tmdbData,
+        omdbData
       );
     }
 
@@ -335,6 +361,34 @@ class MetadataEnhancerService {
         }
       }
 
+      // Batch fetch OMDB data if enabled and using description location
+      let omdbMap = new Map();
+
+      if (config.enableRatings && descriptionFormat &&
+          (descriptionFormat.includeRottenTomatoes || descriptionFormat.includeMetacritic) &&
+          (location === 'description' || location === 'both')) {
+
+        // Extract unique IMDb IDs from metas that have ratings
+        const imdbIds = metas
+          .map((meta, index) => {
+            const item = items.find(i => i.originalIndex === index);
+            if (!item || !ratingsMap.has(item.id)) return null;
+
+            // Extract base IMDb ID (without episode format)
+            const imdbId = meta.imdb_id || meta.imdbId || (item.id.startsWith('tt') ? item.id.split(':')[0] : null);
+            return imdbId;
+          })
+          .filter(id => id !== null);
+
+        // Remove duplicates
+        const uniqueImdbIds = [...new Set(imdbIds)];
+
+        if (uniqueImdbIds.length > 0) {
+          logger.info(`Batch fetching OMDB data for ${uniqueImdbIds.length} unique titles`);
+          omdbMap = await omdbService.getOmdbDataBatch(uniqueImdbIds);
+        }
+      }
+
       // Determine which locations should be used for catalog items
       let catalogLocation = 'title'; // default
       if (enableCatalogInTitle && enableCatalogInDescription) {
@@ -362,9 +416,10 @@ class MetadataEnhancerService {
         const imdbId = meta.imdb_id || meta.imdbId || (item.id.startsWith('tt') ? item.id.split(':')[0] : null);
         const mpaaRating = imdbId ? mpaaMap.get(imdbId) : null;
         const tmdbData = imdbId ? tmdbMap.get(imdbId) : null;
+        const omdbData = imdbId ? omdbMap.get(imdbId) : null;
 
         // Pass catalogLocation to override the config location for catalog items
-        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating, tmdbData, catalogLocation);
+        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating, tmdbData, omdbData, catalogLocation);
       }));
 
       const enhancedCount = enhancedMetas.filter((meta, idx) =>
@@ -428,6 +483,13 @@ class MetadataEnhancerService {
             tmdbData = await tmdbService.getTmdbDataByImdbId(imdbId);
           }
 
+          // Fetch OMDB data if needed for description location
+          let omdbData = null;
+          if (descriptionFormat && (descriptionFormat.includeRottenTomatoes || descriptionFormat.includeMetacritic) &&
+              (location === 'description' || location === 'both') && imdbId) {
+            omdbData = await omdbService.getOmdbDataByImdbId(imdbId);
+          }
+
           // Build location string based on what's enabled for catalog items
           let catalogLocation = 'title';
           if (enableCatalogInTitle && enableCatalogInDescription) {
@@ -437,7 +499,7 @@ class MetadataEnhancerService {
           }
 
           // Add rating to main title or description (or both)
-          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, tmdbData, catalogLocation);
+          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, tmdbData, omdbData, catalogLocation);
 
           if (catalogLocation === 'description') {
             enhancedMeta.description = enhancedWithRating.description;
@@ -691,12 +753,20 @@ class MetadataEnhancerService {
             episodeTmdbData = await tmdbService.getTmdbDataByImdbId(mpaaLookupId);
           }
 
+          // Fetch OMDB data if needed for description location
+          let episodeOmdbData = null;
+          if (descriptionFormat && (descriptionFormat.includeRottenTomatoes || descriptionFormat.includeMetacritic) &&
+              (episodeLocation === 'description' || episodeLocation === 'both') && mpaaLookupId) {
+            // Only fetch if the episode location uses description
+            episodeOmdbData = await omdbService.getOmdbDataByImdbId(mpaaLookupId);
+          }
+
           // Create a temporary meta-like object to use the enhancer
           // Different addons use different fields: Cinemeta uses 'name', others may use 'title'
           const episodeName = video.name || video.title;
           const episodeDescription = video.description || video.overview || '';
           const tempMeta = { name: episodeName, description: episodeDescription };
-          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId, null, episodeTmdbData, episodeLocation);
+          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId, null, episodeTmdbData, episodeOmdbData, episodeLocation);
 
           // Update the appropriate field(s) based on episodeLocation (not config.ratingLocation)
           if (episodeLocation === 'description') {

@@ -40,6 +40,25 @@ function decodeConfig(encodedConfig) {
  * @returns {Object} Validated configuration with defaults
  */
 function validateConfig(userConfig) {
+  // Supported order keys and defaults for extended metadata
+  const DEFAULT_METADATA_ORDER = ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+  const ALLOWED_ORDER_KEYS = new Set(DEFAULT_METADATA_ORDER);
+  function sanitizeOrder(order) {
+    if (!Array.isArray(order)) return DEFAULT_METADATA_ORDER;
+    const seen = new Set();
+    const out = [];
+    for (const k of order) {
+      if (ALLOWED_ORDER_KEYS.has(k) && !seen.has(k)) {
+        seen.add(k);
+        out.push(k);
+      }
+    }
+    // Append missing keys to ensure full coverage and stable behavior
+    for (const k of DEFAULT_METADATA_ORDER) {
+      if (!seen.has(k)) out.push(k);
+    }
+    return out;
+  }
   // Backwards compatibility: migrate old single ratingFormat to separate formats
   let titleFormat = userConfig.titleFormat;
   let descriptionFormat = userConfig.descriptionFormat;
@@ -94,6 +113,13 @@ function validateConfig(userConfig) {
       tmdbRatingFormat: descriptionFormat?.tmdbRatingFormat || 'decimal',
       // Release date format: 'year' (2023), 'short' (Jan 15, 2023), 'full' (January 15, 2023)
       releaseDateFormat: descriptionFormat?.releaseDateFormat || 'year',
+      // OMDB metadata options
+      includeRottenTomatoes: descriptionFormat?.includeRottenTomatoes || false,
+      includeMetacritic: descriptionFormat?.includeMetacritic || false,
+      // Metacritic format: 'score' (68), 'outof100' (68/100)
+      metacriticFormat: descriptionFormat?.metacriticFormat || 'score',
+      // Order of extended metadata parts (after rating)
+      metadataOrder: sanitizeOrder(descriptionFormat?.metadataOrder),
       // Separator between metadata parts (rating, votes, MPAA, TMDB rating, release date)
       metadataSeparator: descriptionFormat?.metadataSeparator || ' • ',
       // Granular control: enable ratings for catalog items in description
@@ -168,6 +194,14 @@ function validateConfig(userConfig) {
   if (!['year', 'short', 'full'].includes(config.descriptionFormat.releaseDateFormat)) {
     throw new Error('descriptionFormat.releaseDateFormat must be "year", "short", or "full"');
   }
+
+  // Validate Metacritic format
+  if (!['score', 'outof100'].includes(config.descriptionFormat.metacriticFormat)) {
+    throw new Error('descriptionFormat.metacriticFormat must be "score" or "outof100"');
+  }
+
+  // Coerce/validate metadata order
+  config.descriptionFormat.metadataOrder = sanitizeOrder(config.descriptionFormat.metadataOrder);
 
   return config;
 }
