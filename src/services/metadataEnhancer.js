@@ -9,17 +9,38 @@ const kitsuMappingService = require('./kitsuMappingService');
 
 class MetadataEnhancerService {
   /**
-   * Formats vote count to human-readable format (e.g., 1.2M, 450K)
+   * Formats vote count to human-readable format
    * @param {number} votes - Vote count
+   * @param {string} format - Format type: 'short' (1.2M), 'full' (1,200,000), 'both' (1,200,000 / 1.2M)
    * @returns {string} Formatted vote count
    * @private
    */
-  _formatVoteCount(votes) {
+  _formatVoteCount(votes, format = 'short') {
     if (!votes) return '';
     const count = typeof votes === 'string' ? parseInt(votes) : votes;
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${Math.floor(count / 1000)}K`;
-    return count.toString();
+
+    // Format full number with commas
+    const fullNumber = count.toLocaleString('en-US');
+
+    // Format short version
+    let shortVersion = '';
+    if (count >= 1000000) {
+      shortVersion = `${(count / 1000000).toFixed(1)}M`;
+    } else if (count >= 1000) {
+      shortVersion = `${Math.floor(count / 1000)}K`;
+    } else {
+      shortVersion = count.toString();
+    }
+
+    // Return based on format preference
+    if (format === 'full') {
+      return fullNumber;
+    } else if (format === 'both') {
+      return `${fullNumber} / ${shortVersion}`;
+    } else {
+      // Default to 'short'
+      return shortVersion;
+    }
   }
 
   /**
@@ -63,7 +84,8 @@ class MetadataEnhancerService {
 
     // Add vote count if enabled and available
     if (formatConfig.includeVotes && ratingData.votes) {
-      const formattedVotes = this._formatVoteCount(ratingData.votes);
+      const voteCountFormat = formatConfig.voteCountFormat || 'short';
+      const formattedVotes = this._formatVoteCount(ratingData.votes, voteCountFormat);
       metadataParts.push(`${formattedVotes} votes`);
     }
 

@@ -275,8 +275,17 @@ function generateConfigureHTML(protocol, host) {
                   <div style="font-weight: 600; margin-bottom: 8px;">Extended Metadata</div>
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeVotes" style="width: 18px; height: 18px;" />
-                    <span style="margin-left: 8px;">Include vote count (e.g., "1.2M votes")</span>
+                    <span style="margin-left: 8px;">Include vote count</span>
                   </label>
+                  <div id="voteCountFormatSection" style="margin-left: 26px; margin-bottom: 10px; display: none;">
+                    <label for="voteCountFormat" style="display: block; font-weight: 600; margin-bottom: 6px;">Vote Count Format</label>
+                    <select id="voteCountFormat">
+                      <option value="short" selected>Short (1.2M votes)</option>
+                      <option value="full">Full (1,200,000 votes)</option>
+                      <option value="both">Both (1,200,000 / 1.2M votes)</option>
+                    </select>
+                    <div class="help-text" style="margin-top: 5px;">Choose how to display vote counts</div>
+                  </div>
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeMpaa" style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Include MPAA rating (e.g., "PG-13")</span>
@@ -946,6 +955,13 @@ function generateConfigureHTML(protocol, host) {
               descSection.style.display = enableDescriptionLocation ? 'block' : 'none';
             }
 
+            // Show/hide vote count format dropdown based on includeVotes checkbox
+            var includeVotes = document.getElementById('includeVotes')?.checked || false;
+            var voteCountFormatSection = document.getElementById('voteCountFormatSection');
+            if (voteCountFormatSection) {
+              voteCountFormatSection.style.display = includeVotes ? 'block' : 'none';
+            }
+
             // Update title preview
             if (enableTitleLocation) {
               var titlePos = document.getElementById('titlePosition')?.value || 'prefix';
@@ -974,6 +990,7 @@ function generateConfigureHTML(protocol, host) {
               var includeVotes = document.getElementById('includeVotes')?.checked || false;
               var includeMpaa = document.getElementById('includeMpaa')?.checked || false;
               var metaSep = document.getElementById('metadataSeparator')?.value || ' • ';
+              var voteCountFormat = document.getElementById('voteCountFormat')?.value || 'short';
 
               // Replace literal backslash-n with CRLF to maximize client compatibility
               descSep = descSep.replace(/\\n/g, String.fromCharCode(13) + String.fromCharCode(10));
@@ -983,7 +1000,17 @@ function generateConfigureHTML(protocol, host) {
 
               // Build metadata parts
               var metadataParts = [ratingText];
-              if (includeVotes) metadataParts.push('1.2M votes');
+              if (includeVotes) {
+                var voteText = '';
+                if (voteCountFormat === 'short') {
+                  voteText = '1.2M votes';
+                } else if (voteCountFormat === 'full') {
+                  voteText = '1,200,000 votes';
+                } else if (voteCountFormat === 'both') {
+                  voteText = '1,200,000 / 1.2M votes';
+                }
+                metadataParts.push(voteText);
+              }
               if (includeMpaa) metadataParts.push('PG-13');
 
               var metadataLine = metadataParts.join(metaSep);
@@ -1034,6 +1061,7 @@ function generateConfigureHTML(protocol, host) {
             const includeVotes = document.getElementById('includeVotes')?.checked || false;
             const includeMpaa = document.getElementById('includeMpaa')?.checked || false;
             const metadataSeparator = document.getElementById('metadataSeparator')?.value || ' • ';
+            const voteCountFormat = document.getElementById('voteCountFormat')?.value || 'short';
 
             // Global enable toggles removed; per-location settings control behavior
             if (!enableTitleLocation && !enableDescLocation) {
@@ -1062,6 +1090,7 @@ function generateConfigureHTML(protocol, host) {
                   includeVotes: includeVotes,
                   includeMpaa: includeMpaa,
                   metadataSeparator: metadataSeparator,
+                  voteCountFormat: voteCountFormat,
                   // Granular control: catalog items and episodes for description
                   enableCatalogItems: document.getElementById('descriptionEnableCatalogItems')?.checked !== false,
                   enableEpisodes: document.getElementById('descriptionEnableEpisodes')?.checked !== false
@@ -1096,6 +1125,7 @@ function generateConfigureHTML(protocol, host) {
             var includeVotes = document.getElementById('includeVotes');
             var includeMpaa = document.getElementById('includeMpaa');
             var metaSep = document.getElementById('metadataSeparator');
+            var voteCountFormat = document.getElementById('voteCountFormat');
 
             // Attach event listeners
             if (locTitle) locTitle.addEventListener('change', updateRatingPreview);
@@ -1111,6 +1141,7 @@ function generateConfigureHTML(protocol, host) {
             if (includeVotes) includeVotes.addEventListener('change', updateRatingPreview);
             if (includeMpaa) includeMpaa.addEventListener('change', updateRatingPreview);
             if (metaSep) metaSep.addEventListener('change', updateRatingPreview);
+            if (voteCountFormat) voteCountFormat.addEventListener('change', updateRatingPreview);
 
             // Initial update
             updateRatingPreview();

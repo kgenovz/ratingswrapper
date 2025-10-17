@@ -85,6 +85,8 @@ function validateConfig(userConfig) {
       includeMpaa: descriptionFormat?.includeMpaa || false,
       includeYear: descriptionFormat?.includeYear || false,
       includeRuntime: descriptionFormat?.includeRuntime || false,
+      // Vote count format: 'short' (1.2M), 'full' (1,200,000), 'both' (1,200,000 / 1.2M)
+      voteCountFormat: descriptionFormat?.voteCountFormat || 'short',
       // Separator between metadata parts (rating, votes, MPAA)
       metadataSeparator: descriptionFormat?.metadataSeparator || ' • ',
       // Granular control: enable ratings for catalog items in description
