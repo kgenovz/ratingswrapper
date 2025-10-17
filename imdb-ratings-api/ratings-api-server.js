@@ -955,16 +955,26 @@ app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
         ).get(imdbId);
 
         if (result) {
-            console.info(`[MPAA] Found in database: ${result.mpaa_rating}`);
-            return res.json({
-                imdbId: imdbId,
-                mpaaRating: result.mpaa_rating,
-                mpaa_rating: result.mpaa_rating,
-                country: result.country,
-                updatedAt: new Date(result.updated_at).toISOString(),
-                updated_at: result.updated_at,
-                source: 'database'
-            });
+            const now = Date.now();
+            const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 week
+            const isStale = (now - result.updated_at) > oneWeek;
+
+            if (!isStale) {
+                const hasRating = !!(result.mpaa_rating && result.mpaa_rating.trim());
+                console.info(`[MPAA] Found in database${hasRating ? '' : ' (negative cache)'}: ${hasRating ? result.mpaa_rating : 'none'}`);
+                return res.json({
+                    imdbId: imdbId,
+                    mpaaRating: hasRating ? result.mpaa_rating : null,
+                    mpaa_rating: hasRating ? result.mpaa_rating : null,
+                    country: result.country,
+                    updatedAt: new Date(result.updated_at).toISOString(),
+                    updated_at: result.updated_at,
+                    source: 'database',
+                    cached: true
+                });
+            } else {
+                console.info(`[MPAA] Cached value stale, refetching from TMDB: ${imdbId}`);
+            }
         }
 
         // Step 2: Not in database, try TMDB
@@ -984,7 +994,19 @@ app.get('/api/mpaa-rating/:imdbId', async (req, res) => {
             });
         }
 
-        // Step 3: Not found anywhere
+        // Step 3: Not found anywhere — store negative cache to avoid repeat fetches within TTL
+        try {
+            const stmt = db.prepare(`
+                INSERT OR REPLACE INTO mpaa_ratings
+                (imdb_id, mpaa_rating, country, updated_at)
+                VALUES (?, '', 'US', ?)
+            `);
+            stmt.run(imdbId, Date.now());
+            console.info(`[MPAA] Negative cache stored for ${imdbId} (no MPAA rating)`);
+        } catch (dbErr) {
+            console.warn(`[MPAA] Failed to store negative cache for ${imdbId}: ${dbErr.message}`);
+        }
+
         console.info(`[MPAA] Not found in database or TMDB: ${imdbId}`);
         return res.status(404).json({ error: 'MPAA rating not found' });
 
