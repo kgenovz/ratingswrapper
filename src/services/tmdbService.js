@@ -233,6 +233,100 @@ class TMDBService {
       configured: this.isConfigured()
     };
   }
+
+  /**
+   * Get TMDB data (ratings + release dates) by IMDb ID
+   * Uses ratings-api database-first caching with 1-week TTL for ratings, permanent for dates
+   *
+   * @param {string} imdbId - IMDb ID (e.g., "tt0111161")
+   * @returns {Promise<Object|null>} - TMDB data object or null
+   */
+  async getTmdbDataByImdbId(imdbId) {
+    try {
+      if (!this.isConfigured()) {
+        logger.debug('TMDB API key not configured, skipping TMDB data lookup');
+        return null;
+      }
+
+      if (!imdbId || !imdbId.startsWith('tt')) {
+        logger.debug(`Invalid IMDb ID for TMDB lookup: ${imdbId}`);
+        return null;
+      }
+
+      // Check ratings-api database endpoint (has built-in caching logic)
+      const ratingsApiUrl = config.ratingsApiUrl || 'http://localhost:3001';
+      const response = await axios.get(`${ratingsApiUrl}/api/tmdb-data/${imdbId}`, {
+        timeout: this.timeout,
+        validateStatus: (status) => status < 500 // Accept 404 as valid response
+      });
+
+      if (response.status === 200 && response.data) {
+        logger.debug(`TMDB data retrieved for ${imdbId}: ${response.data.title || 'Unknown'}`);
+        return response.data;
+      }
+
+      if (response.status === 404) {
+        logger.debug(`No TMDB data found for ${imdbId}`);
+        return null;
+      }
+
+      return null;
+
+    } catch (error) {
+      // Handle connection errors gracefully
+      if (error.code === 'ECONNREFUSED') {
+        logger.warn(`Could not connect to ratings API for TMDB data: ${error.message}`);
+      } else {
+        logger.warn(`Error fetching TMDB data for ${imdbId}: ${error.message}`);
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Get TMDB data for multiple IMDb IDs (batch operation)
+   * Returns a Map of imdbId => tmdbData
+   *
+   * @param {string[]} imdbIds - Array of IMDb IDs
+   * @param {number} concurrency - Number of concurrent requests (default: 5)
+   * @returns {Promise<Map<string, Object>>} - Map of IMDb ID to TMDB data
+   */
+  async getTmdbDataBatch(imdbIds, concurrency = 5) {
+    const results = new Map();
+
+    if (!imdbIds || imdbIds.length === 0) {
+      return results;
+    }
+
+    logger.debug(`Batch fetching TMDB data for ${imdbIds.length} items (concurrency: ${concurrency})`);
+
+    // Process in batches for concurrency control
+    for (let i = 0; i < imdbIds.length; i += concurrency) {
+      const batch = imdbIds.slice(i, i + concurrency);
+
+      const batchResults = await Promise.all(
+        batch.map(async (imdbId) => {
+          try {
+            const data = await this.getTmdbDataByImdbId(imdbId);
+            return { imdbId, data };
+          } catch (error) {
+            logger.warn(`Error fetching TMDB data for ${imdbId}:`, error.message);
+            return { imdbId, data: null };
+          }
+        })
+      );
+
+      // Add results to map
+      for (const { imdbId, data } of batchResults) {
+        if (data) {
+          results.set(imdbId, data);
+        }
+      }
+    }
+
+    logger.debug(`TMDB batch fetch complete: ${results.size}/${imdbIds.length} succeeded`);
+    return results;
+  }
 }
 
 // Singleton instance

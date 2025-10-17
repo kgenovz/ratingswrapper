@@ -290,6 +290,31 @@ function generateConfigureHTML(protocol, host) {
                     <input type="checkbox" id="includeMpaa" style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Include MPAA rating (e.g., "PG-13")</span>
                   </label>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeTmdbRating" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include TMDB rating</span>
+                  </label>
+                  <div id="tmdbRatingFormatSection" style="margin-left: 26px; margin-bottom: 10px; display: none;">
+                    <label for="tmdbRatingFormat" style="display: block; font-weight: 600; margin-bottom: 6px;">TMDB Rating Format</label>
+                    <select id="tmdbRatingFormat">
+                      <option value="decimal" selected>Decimal (8.5 TMDB)</option>
+                      <option value="outof10">Out of 10 (8.5/10 TMDB)</option>
+                    </select>
+                    <div class="help-text" style="margin-top: 5px;">Choose how to display TMDB ratings</div>
+                  </div>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeReleaseDate" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include release date</span>
+                  </label>
+                  <div id="releaseDateFormatSection" style="margin-left: 26px; margin-bottom: 10px; display: none;">
+                    <label for="releaseDateFormat" style="display: block; font-weight: 600; margin-bottom: 6px;">Release Date Format</label>
+                    <select id="releaseDateFormat">
+                      <option value="year" selected>Year only (2023)</option>
+                      <option value="short">Short (Jan 15, 2023)</option>
+                      <option value="full">Full (January 15, 2023)</option>
+                    </select>
+                    <div class="help-text" style="margin-top: 5px;">Choose how to display release dates</div>
+                  </div>
                   <div style="margin-top: 10px;">
                     <label for="metadataSeparator" style="display: block; font-weight: 600; margin-bottom: 6px;">Metadata Separator</label>
                     <select id="metadataSeparator">
@@ -303,7 +328,7 @@ function generateConfigureHTML(protocol, host) {
                       <option value=" ✨ ">Sparkles ( ✨ )</option>
                       <option value=" ">Space</option>
                     </select>
-                    <div class="help-text" style="margin-top: 5px;">Separator between rating, vote count, and MPAA rating</div>
+                    <div class="help-text" style="margin-top: 5px;">Separator between rating, vote count, MPAA rating, TMDB rating, and release date</div>
                   </div>
                 </div>
                 <div class="form-group">
@@ -962,6 +987,20 @@ function generateConfigureHTML(protocol, host) {
               voteCountFormatSection.style.display = includeVotes ? 'block' : 'none';
             }
 
+            // Show/hide TMDB rating format dropdown based on includeTmdbRating checkbox
+            var includeTmdbRating = document.getElementById('includeTmdbRating')?.checked || false;
+            var tmdbRatingFormatSection = document.getElementById('tmdbRatingFormatSection');
+            if (tmdbRatingFormatSection) {
+              tmdbRatingFormatSection.style.display = includeTmdbRating ? 'block' : 'none';
+            }
+
+            // Show/hide release date format dropdown based on includeReleaseDate checkbox
+            var includeReleaseDate = document.getElementById('includeReleaseDate')?.checked || false;
+            var releaseDateFormatSection = document.getElementById('releaseDateFormatSection');
+            if (releaseDateFormatSection) {
+              releaseDateFormatSection.style.display = includeReleaseDate ? 'block' : 'none';
+            }
+
             // Update title preview
             if (enableTitleLocation) {
               var titlePos = document.getElementById('titlePosition')?.value || 'prefix';
@@ -989,8 +1028,12 @@ function generateConfigureHTML(protocol, host) {
               var descSep = document.getElementById('descriptionSeparator')?.value || '\\n';
               var includeVotes = document.getElementById('includeVotes')?.checked || false;
               var includeMpaa = document.getElementById('includeMpaa')?.checked || false;
+              var includeTmdbRating = document.getElementById('includeTmdbRating')?.checked || false;
+              var includeReleaseDate = document.getElementById('includeReleaseDate')?.checked || false;
               var metaSep = document.getElementById('metadataSeparator')?.value || ' • ';
               var voteCountFormat = document.getElementById('voteCountFormat')?.value || 'short';
+              var tmdbRatingFormat = document.getElementById('tmdbRatingFormat')?.value || 'decimal';
+              var releaseDateFormat = document.getElementById('releaseDateFormat')?.value || 'year';
 
               // Replace literal backslash-n with CRLF to maximize client compatibility
               descSep = descSep.replace(/\\n/g, String.fromCharCode(13) + String.fromCharCode(10));
@@ -1012,6 +1055,16 @@ function generateConfigureHTML(protocol, host) {
                 metadataParts.push(voteText);
               }
               if (includeMpaa) metadataParts.push('PG-13');
+              if (includeTmdbRating) {
+                var tmdbText = tmdbRatingFormat === 'decimal' ? '8.5 TMDB' : '8.5/10 TMDB';
+                metadataParts.push(tmdbText);
+              }
+              if (includeReleaseDate) {
+                var dateText = releaseDateFormat === 'year' ? '2023' :
+                               releaseDateFormat === 'short' ? 'Jan 15, 2023' :
+                               'January 15, 2023';
+                metadataParts.push(dateText);
+              }
 
               var metadataLine = metadataParts.join(metaSep);
               var sampleDescription = 'An epic tale of adventure and discovery...';
@@ -1060,8 +1113,12 @@ function generateConfigureHTML(protocol, host) {
             // Get extended metadata options
             const includeVotes = document.getElementById('includeVotes')?.checked || false;
             const includeMpaa = document.getElementById('includeMpaa')?.checked || false;
+            const includeTmdbRating = document.getElementById('includeTmdbRating')?.checked || false;
+            const includeReleaseDate = document.getElementById('includeReleaseDate')?.checked || false;
             const metadataSeparator = document.getElementById('metadataSeparator')?.value || ' • ';
             const voteCountFormat = document.getElementById('voteCountFormat')?.value || 'short';
+            const tmdbRatingFormat = document.getElementById('tmdbRatingFormat')?.value || 'decimal';
+            const releaseDateFormat = document.getElementById('releaseDateFormat')?.value || 'year';
 
             // Global enable toggles removed; per-location settings control behavior
             if (!enableTitleLocation && !enableDescLocation) {
@@ -1089,8 +1146,12 @@ function generateConfigureHTML(protocol, host) {
                   separator: descriptionSeparator,
                   includeVotes: includeVotes,
                   includeMpaa: includeMpaa,
+                  includeTmdbRating: includeTmdbRating,
+                  includeReleaseDate: includeReleaseDate,
                   metadataSeparator: metadataSeparator,
                   voteCountFormat: voteCountFormat,
+                  tmdbRatingFormat: tmdbRatingFormat,
+                  releaseDateFormat: releaseDateFormat,
                   // Granular control: catalog items and episodes for description
                   enableCatalogItems: document.getElementById('descriptionEnableCatalogItems')?.checked !== false,
                   enableEpisodes: document.getElementById('descriptionEnableEpisodes')?.checked !== false
@@ -1124,8 +1185,12 @@ function generateConfigureHTML(protocol, host) {
             var descSep = document.getElementById('descriptionSeparator');
             var includeVotes = document.getElementById('includeVotes');
             var includeMpaa = document.getElementById('includeMpaa');
+            var includeTmdbRating = document.getElementById('includeTmdbRating');
+            var includeReleaseDate = document.getElementById('includeReleaseDate');
             var metaSep = document.getElementById('metadataSeparator');
             var voteCountFormat = document.getElementById('voteCountFormat');
+            var tmdbRatingFormat = document.getElementById('tmdbRatingFormat');
+            var releaseDateFormat = document.getElementById('releaseDateFormat');
 
             // Attach event listeners
             if (locTitle) locTitle.addEventListener('change', updateRatingPreview);
@@ -1140,8 +1205,12 @@ function generateConfigureHTML(protocol, host) {
             if (descSep) descSep.addEventListener('change', updateRatingPreview);
             if (includeVotes) includeVotes.addEventListener('change', updateRatingPreview);
             if (includeMpaa) includeMpaa.addEventListener('change', updateRatingPreview);
+            if (includeTmdbRating) includeTmdbRating.addEventListener('change', updateRatingPreview);
+            if (includeReleaseDate) includeReleaseDate.addEventListener('change', updateRatingPreview);
             if (metaSep) metaSep.addEventListener('change', updateRatingPreview);
             if (voteCountFormat) voteCountFormat.addEventListener('change', updateRatingPreview);
+            if (tmdbRatingFormat) tmdbRatingFormat.addEventListener('change', updateRatingPreview);
+            if (releaseDateFormat) releaseDateFormat.addEventListener('change', updateRatingPreview);
 
             // Initial update
             updateRatingPreview();

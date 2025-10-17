@@ -97,18 +97,21 @@ function initDatabase() {
 
         // Optional: Table for TMDB metadata (rich metadata caching)
         db.exec(`CREATE TABLE IF NOT EXISTS tmdb_metadata (
-            tmdb_key TEXT PRIMARY KEY,
-            tmdb_id INTEGER NOT NULL,
-            media_type TEXT NOT NULL,
-            imdb_id TEXT,
+            imdb_id TEXT PRIMARY KEY,
+            tmdb_id INTEGER,
+            media_type TEXT,
             title TEXT,
             original_title TEXT,
             year INTEGER,
+            tmdb_rating REAL,
+            tmdb_vote_count INTEGER,
+            release_date TEXT,
+            first_air_date TEXT,
             genres TEXT,
-            episode_count INTEGER,
             popularity REAL,
             data TEXT,
-            updated_at INTEGER NOT NULL
+            updated_at INTEGER NOT NULL,
+            ratings_cached_at INTEGER
         ) WITHOUT ROWID`);
 
         // Table for MPAA ratings cache
@@ -131,9 +134,92 @@ function initDatabase() {
         db.exec(`CREATE INDEX IF NOT EXISTS idx_mpaa_ratings_updated ON mpaa_ratings(updated_at)`);
 
         console.log('✅ Database tables and indexes created');
+
+        // Run migrations for existing databases
+        runMigrations();
+
         return Promise.resolve();
     } catch (err) {
         return Promise.reject(err);
+    }
+}
+
+// Database migrations for schema updates
+function runMigrations() {
+    try {
+        // Create schema_version table if it doesn't exist
+        db.exec(`CREATE TABLE IF NOT EXISTS schema_version (
+            version INTEGER PRIMARY KEY,
+            applied_at INTEGER NOT NULL
+        )`);
+
+        // Get current schema version
+        const currentVersion = db.prepare('SELECT MAX(version) as version FROM schema_version').get();
+        const version = currentVersion?.version || 0;
+
+        // Migration 1: Update tmdb_metadata table for existing databases
+        if (version < 1) {
+            console.log('Running migration 1: Updating tmdb_metadata table schema...');
+
+            // Check if old structure exists (tmdb_key column)
+            const tableInfo = db.prepare("PRAGMA table_info(tmdb_metadata)").all();
+            const hasTmdbKey = tableInfo.some(col => col.name === 'tmdb_key');
+
+            if (hasTmdbKey) {
+                // Old structure exists, need to migrate
+                console.log('  Detected old tmdb_metadata structure, migrating...');
+
+                // Rename old table
+                db.exec('ALTER TABLE tmdb_metadata RENAME TO tmdb_metadata_old');
+
+                // Create new table with updated structure
+                db.exec(`CREATE TABLE tmdb_metadata (
+                    imdb_id TEXT PRIMARY KEY,
+                    tmdb_id INTEGER,
+                    media_type TEXT,
+                    title TEXT,
+                    original_title TEXT,
+                    year INTEGER,
+                    tmdb_rating REAL,
+                    tmdb_vote_count INTEGER,
+                    release_date TEXT,
+                    first_air_date TEXT,
+                    genres TEXT,
+                    popularity REAL,
+                    data TEXT,
+                    updated_at INTEGER NOT NULL,
+                    ratings_cached_at INTEGER
+                ) WITHOUT ROWID`);
+
+                // Migrate data if any exists
+                const oldDataCount = db.prepare('SELECT COUNT(*) as count FROM tmdb_metadata_old').get().count;
+                if (oldDataCount > 0) {
+                    db.exec(`
+                        INSERT INTO tmdb_metadata (imdb_id, tmdb_id, media_type, title, original_title, year, genres, popularity, data, updated_at)
+                        SELECT imdb_id, tmdb_id, media_type, title, original_title, year, genres, popularity, data, updated_at
+                        FROM tmdb_metadata_old
+                        WHERE imdb_id IS NOT NULL
+                    `);
+                    console.log(`  Migrated ${oldDataCount} records from old table`);
+                }
+
+                // Drop old table
+                db.exec('DROP TABLE tmdb_metadata_old');
+
+                // Recreate index
+                db.exec('CREATE INDEX IF NOT EXISTS idx_tmdb_metadata_imdb ON tmdb_metadata(imdb_id)');
+
+                console.log('  Migration 1 completed successfully');
+            }
+
+            // Mark migration as applied
+            db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(1, Date.now());
+        }
+
+        console.log(`✅ Database schema version: ${Math.max(version, 1)}`);
+    } catch (err) {
+        console.error('Migration error:', err);
+        // Don't fail startup on migration errors
     }
 }
 
@@ -741,6 +827,106 @@ async function fetchTvCertification(tmdbId, imdbId) {
     }
 }
 
+/**
+ * Fetch TMDB data (ratings, release dates) by IMDb ID
+ * @param {string} imdbId - IMDb ID (e.g., "tt0111161")
+ * @returns {Promise<Object|null>} - TMDB data object or null
+ */
+async function fetchTmdbDataByImdbId(imdbId) {
+    if (!TMDB_API_KEY) {
+        return null;
+    }
+
+    try {
+        // Step 1: Find TMDB ID from IMDb ID
+        const findUrl = `${TMDB_BASE_URL}/find/${imdbId}`;
+        const findResponse = await axios.get(findUrl, {
+            params: {
+                api_key: TMDB_API_KEY,
+                external_source: 'imdb_id'
+            },
+            timeout: TMDB_TIMEOUT
+        });
+
+        const movieResults = findResponse.data.movie_results || [];
+        const tvResults = findResponse.data.tv_results || [];
+
+        let tmdbData = null;
+
+        // Try movie first
+        if (movieResults.length > 0) {
+            const movie = movieResults[0];
+            tmdbData = {
+                tmdbId: movie.id,
+                mediaType: 'movie',
+                title: movie.title,
+                year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+                tmdbRating: movie.vote_average || null,
+                tmdbVoteCount: movie.vote_count || null,
+                releaseDate: movie.release_date || null,
+                firstAirDate: null
+            };
+        }
+        // Try TV show if no movie found
+        else if (tvResults.length > 0) {
+            const tv = tvResults[0];
+            tmdbData = {
+                tmdbId: tv.id,
+                mediaType: 'tv',
+                title: tv.name,
+                year: tv.first_air_date ? new Date(tv.first_air_date).getFullYear() : null,
+                tmdbRating: tv.vote_average || null,
+                tmdbVoteCount: tv.vote_count || null,
+                releaseDate: null,
+                firstAirDate: tv.first_air_date || null
+            };
+        }
+
+        // Store in database if found
+        if (tmdbData) {
+            try {
+                const now = Date.now();
+                const stmt = db.prepare(`
+                    INSERT OR REPLACE INTO tmdb_metadata
+                    (imdb_id, tmdb_id, media_type, title, year, tmdb_rating, tmdb_vote_count,
+                     release_date, first_air_date, updated_at, ratings_cached_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `);
+
+                stmt.run(
+                    imdbId,
+                    tmdbData.tmdbId,
+                    tmdbData.mediaType,
+                    tmdbData.title,
+                    tmdbData.year,
+                    tmdbData.tmdbRating,
+                    tmdbData.tmdbVoteCount,
+                    tmdbData.releaseDate,
+                    tmdbData.firstAirDate,
+                    now,
+                    tmdbData.tmdbRating ? now : null
+                );
+
+                console.info(`[TMDB] Stored TMDB data for ${imdbId}: ${tmdbData.title}`);
+            } catch (dbError) {
+                console.error(`[TMDB] Error storing TMDB data: ${dbError.message}`);
+            }
+        }
+
+        return tmdbData;
+
+    } catch (error) {
+        if (error.response?.status === 429) {
+            console.warn(`[TMDB] Rate limit hit for ${imdbId}`);
+        } else if (error.response?.status === 404) {
+            console.info(`[TMDB] No data found for ${imdbId}`);
+        } else {
+            console.warn(`[TMDB] Error fetching ${imdbId}: ${error.message}`);
+        }
+        return null;
+    }
+}
+
 // *** MPAA RATING API ENDPOINTS ***
 
 // GET /api/mpaa-rating/:imdbId - Get MPAA rating (with TMDB fallback)
@@ -806,8 +992,8 @@ app.post('/api/mpaa-rating', (req, res) => {
         const timestamp = updatedAt ? new Date(updatedAt).getTime() : Date.now();
 
         const stmt = db.prepare(`
-            INSERT OR REPLACE INTO mpaa_ratings 
-            (imdb_id, mpaa_rating, country, updated_at) 
+            INSERT OR REPLACE INTO mpaa_ratings
+            (imdb_id, mpaa_rating, country, updated_at)
             VALUES (?, ?, ?, ?)
         `);
 
@@ -820,6 +1006,129 @@ app.post('/api/mpaa-rating', (req, res) => {
     } catch (error) {
         console.error('MPAA rating write error:', error);
         res.status(500).json({ error: 'MPAA rating write failed' });
+    }
+});
+
+// *** TMDB DATA API ENDPOINTS ***
+
+// GET /api/tmdb-data/:imdbId - Get TMDB data (ratings, release dates) with caching
+app.get('/api/tmdb-data/:imdbId', async (req, res) => {
+    try {
+        const { imdbId } = req.params;
+        console.info(`[TMDB-DATA] Request for: ${imdbId}`);
+
+        if (!imdbId || !imdbId.startsWith('tt')) {
+            return res.status(400).json({ error: 'Invalid IMDb ID. Must start with "tt"' });
+        }
+
+        // Step 1: Check database first
+        const result = db.prepare(`
+            SELECT tmdb_id, media_type, title, year, tmdb_rating, tmdb_vote_count,
+                   release_date, first_air_date, updated_at, ratings_cached_at
+            FROM tmdb_metadata WHERE imdb_id = ?
+        `).get(imdbId);
+
+        if (result) {
+            const now = Date.now();
+            const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
+
+            // Check if ratings need refresh (older than 1 week)
+            const ratingsNeedRefresh = result.ratings_cached_at && (now - result.ratings_cached_at) > oneWeek;
+
+            // Release dates are permanent, ratings may be stale
+            if (!ratingsNeedRefresh || !result.ratings_cached_at) {
+                console.info(`[TMDB-DATA] Found in database (cached): ${result.title || imdbId}`);
+                return res.json({
+                    imdbId,
+                    tmdbId: result.tmdb_id,
+                    mediaType: result.media_type,
+                    title: result.title,
+                    year: result.year,
+                    tmdbRating: result.tmdb_rating,
+                    tmdbVoteCount: result.tmdb_vote_count,
+                    releaseDate: result.release_date,
+                    firstAirDate: result.first_air_date,
+                    updatedAt: new Date(result.updated_at).toISOString(),
+                    ratingsCachedAt: result.ratings_cached_at ? new Date(result.ratings_cached_at).toISOString() : null,
+                    source: 'database',
+                    cached: true
+                });
+            } else {
+                console.info(`[TMDB-DATA] Ratings stale for ${imdbId}, will refetch from TMDB`);
+            }
+        }
+
+        // Step 2: Not in database or ratings are stale, fetch from TMDB
+        if (!TMDB_API_KEY) {
+            console.warn('[TMDB-DATA] TMDB_API_KEY not configured');
+            return res.status(503).json({ error: 'TMDB API not configured' });
+        }
+
+        console.info(`[TMDB-DATA] Fetching from TMDB: ${imdbId}`);
+        const tmdbData = await fetchTmdbDataByImdbId(imdbId);
+
+        if (tmdbData) {
+            console.info(`[TMDB-DATA] Fetched from TMDB: ${tmdbData.title}`);
+            return res.json({
+                ...tmdbData,
+                imdbId,
+                source: 'tmdb',
+                cached: false
+            });
+        }
+
+        // Step 3: Not found anywhere
+        console.info(`[TMDB-DATA] Not found in database or TMDB: ${imdbId}`);
+        return res.status(404).json({ error: 'TMDB data not found' });
+
+    } catch (error) {
+        console.error(`[TMDB-DATA] Error processing ${req.params.imdbId}:`, error);
+        res.status(500).json({ error: 'TMDB data fetch failed' });
+    }
+});
+
+// POST /api/tmdb-data - Store TMDB data
+app.post('/api/tmdb-data', (req, res) => {
+    try {
+        const {
+            imdbId, tmdbId, mediaType, title, year,
+            tmdbRating, tmdbVoteCount, releaseDate, firstAirDate
+        } = req.body;
+
+        if (!imdbId) {
+            return res.status(400).json({ error: 'Missing imdbId' });
+        }
+
+        const now = Date.now();
+
+        const stmt = db.prepare(`
+            INSERT OR REPLACE INTO tmdb_metadata
+            (imdb_id, tmdb_id, media_type, title, year, tmdb_rating, tmdb_vote_count,
+             release_date, first_air_date, updated_at, ratings_cached_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        stmt.run(
+            imdbId,
+            tmdbId || null,
+            mediaType || null,
+            title || null,
+            year || null,
+            tmdbRating || null,
+            tmdbVoteCount || null,
+            releaseDate || null,
+            firstAirDate || null,
+            now,
+            tmdbRating ? now : null  // Only set ratings_cached_at if we have a rating
+        );
+
+        res.json({
+            success: true,
+            data: { imdbId, tmdbId, title, tmdbRating, releaseDate, firstAirDate }
+        });
+    } catch (error) {
+        console.error('TMDB data write error:', error);
+        res.status(500).json({ error: 'TMDB data write failed' });
     }
 });
 

@@ -85,9 +85,16 @@ function validateConfig(userConfig) {
       includeMpaa: descriptionFormat?.includeMpaa || false,
       includeYear: descriptionFormat?.includeYear || false,
       includeRuntime: descriptionFormat?.includeRuntime || false,
+      // TMDB metadata options
+      includeTmdbRating: descriptionFormat?.includeTmdbRating || false,
+      includeReleaseDate: descriptionFormat?.includeReleaseDate || false,
       // Vote count format: 'short' (1.2M), 'full' (1,200,000), 'both' (1,200,000 / 1.2M)
       voteCountFormat: descriptionFormat?.voteCountFormat || 'short',
-      // Separator between metadata parts (rating, votes, MPAA)
+      // TMDB rating format: 'decimal' (8.5), 'outof10' (8.5/10)
+      tmdbRatingFormat: descriptionFormat?.tmdbRatingFormat || 'decimal',
+      // Release date format: 'year' (2023), 'short' (Jan 15, 2023), 'full' (January 15, 2023)
+      releaseDateFormat: descriptionFormat?.releaseDateFormat || 'year',
+      // Separator between metadata parts (rating, votes, MPAA, TMDB rating, release date)
       metadataSeparator: descriptionFormat?.metadataSeparator || ' • ',
       // Granular control: enable ratings for catalog items in description
       enableCatalogItems: descriptionFormat?.enableCatalogItems !== undefined
@@ -150,6 +157,16 @@ function validateConfig(userConfig) {
   // Validate location - now supports "both"
   if (!['title', 'description', 'both'].includes(config.ratingLocation)) {
     throw new Error('ratingLocation must be "title", "description", or "both"');
+  }
+
+  // Validate TMDB rating format
+  if (!['decimal', 'outof10'].includes(config.descriptionFormat.tmdbRatingFormat)) {
+    throw new Error('descriptionFormat.tmdbRatingFormat must be "decimal" or "outof10"');
+  }
+
+  // Validate release date format
+  if (!['year', 'short', 'full'].includes(config.descriptionFormat.releaseDateFormat)) {
+    throw new Error('descriptionFormat.releaseDateFormat must be "year", "short", or "full"');
   }
 
   return config;

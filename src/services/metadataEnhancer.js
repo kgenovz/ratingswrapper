@@ -6,6 +6,35 @@
 const logger = require('../utils/logger');
 const ratingsService = require('./ratingsService');
 const kitsuMappingService = require('./kitsuMappingService');
+const tmdbService = require('./tmdbService');
+
+/**
+ * Format release date based on format preference
+ * @param {string} dateString - Date string in YYYY-MM-DD format
+ * @param {string} format - Format type: 'year', 'short', 'full'
+ * @returns {string} Formatted date string
+ */
+function formatReleaseDate(dateString, format = 'year') {
+  if (!dateString) return '';
+
+  try {
+    const date = new Date(dateString);
+
+    switch(format) {
+      case 'year':
+        return date.getFullYear().toString();
+      case 'full':
+        return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      case 'short':
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      default:
+        return date.getFullYear().toString();
+    }
+  } catch (error) {
+    logger.warn(`Error formatting date ${dateString}:`, error.message);
+    return '';
+  }
+}
 
 class MetadataEnhancerService {
   /**
@@ -67,13 +96,14 @@ class MetadataEnhancerService {
    * Formats rating for description injection (with extended metadata support)
    * @param {string} description - Original description
    * @param {Object} ratingData - Rating data object {rating, votes}
-   * @param {Object} formatConfig - Format configuration {position, template, separator, includeVotes, includeMpaa}
+   * @param {Object} formatConfig - Format configuration {position, template, separator, includeVotes, includeMpaa, includeTmdbRating, includeReleaseDate}
    * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
    * @param {string} mpaaRating - Pre-fetched MPAA rating (optional, to avoid individual lookups)
+   * @param {Object} tmdbData - Pre-fetched TMDB data (optional)
    * @returns {Promise<string>} Enhanced description
    * @private
    */
-  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null, mpaaRating = null) {
+  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null, mpaaRating = null, tmdbData = null) {
     if (!ratingData || !ratingData.rating) return description;
 
     // Build rating template
@@ -95,6 +125,27 @@ class MetadataEnhancerService {
       const mpaa = mpaaRating || (imdbId ? await ratingsService.getMpaaRating(imdbId) : null);
       if (mpaa) {
         metadataParts.push(mpaa);
+      }
+    }
+
+    // Add TMDB rating if enabled and available
+    if (formatConfig.includeTmdbRating && tmdbData && tmdbData.tmdbRating) {
+      const tmdbRatingFormat = formatConfig.tmdbRatingFormat || 'decimal';
+      const formatted = tmdbRatingFormat === 'decimal'
+        ? `${tmdbData.tmdbRating.toFixed(1)} TMDB`
+        : `${tmdbData.tmdbRating.toFixed(1)}/10 TMDB`;
+      metadataParts.push(formatted);
+    }
+
+    // Add release date if enabled and available
+    if (formatConfig.includeReleaseDate && tmdbData) {
+      const dateString = tmdbData.releaseDate || tmdbData.firstAirDate;
+      if (dateString) {
+        const releaseDateFormat = formatConfig.releaseDateFormat || 'year';
+        const formatted = formatReleaseDate(dateString, releaseDateFormat);
+        if (formatted) {
+          metadataParts.push(formatted);
+        }
       }
     }
 
@@ -120,11 +171,12 @@ class MetadataEnhancerService {
    * @param {Object} config - Full config object with titleFormat and descriptionFormat
    * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
    * @param {string} mpaaRating - Pre-fetched MPAA rating (optional)
+   * @param {Object} tmdbData - Pre-fetched TMDB data (optional)
    * @param {string} locationOverride - Override the config location (optional)
    * @returns {Promise<Object>} Enhanced meta object
    * @private
    */
-  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null, locationOverride = null) {
+  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null, tmdbData = null, locationOverride = null) {
     if (!ratingData || !config) {
       return meta;
     }
@@ -150,7 +202,8 @@ class MetadataEnhancerService {
         ratingData,
         descriptionFormat,
         imdbId,
-        mpaaRating
+        mpaaRating,
+        tmdbData
       );
     }
 
@@ -254,6 +307,34 @@ class MetadataEnhancerService {
         }
       }
 
+      // Batch fetch TMDB data if enabled and using description location
+      let tmdbMap = new Map();
+
+      if (config.enableRatings && descriptionFormat &&
+          (descriptionFormat.includeTmdbRating || descriptionFormat.includeReleaseDate) &&
+          (location === 'description' || location === 'both')) {
+
+        // Extract unique IMDb IDs from metas that have ratings
+        const imdbIds = metas
+          .map((meta, index) => {
+            const item = items.find(i => i.originalIndex === index);
+            if (!item || !ratingsMap.has(item.id)) return null;
+
+            // Extract base IMDb ID (without episode format)
+            const imdbId = meta.imdb_id || meta.imdbId || (item.id.startsWith('tt') ? item.id.split(':')[0] : null);
+            return imdbId;
+          })
+          .filter(id => id !== null);
+
+        // Remove duplicates
+        const uniqueImdbIds = [...new Set(imdbIds)];
+
+        if (uniqueImdbIds.length > 0) {
+          logger.info(`Batch fetching TMDB data for ${uniqueImdbIds.length} unique titles`);
+          tmdbMap = await tmdbService.getTmdbDataBatch(uniqueImdbIds);
+        }
+      }
+
       // Determine which locations should be used for catalog items
       let catalogLocation = 'title'; // default
       if (enableCatalogInTitle && enableCatalogInDescription) {
@@ -280,9 +361,10 @@ class MetadataEnhancerService {
         // Get IMDb ID and MPAA rating (if pre-fetched)
         const imdbId = meta.imdb_id || meta.imdbId || (item.id.startsWith('tt') ? item.id.split(':')[0] : null);
         const mpaaRating = imdbId ? mpaaMap.get(imdbId) : null;
+        const tmdbData = imdbId ? tmdbMap.get(imdbId) : null;
 
         // Pass catalogLocation to override the config location for catalog items
-        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating, catalogLocation);
+        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating, tmdbData, catalogLocation);
       }));
 
       const enhancedCount = enhancedMetas.filter((meta, idx) =>
@@ -339,6 +421,13 @@ class MetadataEnhancerService {
           // Get IMDb ID for MPAA lookup
           const imdbId = meta.imdb_id || meta.imdbId || (contentId && contentId.startsWith('tt') ? contentId.split(':')[0] : null);
 
+          // Fetch TMDB data if needed for description location
+          let tmdbData = null;
+          if (descriptionFormat && (descriptionFormat.includeTmdbRating || descriptionFormat.includeReleaseDate) &&
+              (location === 'description' || location === 'both') && imdbId) {
+            tmdbData = await tmdbService.getTmdbDataByImdbId(imdbId);
+          }
+
           // Build location string based on what's enabled for catalog items
           let catalogLocation = 'title';
           if (enableCatalogInTitle && enableCatalogInDescription) {
@@ -348,7 +437,7 @@ class MetadataEnhancerService {
           }
 
           // Add rating to main title or description (or both)
-          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, catalogLocation);
+          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, tmdbData, catalogLocation);
 
           if (catalogLocation === 'description') {
             enhancedMeta.description = enhancedWithRating.description;
@@ -593,12 +682,21 @@ class MetadataEnhancerService {
           // Get IMDb ID for MPAA lookup (use different variable name to avoid conflict)
           const mpaaLookupId = video.imdb_id || video.imdbId || (lookupId.startsWith('tt') ? lookupId.split(':')[0] : null);
 
+          // Fetch TMDB data if needed for description location
+          // Note: For episodes, we don't typically have TMDB data, but we include the hook for completeness
+          let episodeTmdbData = null;
+          if (descriptionFormat && (descriptionFormat.includeTmdbRating || descriptionFormat.includeReleaseDate) &&
+              (episodeLocation === 'description' || episodeLocation === 'both') && mpaaLookupId) {
+            // Only fetch if the episode location uses description
+            episodeTmdbData = await tmdbService.getTmdbDataByImdbId(mpaaLookupId);
+          }
+
           // Create a temporary meta-like object to use the enhancer
           // Different addons use different fields: Cinemeta uses 'name', others may use 'title'
           const episodeName = video.name || video.title;
           const episodeDescription = video.description || video.overview || '';
           const tempMeta = { name: episodeName, description: episodeDescription };
-          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId, null, episodeLocation);
+          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId, null, episodeTmdbData, episodeLocation);
 
           // Update the appropriate field(s) based on episodeLocation (not config.ratingLocation)
           if (episodeLocation === 'description') {
