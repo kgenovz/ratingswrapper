@@ -1012,7 +1012,12 @@ async function fetchStreamingProviders(tmdbId, mediaType, region = 'US') {
         }
 
         // Extract provider names from flatrate (subscription services)
-        const providers = regionData.flatrate.map(p => p.provider_name);
+        let providers = regionData.flatrate.map(p => p.provider_name);
+
+        // Filter out "with Ads" variants - keep only the base service name
+        // e.g., "Netflix Standard with Ads" is filtered out, keep only "Netflix"
+        const withAdsPattern = /\b(?:with Ads?|Standard with Ads?)\s*$/i;
+        providers = providers.filter(name => !withAdsPattern.test(name));
 
         return providers.length > 0 ? providers : null;
 
