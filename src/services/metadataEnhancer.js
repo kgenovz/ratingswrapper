@@ -161,12 +161,10 @@ class MetadataEnhancerService {
         : `${omdbData.metacritic} MC`;
     }
 
-    // Streaming Services (TMDB)
+    // Streaming Services (TMDB) - limit to 3 results
     if (formatConfig.includeStreamingServices && tmdbData && tmdbData.streamingProviders && tmdbData.streamingProviders.length > 0) {
-      partTexts.streamingServices = tmdbData.streamingProviders.join(', ');
-      logger.info(`[STREAMING] Found services: ${partTexts.streamingServices}`);
-    } else if (formatConfig.includeStreamingServices) {
-      logger.info(`[STREAMING] Requested but not available. tmdbData=${!!tmdbData}, streamingProviders=${tmdbData?.streamingProviders}, length=${tmdbData?.streamingProviders?.length}`);
+      const limitedProviders = tmdbData.streamingProviders.slice(0, 3);
+      partTexts.streamingServices = limitedProviders.join(', ');
     }
 
     // Apply ordering if provided; otherwise keep default order
