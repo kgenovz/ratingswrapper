@@ -251,7 +251,7 @@ function generateConfigureHTML(protocol, host) {
                 <div class="row-2">
                   <div class="form-group">
                     <label for="descriptionTemplate">Template</label>
-                    <input type="text" id="descriptionTemplate" value="{rating}/10" />
+                    <input type="text" id="descriptionTemplate" value="{rating}/10 IMDb" />
                     <div class="help-text">Use {rating} as placeholder</div>
                   </div>
                   <div class="form-group">
@@ -273,9 +273,11 @@ function generateConfigureHTML(protocol, host) {
                 </div>
                 <div class="form-group">
                   <div style="font-weight: 600; margin-bottom: 8px;">Extended Metadata</div>
+
+                  <!-- IMDb Vote Count -->
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeVotes" style="width: 18px; height: 18px;" />
-                    <span style="margin-left: 8px;">Include vote count</span>
+                    <span style="margin-left: 8px;">Include IMDb vote count</span>
                   </label>
                   <div id="voteCountFormatSection" style="margin-left: 26px; margin-bottom: 10px; display: none;">
                     <label for="voteCountFormat" style="display: block; font-weight: 600; margin-bottom: 6px;">Vote Count Format</label>
@@ -286,10 +288,26 @@ function generateConfigureHTML(protocol, host) {
                     </select>
                     <div class="help-text" style="margin-top: 5px;">Choose how to display vote counts</div>
                   </div>
+
+                  <!-- Rotten Tomatoes & Metacritic Ratings -->
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
-                    <input type="checkbox" id="includeMpaa" style="width: 18px; height: 18px;" />
-                    <span style="margin-left: 8px;">Include MPAA rating (e.g., "PG-13")</span>
+                    <input type="checkbox" id="includeRottenTomatoes" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include Rotten Tomatoes rating</span>
                   </label>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeMetacritic" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include Metacritic score</span>
+                  </label>
+                  <div id="metacriticFormatSection" style="margin-left: 26px; margin-bottom: 10px; display: none;">
+                    <label for="metacriticFormat" style="display: block; font-weight: 600; margin-bottom: 6px;">Metacritic Format</label>
+                    <select id="metacriticFormat">
+                      <option value="score" selected>Score only (68 MC)</option>
+                      <option value="outof100">Out of 100 (68/100 MC)</option>
+                    </select>
+                    <div class="help-text" style="margin-top: 5px;">Choose how to display Metacritic scores</div>
+                  </div>
+
+                  <!-- TMDB Rating -->
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeTmdbRating" style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Include TMDB rating</span>
@@ -302,6 +320,12 @@ function generateConfigureHTML(protocol, host) {
                     </select>
                     <div class="help-text" style="margin-top: 5px;">Choose how to display TMDB ratings</div>
                   </div>
+
+                  <!-- MPAA, Release Date, Streaming Services -->
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeMpaa" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include MPAA rating (e.g., "PG-13")</span>
+                  </label>
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeReleaseDate" style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Include release date</span>
@@ -336,22 +360,6 @@ function generateConfigureHTML(protocol, host) {
                       <option value="IN">India (IN)</option>
                     </select>
                     <div class="help-text" style="margin-top: 5px;">Choose which region's streaming providers to display</div>
-                  </div>
-                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
-                    <input type="checkbox" id="includeRottenTomatoes" style="width: 18px; height: 18px;" />
-                    <span style="margin-left: 8px;">Include Rotten Tomatoes rating</span>
-                  </label>
-                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
-                    <input type="checkbox" id="includeMetacritic" style="width: 18px; height: 18px;" />
-                    <span style="margin-left: 8px;">Include Metacritic score</span>
-                  </label>
-                  <div id="metacriticFormatSection" style="margin-left: 26px; margin-bottom: 10px; display: none;">
-                    <label for="metacriticFormat" style="display: block; font-weight: 600; margin-bottom: 6px;">Metacritic Format</label>
-                    <select id="metacriticFormat">
-                      <option value="score" selected>Score only (68 MC)</option>
-                      <option value="outof100">Out of 100 (68/100 MC)</option>
-                    </select>
-                    <div class="help-text" style="margin-top: 5px;">Choose how to display Metacritic scores</div>
                   </div>
                   <div id="metadataOrderSection" style="margin-top: 10px; display:none;">
                     <label style="display: block; font-weight: 600; margin-bottom: 6px;">Order</label>
@@ -1170,7 +1178,7 @@ function generateConfigureHTML(protocol, host) {
             // Update description preview
             if (enableDescriptionLocation) {
               var descPos = document.getElementById('descriptionPosition')?.value || 'prefix';
-              var descTpl = document.getElementById('descriptionTemplate')?.value || '{rating}/10';
+              var descTpl = document.getElementById('descriptionTemplate')?.value || '{rating}/10 IMDb';
               var descSep = document.getElementById('descriptionSeparator')?.value || '\\n';
               var includeVotes = document.getElementById('includeVotes')?.checked || false;
               var includeMpaa = document.getElementById('includeMpaa')?.checked || false;
@@ -1263,7 +1271,7 @@ function generateConfigureHTML(protocol, host) {
 
             // Get description format settings
             const descriptionPosition = document.getElementById('descriptionPosition')?.value || 'prefix';
-            const descriptionTemplate = document.getElementById('descriptionTemplate')?.value || '{rating}/10';
+            const descriptionTemplate = document.getElementById('descriptionTemplate')?.value || '{rating}/10 IMDb';
             let descriptionSeparator = document.getElementById('descriptionSeparator')?.value || '\\n';
             // Replace literal backslash-n with CRLF for storage to maximize client compatibility
             descriptionSeparator = descriptionSeparator.replace(/\\n/g, String.fromCharCode(13) + String.fromCharCode(10));
