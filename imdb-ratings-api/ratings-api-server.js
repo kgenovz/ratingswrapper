@@ -959,7 +959,8 @@ async function fetchTmdbDataByImdbId(imdbId, region = 'US') {
                     tmdbData.tmdbRating ? now : null,
                     streamingProvidersJson,
                     tmdbData.streamingRegion,
-                    streamingProvidersJson ? now : null
+                    // Store negative cache timestamp even if no providers found (to avoid repeated fetches)
+                    now
                 );
 
                 console.info(`[TMDB] Stored TMDB data for ${imdbId}: ${tmdbData.title}${streamingProvidersJson ? ` (streaming: ${tmdbData.streamingProviders.join(', ')})` : ''}`);
