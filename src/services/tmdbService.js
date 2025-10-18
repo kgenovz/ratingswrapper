@@ -235,13 +235,14 @@ class TMDBService {
   }
 
   /**
-   * Get TMDB data (ratings + release dates) by IMDb ID
-   * Uses ratings-api database-first caching with 1-week TTL for ratings, permanent for dates
+   * Get TMDB data (ratings + release dates + streaming) by IMDb ID
+   * Uses ratings-api database-first caching with 1-week TTL for ratings, 2-week for streaming
    *
    * @param {string} imdbId - IMDb ID (e.g., "tt0111161")
+   * @param {string} region - ISO 3166-1 country code for streaming providers (default: 'US')
    * @returns {Promise<Object|null>} - TMDB data object or null
    */
-  async getTmdbDataByImdbId(imdbId) {
+  async getTmdbDataByImdbId(imdbId, region = 'US') {
     try {
       if (!this.isConfigured()) {
         logger.debug('TMDB API key not configured, skipping TMDB data lookup');
@@ -256,12 +257,13 @@ class TMDBService {
       // Check ratings-api database endpoint (has built-in caching logic)
       const ratingsApiUrl = config.ratingsApiUrl || 'http://localhost:3001';
       const response = await axios.get(`${ratingsApiUrl}/api/tmdb-data/${imdbId}`, {
+        params: { region }, // Pass region as query parameter
         timeout: this.timeout,
         validateStatus: (status) => status < 500 // Accept 404 as valid response
       });
 
       if (response.status === 200 && response.data) {
-        logger.debug(`TMDB data retrieved for ${imdbId}: ${response.data.title || 'Unknown'}`);
+        logger.debug(`TMDB data retrieved for ${imdbId}: ${response.data.title || 'Unknown'}${response.data.streamingProviders ? ` (streaming: ${response.data.streamingProviders.join(', ')})` : ''}`);
         return response.data;
       }
 
@@ -289,16 +291,17 @@ class TMDBService {
    *
    * @param {string[]} imdbIds - Array of IMDb IDs
    * @param {number} concurrency - Number of concurrent requests (default: 5)
+   * @param {string} region - ISO 3166-1 country code for streaming providers (default: 'US')
    * @returns {Promise<Map<string, Object>>} - Map of IMDb ID to TMDB data
    */
-  async getTmdbDataBatch(imdbIds, concurrency = 5) {
+  async getTmdbDataBatch(imdbIds, concurrency = 5, region = 'US') {
     const results = new Map();
 
     if (!imdbIds || imdbIds.length === 0) {
       return results;
     }
 
-    logger.debug(`Batch fetching TMDB data for ${imdbIds.length} items (concurrency: ${concurrency})`);
+    logger.debug(`Batch fetching TMDB data for ${imdbIds.length} items (concurrency: ${concurrency}, region: ${region})`);
 
     // Process in batches for concurrency control
     for (let i = 0; i < imdbIds.length; i += concurrency) {
@@ -307,7 +310,7 @@ class TMDBService {
       const batchResults = await Promise.all(
         batch.map(async (imdbId) => {
           try {
-            const data = await this.getTmdbDataByImdbId(imdbId);
+            const data = await this.getTmdbDataByImdbId(imdbId, region);
             return { imdbId, data };
           } catch (error) {
             logger.warn(`Error fetching TMDB data for ${imdbId}:`, error.message);

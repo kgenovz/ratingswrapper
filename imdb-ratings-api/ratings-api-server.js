@@ -116,7 +116,10 @@ function initDatabase() {
             popularity REAL,
             data TEXT,
             updated_at INTEGER NOT NULL,
-            ratings_cached_at INTEGER
+            ratings_cached_at INTEGER,
+            streaming_providers TEXT,
+            streaming_region TEXT,
+            streaming_cached_at INTEGER
         ) WITHOUT ROWID`);
 
         // Table for MPAA ratings cache
@@ -202,7 +205,10 @@ function runMigrations() {
                     popularity REAL,
                     data TEXT,
                     updated_at INTEGER NOT NULL,
-                    ratings_cached_at INTEGER
+                    ratings_cached_at INTEGER,
+                    streaming_providers TEXT,
+                    streaming_region TEXT,
+                    streaming_cached_at INTEGER
                 ) WITHOUT ROWID`);
 
                 // Migrate data if any exists
@@ -230,7 +236,28 @@ function runMigrations() {
             db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(1, Date.now());
         }
 
-        console.log(`✅ Database schema version: ${Math.max(version, 1)}`);
+        // Migration 2: Add streaming provider columns to tmdb_metadata
+        if (version < 2) {
+            console.log('Running migration 2: Adding streaming provider columns...');
+
+            const tableInfo = db.prepare("PRAGMA table_info(tmdb_metadata)").all();
+            const hasStreamingProviders = tableInfo.some(col => col.name === 'streaming_providers');
+
+            if (!hasStreamingProviders) {
+                console.log('  Adding streaming_providers, streaming_region, streaming_cached_at columns...');
+
+                db.exec(`ALTER TABLE tmdb_metadata ADD COLUMN streaming_providers TEXT`);
+                db.exec(`ALTER TABLE tmdb_metadata ADD COLUMN streaming_region TEXT`);
+                db.exec(`ALTER TABLE tmdb_metadata ADD COLUMN streaming_cached_at INTEGER`);
+
+                console.log('  Migration 2 completed successfully');
+            }
+
+            // Mark migration as applied
+            db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(2, Date.now());
+        }
+
+        console.log(`✅ Database schema version: ${Math.max(version, 2)}`);
     } catch (err) {
         console.error('Migration error:', err);
         // Don't fail startup on migration errors
@@ -842,11 +869,12 @@ async function fetchTvCertification(tmdbId, imdbId) {
 }
 
 /**
- * Fetch TMDB data (ratings, release dates) by IMDb ID
+ * Fetch TMDB data (ratings, release dates, streaming providers) by IMDb ID
  * @param {string} imdbId - IMDb ID (e.g., "tt0111161")
+ * @param {string} region - ISO 3166-1 country code for streaming providers (default: 'US')
  * @returns {Promise<Object|null>} - TMDB data object or null
  */
-async function fetchTmdbDataByImdbId(imdbId) {
+async function fetchTmdbDataByImdbId(imdbId, region = 'US') {
     if (!TMDB_API_KEY) {
         return null;
     }
@@ -896,15 +924,25 @@ async function fetchTmdbDataByImdbId(imdbId) {
             };
         }
 
+        // Step 2: Fetch streaming providers if we found TMDB data
+        if (tmdbData) {
+            const streamingProviders = await fetchStreamingProviders(tmdbData.tmdbId, tmdbData.mediaType, region);
+            tmdbData.streamingProviders = streamingProviders;
+            tmdbData.streamingRegion = region;
+        }
+
         // Store in database if found
         if (tmdbData) {
             try {
                 const now = Date.now();
+                const streamingProvidersJson = tmdbData.streamingProviders ? JSON.stringify(tmdbData.streamingProviders) : null;
+
                 const stmt = db.prepare(`
                     INSERT OR REPLACE INTO tmdb_metadata
                     (imdb_id, tmdb_id, media_type, title, year, tmdb_rating, tmdb_vote_count,
-                     release_date, first_air_date, updated_at, ratings_cached_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     release_date, first_air_date, updated_at, ratings_cached_at,
+                     streaming_providers, streaming_region, streaming_cached_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `);
 
                 stmt.run(
@@ -918,10 +956,13 @@ async function fetchTmdbDataByImdbId(imdbId) {
                     tmdbData.releaseDate,
                     tmdbData.firstAirDate,
                     now,
-                    tmdbData.tmdbRating ? now : null
+                    tmdbData.tmdbRating ? now : null,
+                    streamingProvidersJson,
+                    tmdbData.streamingRegion,
+                    streamingProvidersJson ? now : null
                 );
 
-                console.info(`[TMDB] Stored TMDB data for ${imdbId}: ${tmdbData.title}`);
+                console.info(`[TMDB] Stored TMDB data for ${imdbId}: ${tmdbData.title}${streamingProvidersJson ? ` (streaming: ${tmdbData.streamingProviders.join(', ')})` : ''}`);
             } catch (dbError) {
                 console.error(`[TMDB] Error storing TMDB data: ${dbError.message}`);
             }
@@ -937,6 +978,45 @@ async function fetchTmdbDataByImdbId(imdbId) {
         } else {
             console.warn(`[TMDB] Error fetching ${imdbId}: ${error.message}`);
         }
+        return null;
+    }
+}
+
+/**
+ * Fetch streaming providers from TMDB by TMDB ID and region
+ * @param {number} tmdbId - TMDB ID
+ * @param {string} mediaType - Media type ('movie' or 'tv')
+ * @param {string} region - ISO 3166-1 country code (e.g., 'US', 'GB', 'CA')
+ * @returns {Promise<string[]|null>} - Array of provider names or null
+ */
+async function fetchStreamingProviders(tmdbId, mediaType, region = 'US') {
+    if (!TMDB_API_KEY) {
+        return null;
+    }
+
+    try {
+        const endpoint = mediaType === 'movie' ? 'movie' : 'tv';
+        const url = `${TMDB_BASE_URL}/${endpoint}/${tmdbId}/watch/providers`;
+        const response = await axios.get(url, {
+            params: { api_key: TMDB_API_KEY },
+            timeout: TMDB_TIMEOUT
+        });
+
+        // Get providers for the specified region
+        const regionData = response.data.results?.[region];
+
+        if (!regionData || !regionData.flatrate) {
+            // No streaming providers for this region
+            return null;
+        }
+
+        // Extract provider names from flatrate (subscription services)
+        const providers = regionData.flatrate.map(p => p.provider_name);
+
+        return providers.length > 0 ? providers : null;
+
+    } catch (error) {
+        // Silent failure for streaming providers - they're optional metadata
         return null;
     }
 }
@@ -1047,11 +1127,12 @@ app.post('/api/mpaa-rating', (req, res) => {
 
 // *** TMDB DATA API ENDPOINTS ***
 
-// GET /api/tmdb-data/:imdbId - Get TMDB data (ratings, release dates) with caching
+// GET /api/tmdb-data/:imdbId - Get TMDB data (ratings, release dates, streaming) with caching
 app.get('/api/tmdb-data/:imdbId', async (req, res) => {
     try {
         const { imdbId } = req.params;
-        console.info(`[TMDB-DATA] Request for: ${imdbId}`);
+        const region = req.query.region || 'US'; // Get region from query parameter
+        console.info(`[TMDB-DATA] Request for: ${imdbId} (region: ${region})`);
 
         if (!imdbId || !imdbId.startsWith('tt')) {
             return res.status(400).json({ error: 'Invalid IMDb ID. Must start with "tt"' });
@@ -1060,20 +1141,37 @@ app.get('/api/tmdb-data/:imdbId', async (req, res) => {
         // Step 1: Check database first
         const result = db.prepare(`
             SELECT tmdb_id, media_type, title, year, tmdb_rating, tmdb_vote_count,
-                   release_date, first_air_date, updated_at, ratings_cached_at
+                   release_date, first_air_date, updated_at, ratings_cached_at,
+                   streaming_providers, streaming_region, streaming_cached_at
             FROM tmdb_metadata WHERE imdb_id = ?
         `).get(imdbId);
 
         if (result) {
             const now = Date.now();
             const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
+            const twoWeeks = 14 * 24 * 60 * 60 * 1000; // 2 weeks in milliseconds
 
             // Check if ratings need refresh (older than 1 week)
             const ratingsNeedRefresh = result.ratings_cached_at && (now - result.ratings_cached_at) > oneWeek;
 
-            // Release dates are permanent, ratings may be stale
-            if (!ratingsNeedRefresh || !result.ratings_cached_at) {
+            // Check if streaming needs refresh (older than 2 weeks OR different region)
+            const streamingNeedRefresh = result.streaming_cached_at &&
+                ((now - result.streaming_cached_at) > twoWeeks || result.streaming_region !== region);
+
+            // If both are fresh, return cached data
+            if (!ratingsNeedRefresh && !streamingNeedRefresh) {
                 console.info(`[TMDB-DATA] Found in database (cached): ${result.title || imdbId}`);
+
+                // Parse streaming providers from JSON
+                let streamingProviders = null;
+                if (result.streaming_providers) {
+                    try {
+                        streamingProviders = JSON.parse(result.streaming_providers);
+                    } catch (e) {
+                        console.warn(`[TMDB-DATA] Failed to parse streaming providers for ${imdbId}`);
+                    }
+                }
+
                 return res.json({
                     imdbId,
                     tmdbId: result.tmdb_id,
@@ -1084,24 +1182,27 @@ app.get('/api/tmdb-data/:imdbId', async (req, res) => {
                     tmdbVoteCount: result.tmdb_vote_count,
                     releaseDate: result.release_date,
                     firstAirDate: result.first_air_date,
+                    streamingProviders,
+                    streamingRegion: result.streaming_region,
                     updatedAt: new Date(result.updated_at).toISOString(),
                     ratingsCachedAt: result.ratings_cached_at ? new Date(result.ratings_cached_at).toISOString() : null,
+                    streamingCachedAt: result.streaming_cached_at ? new Date(result.streaming_cached_at).toISOString() : null,
                     source: 'database',
                     cached: true
                 });
             } else {
-                console.info(`[TMDB-DATA] Ratings stale for ${imdbId}, will refetch from TMDB`);
+                console.info(`[TMDB-DATA] Data stale for ${imdbId}, will refetch from TMDB`);
             }
         }
 
-        // Step 2: Not in database or ratings are stale, fetch from TMDB
+        // Step 2: Not in database or data is stale, fetch from TMDB
         if (!TMDB_API_KEY) {
             console.warn('[TMDB-DATA] TMDB_API_KEY not configured');
             return res.status(503).json({ error: 'TMDB API not configured' });
         }
 
         console.info(`[TMDB-DATA] Fetching from TMDB: ${imdbId}`);
-        const tmdbData = await fetchTmdbDataByImdbId(imdbId);
+        const tmdbData = await fetchTmdbDataByImdbId(imdbId, region);
 
         if (tmdbData) {
             console.info(`[TMDB-DATA] Fetched from TMDB: ${tmdbData.title}`);

@@ -316,6 +316,28 @@ function generateConfigureHTML(protocol, host) {
                     <div class="help-text" style="margin-top: 5px;">Choose how to display release dates</div>
                   </div>
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeStreamingServices" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include streaming services</span>
+                  </label>
+                  <div id="streamingRegionSection" style="margin-left: 26px; margin-bottom: 10px; display: none;">
+                    <label for="streamingRegion" style="display: block; font-weight: 600; margin-bottom: 6px;">Streaming Region</label>
+                    <select id="streamingRegion">
+                      <option value="US" selected>United States (US)</option>
+                      <option value="GB">United Kingdom (GB)</option>
+                      <option value="CA">Canada (CA)</option>
+                      <option value="AU">Australia (AU)</option>
+                      <option value="DE">Germany (DE)</option>
+                      <option value="FR">France (FR)</option>
+                      <option value="IT">Italy (IT)</option>
+                      <option value="ES">Spain (ES)</option>
+                      <option value="JP">Japan (JP)</option>
+                      <option value="BR">Brazil (BR)</option>
+                      <option value="MX">Mexico (MX)</option>
+                      <option value="IN">India (IN)</option>
+                    </select>
+                    <div class="help-text" style="margin-top: 5px;">Choose which region's streaming providers to display</div>
+                  </div>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeRottenTomatoes" style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Include Rotten Tomatoes rating</span>
                   </label>
@@ -349,7 +371,7 @@ function generateConfigureHTML(protocol, host) {
                       <option value=" ✨ ">Sparkles ( ✨ )</option>
                       <option value=" ">Space</option>
                     </select>
-                    <div class="help-text" style="margin-top: 5px;">Separator between rating, vote count, MPAA rating, TMDB rating, release date, Rotten Tomatoes, and Metacritic</div>
+                    <div class="help-text" style="margin-top: 5px;">Separator between rating, vote count, MPAA rating, TMDB rating, release date, streaming services, Rotten Tomatoes, and Metacritic</div>
                   </div>
                 </div>
                 <div class="form-group">
@@ -1027,6 +1049,7 @@ function generateConfigureHTML(protocol, host) {
               mpaa: document.getElementById('includeMpaa')?.checked || false,
               tmdb: document.getElementById('includeTmdbRating')?.checked || false,
               releaseDate: document.getElementById('includeReleaseDate')?.checked || false,
+              streamingServices: document.getElementById('includeStreamingServices')?.checked || false,
               rottenTomatoes: document.getElementById('includeRottenTomatoes')?.checked || false,
               metacritic: document.getElementById('includeMetacritic')?.checked || false
             };
@@ -1035,10 +1058,11 @@ function generateConfigureHTML(protocol, host) {
               mpaa: 'MPAA rating',
               tmdb: 'TMDB rating',
               releaseDate: 'Release date',
+              streamingServices: 'Streaming services',
               rottenTomatoes: 'Rotten Tomatoes',
               metacritic: 'Metacritic'
             };
-            var defaultOrder = ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+            var defaultOrder = ['votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
             var selected = defaultOrder.filter(function(k){ return includes[k]; });
             if (selected.length === 0) {
               section.style.display = 'none';
@@ -1113,6 +1137,13 @@ function generateConfigureHTML(protocol, host) {
               metacriticFormatSection.style.display = includeMetacritic ? 'block' : 'none';
             }
 
+            // Show/hide streaming region dropdown based on includeStreamingServices checkbox
+            var includeStreamingServices = document.getElementById('includeStreamingServices')?.checked || false;
+            var streamingRegionSection = document.getElementById('streamingRegionSection');
+            if (streamingRegionSection) {
+              streamingRegionSection.style.display = includeStreamingServices ? 'block' : 'none';
+            }
+
             // Rebuild ordering list when toggles change
             renderMetadataOrderList();
 
@@ -1145,6 +1176,7 @@ function generateConfigureHTML(protocol, host) {
               var includeMpaa = document.getElementById('includeMpaa')?.checked || false;
               var includeTmdbRating = document.getElementById('includeTmdbRating')?.checked || false;
               var includeReleaseDate = document.getElementById('includeReleaseDate')?.checked || false;
+              var includeStreamingServices = document.getElementById('includeStreamingServices')?.checked || false;
               var includeRottenTomatoes = document.getElementById('includeRottenTomatoes')?.checked || false;
               var includeMetacritic = document.getElementById('includeMetacritic')?.checked || false;
               var metaSep = document.getElementById('metadataSeparator')?.value || ' • ';
@@ -1180,13 +1212,14 @@ function generateConfigureHTML(protocol, host) {
                   : (releaseDateFormat === 'short' ? 'Jan 15, 2023' : 'January 15, 2023');
                 partTexts.releaseDate = dateText;
               }
+              if (includeStreamingServices) partTexts.streamingServices = 'Netflix, Hulu, Disney+';
               if (includeRottenTomatoes) partTexts.rottenTomatoes = '83% RT';
               if (includeMetacritic) {
                 var mcText = metacriticFormat === 'score' ? '68 MC' : '68/100 MC';
                 partTexts.metacritic = mcText;
               }
 
-              var allowed = ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+              var allowed = ['votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
               order.forEach(function(k){ if (allowed.indexOf(k) !== -1 && partTexts[k]) metadataParts.push(partTexts[k]); });
               // Append any parts not in the order list
               allowed.forEach(function(k){ if (order.indexOf(k) === -1 && partTexts[k]) metadataParts.push(partTexts[k]); });
@@ -1240,6 +1273,8 @@ function generateConfigureHTML(protocol, host) {
             const includeMpaa = document.getElementById('includeMpaa')?.checked || false;
             const includeTmdbRating = document.getElementById('includeTmdbRating')?.checked || false;
             const includeReleaseDate = document.getElementById('includeReleaseDate')?.checked || false;
+            const includeStreamingServices = document.getElementById('includeStreamingServices')?.checked || false;
+            const streamingRegion = document.getElementById('streamingRegion')?.value || 'US';
             const metadataSeparator = document.getElementById('metadataSeparator')?.value || ' • ';
             const voteCountFormat = document.getElementById('voteCountFormat')?.value || 'short';
             const tmdbRatingFormat = document.getElementById('tmdbRatingFormat')?.value || 'decimal';
@@ -1277,6 +1312,8 @@ function generateConfigureHTML(protocol, host) {
                   includeMpaa: includeMpaa,
                   includeTmdbRating: includeTmdbRating,
                   includeReleaseDate: includeReleaseDate,
+                  includeStreamingServices: includeStreamingServices,
+                  streamingRegion: streamingRegion,
                   includeRottenTomatoes: includeRottenTomatoes,
                   includeMetacritic: includeMetacritic,
                   metadataSeparator: metadataSeparator,
@@ -1320,6 +1357,8 @@ function generateConfigureHTML(protocol, host) {
             var includeMpaa = document.getElementById('includeMpaa');
             var includeTmdbRating = document.getElementById('includeTmdbRating');
             var includeReleaseDate = document.getElementById('includeReleaseDate');
+            var includeStreamingServices = document.getElementById('includeStreamingServices');
+            var streamingRegion = document.getElementById('streamingRegion');
             var includeRottenTomatoes = document.getElementById('includeRottenTomatoes');
             var includeMetacritic = document.getElementById('includeMetacritic');
             var metaSep = document.getElementById('metadataSeparator');
@@ -1343,6 +1382,8 @@ function generateConfigureHTML(protocol, host) {
             if (includeMpaa) includeMpaa.addEventListener('change', updateRatingPreview);
             if (includeTmdbRating) includeTmdbRating.addEventListener('change', updateRatingPreview);
             if (includeReleaseDate) includeReleaseDate.addEventListener('change', updateRatingPreview);
+            if (includeStreamingServices) includeStreamingServices.addEventListener('change', updateRatingPreview);
+            if (streamingRegion) streamingRegion.addEventListener('change', updateRatingPreview);
             if (includeRottenTomatoes) includeRottenTomatoes.addEventListener('change', updateRatingPreview);
             if (includeMetacritic) includeMetacritic.addEventListener('change', updateRatingPreview);
             if (metaSep) metaSep.addEventListener('change', updateRatingPreview);

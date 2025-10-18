@@ -161,8 +161,13 @@ class MetadataEnhancerService {
         : `${omdbData.metacritic} MC`;
     }
 
+    // Streaming Services (TMDB)
+    if (formatConfig.includeStreamingServices && tmdbData && tmdbData.streamingProviders && tmdbData.streamingProviders.length > 0) {
+      partTexts.streamingServices = tmdbData.streamingProviders.join(', ');
+    }
+
     // Apply ordering if provided; otherwise keep default order
-    const allowedKeys = ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+    const allowedKeys = ['votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
     if (Array.isArray(formatConfig.metadataOrder)) {
       const order = formatConfig.metadataOrder;
       order.forEach(k => { if (allowedKeys.includes(k) && partTexts[k]) metadataParts.push(partTexts[k]); });
@@ -337,7 +342,7 @@ class MetadataEnhancerService {
       let tmdbMap = new Map();
 
       if (config.enableRatings && descriptionFormat &&
-          (descriptionFormat.includeTmdbRating || descriptionFormat.includeReleaseDate) &&
+          (descriptionFormat.includeTmdbRating || descriptionFormat.includeReleaseDate || descriptionFormat.includeStreamingServices) &&
           (location === 'description' || location === 'both')) {
 
         // Extract unique IMDb IDs from metas that have ratings
@@ -356,8 +361,9 @@ class MetadataEnhancerService {
         const uniqueImdbIds = [...new Set(imdbIds)];
 
         if (uniqueImdbIds.length > 0) {
-          logger.info(`Batch fetching TMDB data for ${uniqueImdbIds.length} unique titles`);
-          tmdbMap = await tmdbService.getTmdbDataBatch(uniqueImdbIds);
+          const streamingRegion = descriptionFormat.streamingRegion || 'US';
+          logger.info(`Batch fetching TMDB data for ${uniqueImdbIds.length} unique titles (region: ${streamingRegion})`);
+          tmdbMap = await tmdbService.getTmdbDataBatch(uniqueImdbIds, 5, streamingRegion);
         }
       }
 
@@ -478,9 +484,10 @@ class MetadataEnhancerService {
 
           // Fetch TMDB data if needed for description location
           let tmdbData = null;
-          if (descriptionFormat && (descriptionFormat.includeTmdbRating || descriptionFormat.includeReleaseDate) &&
+          if (descriptionFormat && (descriptionFormat.includeTmdbRating || descriptionFormat.includeReleaseDate || descriptionFormat.includeStreamingServices) &&
               (location === 'description' || location === 'both') && imdbId) {
-            tmdbData = await tmdbService.getTmdbDataByImdbId(imdbId);
+            const streamingRegion = descriptionFormat.streamingRegion || 'US';
+            tmdbData = await tmdbService.getTmdbDataByImdbId(imdbId, streamingRegion);
           }
 
           // Fetch OMDB data if needed for description location

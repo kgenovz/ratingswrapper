@@ -41,7 +41,7 @@ function decodeConfig(encodedConfig) {
  */
 function validateConfig(userConfig) {
   // Supported order keys and defaults for extended metadata
-  const DEFAULT_METADATA_ORDER = ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+  const DEFAULT_METADATA_ORDER = ['votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
   const ALLOWED_ORDER_KEYS = new Set(DEFAULT_METADATA_ORDER);
   function sanitizeOrder(order) {
     if (!Array.isArray(order)) return DEFAULT_METADATA_ORDER;
@@ -118,9 +118,12 @@ function validateConfig(userConfig) {
       includeMetacritic: descriptionFormat?.includeMetacritic || false,
       // Metacritic format: 'score' (68), 'outof100' (68/100)
       metacriticFormat: descriptionFormat?.metacriticFormat || 'score',
+      // Streaming services metadata options
+      includeStreamingServices: descriptionFormat?.includeStreamingServices || false,
+      streamingRegion: descriptionFormat?.streamingRegion || 'US',
       // Order of extended metadata parts (after rating)
       metadataOrder: sanitizeOrder(descriptionFormat?.metadataOrder),
-      // Separator between metadata parts (rating, votes, MPAA, TMDB rating, release date)
+      // Separator between metadata parts (rating, votes, MPAA, TMDB rating, release date, streaming)
       metadataSeparator: descriptionFormat?.metadataSeparator || ' • ',
       // Granular control: enable ratings for catalog items in description
       enableCatalogItems: descriptionFormat?.enableCatalogItems !== undefined
@@ -198,6 +201,12 @@ function validateConfig(userConfig) {
   // Validate Metacritic format
   if (!['score', 'outof100'].includes(config.descriptionFormat.metacriticFormat)) {
     throw new Error('descriptionFormat.metacriticFormat must be "score" or "outof100"');
+  }
+
+  // Validate streaming region (basic 2-letter ISO code check)
+  if (config.descriptionFormat.streamingRegion &&
+      !/^[A-Z]{2}$/.test(config.descriptionFormat.streamingRegion)) {
+    throw new Error('descriptionFormat.streamingRegion must be a 2-letter ISO country code (e.g., "US", "GB", "CA")');
   }
 
   // Coerce/validate metadata order
