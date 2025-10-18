@@ -164,9 +164,9 @@ class MetadataEnhancerService {
     // Streaming Services (TMDB)
     if (formatConfig.includeStreamingServices && tmdbData && tmdbData.streamingProviders && tmdbData.streamingProviders.length > 0) {
       partTexts.streamingServices = tmdbData.streamingProviders.join(', ');
-      logger.debug(`Streaming services found: ${partTexts.streamingServices}`);
+      logger.info(`[STREAMING] Found services: ${partTexts.streamingServices}`);
     } else if (formatConfig.includeStreamingServices) {
-      logger.debug(`Streaming services requested but not available. tmdbData=${!!tmdbData}, streamingProviders=${tmdbData?.streamingProviders}, length=${tmdbData?.streamingProviders?.length}`);
+      logger.info(`[STREAMING] Requested but not available. tmdbData=${!!tmdbData}, streamingProviders=${tmdbData?.streamingProviders}, length=${tmdbData?.streamingProviders?.length}`);
     }
 
     // Apply ordering if provided; otherwise keep default order
