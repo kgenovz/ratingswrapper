@@ -474,6 +474,20 @@ function generateConfigureHTML(protocol, host) {
           const CINEMETA_URL = 'https://v3-cinemeta.strem.io/manifest.json';
           const state = { items: [], selectedAddons: new Set() };
 
+          /**
+           * Sanitizes addon URL by converting stremio:// protocol to https://
+           * @param {string} url - Addon URL
+           * @returns {string} Sanitized URL
+           */
+          function sanitizeAddonUrl(url) {
+            if (!url || typeof url !== 'string') return url;
+            // Case-insensitive replacement of stremio:// with https://
+            if (url.toLowerCase().startsWith('stremio://')) {
+              return 'https://' + url.substring(10);
+            }
+            return url;
+          }
+
           // Login section functions
           function toggleLoginAuthMethod() {
             const tokenMethod = document.getElementById('loginAuthTokenMethod');
@@ -619,9 +633,13 @@ function generateConfigureHTML(protocol, host) {
             addons.forEach(addon => {
               const card = document.createElement('div');
               const isAlreadyWrapped = addon.reason === 'Already wrapped';
+
+              // Sanitize addon URL before storing
+              const sanitizedUrl = sanitizeAddonUrl(addon.url);
+
               const isCinemeta = (addon.id && String(addon.id).toLowerCase().includes('cinemeta')) ||
-                                 (addon.url && addon.url.includes('cinemeta')) ||
-                                 (addon.url === CINEMETA_URL);
+                                 (sanitizedUrl && sanitizedUrl.includes('cinemeta')) ||
+                                 (sanitizedUrl === CINEMETA_URL);
 
               if (isAlreadyWrapped) {
                 card.className = 'addon-card already-wrapped';
@@ -629,13 +647,13 @@ function generateConfigureHTML(protocol, host) {
                 card.className = 'addon-card ' + (addon.wrappable ? 'wrappable' : 'not-wrappable');
               }
 
-              card.dataset.addonUrl = addon.url;
+              card.dataset.addonUrl = sanitizedUrl;
               card.dataset.addonName = addon.name;
               if (isCinemeta) {
                 // Ensure Cinemeta is visually selected and can't be deselected
                 state.selectedAddons.add(CINEMETA_URL);
                 card.classList.add('selected');
-              } else if (state.selectedAddons.has(addon.url)) {
+              } else if (state.selectedAddons.has(sanitizedUrl)) {
                 card.classList.add('selected');
               }
 
@@ -682,19 +700,19 @@ function generateConfigureHTML(protocol, host) {
               checkbox.type = 'checkbox';
               checkbox.className = 'addon-checkbox';
               checkbox.disabled = isCinemeta || !addon.wrappable || isAlreadyWrapped;
-              checkbox.checked = isCinemeta || state.selectedAddons.has(addon.url);
+              checkbox.checked = isCinemeta || state.selectedAddons.has(sanitizedUrl);
               if (isCinemeta) {
                 checkbox.title = 'Cinemeta is always enabled';
               }
 
               if (!isCinemeta && addon.wrappable && !isAlreadyWrapped) {
                 const toggleSelection = () => {
-                  if (state.selectedAddons.has(addon.url)) {
-                    state.selectedAddons.delete(addon.url);
+                  if (state.selectedAddons.has(sanitizedUrl)) {
+                    state.selectedAddons.delete(sanitizedUrl);
                     card.classList.remove('selected');
                     checkbox.checked = false;
                   } else {
-                    state.selectedAddons.add(addon.url);
+                    state.selectedAddons.add(sanitizedUrl);
                     card.classList.add('selected');
                     checkbox.checked = true;
                   }
@@ -771,8 +789,11 @@ function generateConfigureHTML(protocol, host) {
             let addedCount = 0;
 
             for (const card of addonCards) {
-              const url = card.dataset.addonUrl;
-              if (!url) continue;
+              const rawUrl = card.dataset.addonUrl;
+              if (!rawUrl) continue;
+
+              // Sanitize URL: convert stremio:// to https://
+              const url = sanitizeAddonUrl(rawUrl);
 
               // Check if already added
               if (state.items.find(it => it.url === url)) {
@@ -960,9 +981,13 @@ function generateConfigureHTML(protocol, host) {
           }
 
           async function addAddon() {
-            const url = document.getElementById('addonInputUrl').value.trim();
+            const rawUrl = document.getElementById('addonInputUrl').value.trim();
             const nameInput = document.getElementById('addonInputName').value.trim();
-            if (!url) { alert('Enter an addon URL'); return; }
+            if (!rawUrl) { alert('Enter an addon URL'); return; }
+
+            // Sanitize URL: convert stremio:// to https://
+            const url = sanitizeAddonUrl(rawUrl);
+
             // Prevent adding Cinemeta manually; it's enforced automatically
             if (url === CINEMETA_URL) {
               alert('Cinemeta is already included by default and cannot be added twice.');

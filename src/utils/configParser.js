@@ -35,6 +35,20 @@ function decodeConfig(encodedConfig) {
 }
 
 /**
+ * Sanitizes addon URL by converting stremio:// protocol to https://
+ * @param {string} url - Addon URL
+ * @returns {string} Sanitized URL
+ */
+function sanitizeAddonUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  // Case-insensitive replacement of stremio:// with https://
+  if (url.toLowerCase().startsWith('stremio://')) {
+    return 'https://' + url.substring(10);
+  }
+  return url;
+}
+
+/**
  * Validates and merges user config with defaults
  * @param {Object} userConfig - User-provided configuration
  * @returns {Object} Validated configuration with defaults
@@ -69,9 +83,12 @@ function validateConfig(userConfig) {
     descriptionFormat = userConfig.ratingFormat;
   }
 
+  // Sanitize the wrapped addon URL - convert stremio:// to https://
+  const sanitizedUrl = sanitizeAddonUrl(userConfig.wrappedAddonUrl);
+
   const config = {
-    // Required: wrapped addon URL
-    wrappedAddonUrl: userConfig.wrappedAddonUrl || null,
+    // Required: wrapped addon URL (sanitized)
+    wrappedAddonUrl: sanitizedUrl || null,
 
     // Optional: rating format settings (legacy single format - kept for backwards compatibility)
     ratingFormat: {
