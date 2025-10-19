@@ -598,15 +598,21 @@ class MetadataEnhancerService {
                 let episodeNum = parseInt(parts[2], 10);
                 const imdbId = kitsuMappingService.getImdbId(kitsuId);
                 if (imdbId) {
-                  // Infer season number from mapping metadata (anime-planet slug), fallback to 1
-                  const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
-
                   // Check for split-cour episode offset
                   const splitCourKey = `kitsu:${kitsuId}`;
                   const splitCourData = kitsuMappingService.getSplitCourOffset(splitCourKey);
-                  if (splitCourData && splitCourData.episode_offset) {
-                    episodeNum += splitCourData.episode_offset;
-                    logger.info(`Split-cour offset applied (batch): ${splitCourKey} ep ${parts[2]} + offset ${splitCourData.episode_offset} = ${episodeNum}`);
+
+                  let seasonNum;
+                  if (splitCourData) {
+                    // Use season from split-cour data if available
+                    seasonNum = splitCourData.imdb_season || kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
+                    if (splitCourData.episode_offset) {
+                      episodeNum += splitCourData.episode_offset;
+                      logger.info(`Split-cour offset applied (batch): ${splitCourKey} ep ${parts[2]} + offset ${splitCourData.episode_offset} = ${episodeNum}, season=${seasonNum}`);
+                    }
+                  } else {
+                    // Infer season number from mapping metadata (anime-planet slug), fallback to 1
+                    seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
                   }
 
                   const formattedId = `${imdbId}:${seasonNum}:${episodeNum}`;
@@ -711,14 +717,21 @@ class MetadataEnhancerService {
               let episodeNum = parseInt(parts[2], 10);
               const imdbId = kitsuMappingService.getImdbId(kitsuId);
               if (imdbId) {
-                const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
-
                 // Check for split-cour episode offset
                 const splitCourKey = `kitsu:${kitsuId}`;
                 const splitCourData = kitsuMappingService.getSplitCourOffset(splitCourKey);
-                if (splitCourData && splitCourData.episode_offset) {
-                  episodeNum += splitCourData.episode_offset;
-                  logger.info(`Split-cour offset applied (enhance): ${splitCourKey} ep ${parts[2]} + offset ${splitCourData.episode_offset} = ${episodeNum}`);
+
+                let seasonNum;
+                if (splitCourData) {
+                  // Use season from split-cour data if available
+                  seasonNum = splitCourData.imdb_season || kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
+                  if (splitCourData.episode_offset) {
+                    episodeNum += splitCourData.episode_offset;
+                    logger.info(`Split-cour offset applied (enhance): ${splitCourKey} ep ${parts[2]} + offset ${splitCourData.episode_offset} = ${episodeNum}, season=${seasonNum}`);
+                  }
+                } else {
+                  // Infer season number from mapping metadata (anime-planet slug), fallback to 1
+                  seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
                 }
 
                 lookupId = `${imdbId}:${seasonNum}:${episodeNum}`;
