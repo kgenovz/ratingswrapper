@@ -562,17 +562,34 @@ class MetadataEnhancerService {
             // If we have IMDb ID + season + episode, format as series:season:episode
             if (episodeImdbId && episodeImdbId.startsWith('tt') && season && episode) {
               let seasonUsed = season;
+              let episodeUsed = episode;
+
               if (kitsuContextId) {
-                const inferred = kitsuMappingService.getSeasonForKitsu(kitsuContextId, meta.name);
-                const seasonNum = parseInt(String(season), 10);
-                if (inferred && Number.isFinite(seasonNum) && inferred !== seasonNum) {
-                  logger.info(`Kitsu season override (batch-existing): kitsuId=${kitsuContextId} providedSeason=${seasonNum} inferredSeason=${inferred}`);
-                  seasonUsed = inferred;
+                // Check for split-cour data first
+                const splitCourKey = `kitsu:${kitsuContextId}`;
+                const splitCourData = kitsuMappingService.getSplitCourOffset(splitCourKey);
+
+                if (splitCourData) {
+                  // Use season from split-cour data if available
+                  seasonUsed = splitCourData.imdb_season || season;
+                  if (splitCourData.episode_offset) {
+                    episodeUsed = parseInt(String(episode), 10) + splitCourData.episode_offset;
+                    logger.info(`Split-cour offset applied (batch-existing): ${splitCourKey} ep ${episode} + offset ${splitCourData.episode_offset} = ${episodeUsed}, season=${seasonUsed}`);
+                  }
+                } else {
+                  // Fallback to season inference from slug
+                  const inferred = kitsuMappingService.getSeasonForKitsu(kitsuContextId, meta.name);
+                  const seasonNum = parseInt(String(season), 10);
+                  if (inferred && Number.isFinite(seasonNum) && inferred !== seasonNum) {
+                    logger.info(`Kitsu season override (batch-existing): kitsuId=${kitsuContextId} providedSeason=${seasonNum} inferredSeason=${inferred}`);
+                    seasonUsed = inferred;
+                  }
                 }
               }
-              const id = `${episodeImdbId}:${seasonUsed}:${episode}`;
+
+              const id = `${episodeImdbId}:${seasonUsed}:${episodeUsed}`;
               if (kitsuContextId) {
-                logger.info(`Kitsu episode ID map (batch-existing): kitsuId=${kitsuContextId} imdb=${episodeImdbId} season=${seasonUsed} ep=${episode} -> ${id}`);
+                logger.info(`Kitsu episode ID map (batch-existing): kitsuId=${kitsuContextId} imdb=${episodeImdbId} season=${seasonUsed} ep=${episodeUsed} -> ${id}`);
               }
               return { id: id, type: 'series' };
             }
@@ -580,9 +597,27 @@ class MetadataEnhancerService {
             // If just IMDb ID, try to infer season if coming from Kitsu and episode exists
             if (episodeImdbId && episodeImdbId.startsWith('tt')) {
               if (kitsuContextId && episode && !season) {
-                const seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuContextId, meta.name);
-                const id = `${episodeImdbId}:${seasonNum}:${episode}`;
-                logger.info(`Kitsu episode ID map (batch-direct): kitsuId=${kitsuContextId} imdb=${episodeImdbId} season=${seasonNum} ep=${episode} -> ${id}`);
+                let seasonNum;
+                let episodeUsed = episode;
+
+                // Check for split-cour data first
+                const splitCourKey = `kitsu:${kitsuContextId}`;
+                const splitCourData = kitsuMappingService.getSplitCourOffset(splitCourKey);
+
+                if (splitCourData) {
+                  // Use season from split-cour data if available
+                  seasonNum = splitCourData.imdb_season || kitsuMappingService.getSeasonForKitsu(kitsuContextId, meta.name);
+                  if (splitCourData.episode_offset) {
+                    episodeUsed = parseInt(String(episode), 10) + splitCourData.episode_offset;
+                    logger.info(`Split-cour offset applied (batch-direct): ${splitCourKey} ep ${episode} + offset ${splitCourData.episode_offset} = ${episodeUsed}, season=${seasonNum}`);
+                  }
+                } else {
+                  // Fallback to season inference from slug
+                  seasonNum = kitsuMappingService.getSeasonForKitsu(kitsuContextId, meta.name);
+                }
+
+                const id = `${episodeImdbId}:${seasonNum}:${episodeUsed}`;
+                logger.info(`Kitsu episode ID map (batch-direct): kitsuId=${kitsuContextId} imdb=${episodeImdbId} season=${seasonNum} ep=${episodeUsed} -> ${id}`);
                 return { id: id, type: 'series' };
               }
               // No season/episode info; fall back to series-level
@@ -684,16 +719,34 @@ class MetadataEnhancerService {
           // If we have IMDb ID + season + episode, use that format
           if (episodeImdbId && episodeImdbId.startsWith('tt') && season && episode) {
             let seasonUsed = season;
+            let episodeUsed = episode;
+
             if (meta && meta.id && kitsuMappingService.isKitsuId(meta.id)) {
               const kitsuId = kitsuMappingService.extractKitsuId(meta.id);
-              const inferred = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
-              const seasonNum = parseInt(String(season), 10);
-              if (inferred && Number.isFinite(seasonNum) && inferred !== seasonNum) {
-                logger.info(`Kitsu season override (enhance-existing): kitsuId=${kitsuId} providedSeason=${seasonNum} inferredSeason=${inferred}`);
-                seasonUsed = inferred;
+
+              // Check for split-cour data first
+              const splitCourKey = `kitsu:${kitsuId}`;
+              const splitCourData = kitsuMappingService.getSplitCourOffset(splitCourKey);
+
+              if (splitCourData) {
+                // Use season from split-cour data if available
+                seasonUsed = splitCourData.imdb_season || season;
+                if (splitCourData.episode_offset) {
+                  episodeUsed = parseInt(String(episode), 10) + splitCourData.episode_offset;
+                  logger.info(`Split-cour offset applied (enhance-existing): ${splitCourKey} ep ${episode} + offset ${splitCourData.episode_offset} = ${episodeUsed}, season=${seasonUsed}`);
+                }
+              } else {
+                // Fallback to season inference from slug
+                const inferred = kitsuMappingService.getSeasonForKitsu(kitsuId, meta.name);
+                const seasonNum = parseInt(String(season), 10);
+                if (inferred && Number.isFinite(seasonNum) && inferred !== seasonNum) {
+                  logger.info(`Kitsu season override (enhance-existing): kitsuId=${kitsuId} providedSeason=${seasonNum} inferredSeason=${inferred}`);
+                  seasonUsed = inferred;
+                }
               }
-              lookupId = `${episodeImdbId}:${seasonUsed}:${episode}`;
-              logger.info(`Kitsu episode ID map (enhance-existing): kitsuId=${kitsuId} imdb=${episodeImdbId} season=${seasonUsed} ep=${episode} -> ${lookupId}`);
+
+              lookupId = `${episodeImdbId}:${seasonUsed}:${episodeUsed}`;
+              logger.info(`Kitsu episode ID map (enhance-existing): kitsuId=${kitsuId} imdb=${episodeImdbId} season=${seasonUsed} ep=${episodeUsed} -> ${lookupId}`);
             } else {
               lookupId = `${episodeImdbId}:${season}:${episode}`;
             }
