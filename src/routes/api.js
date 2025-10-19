@@ -495,10 +495,25 @@ router.post('/get-wrappable-addons', async (req, res) => {
         return addonInfo;
       }
 
+      // Helper to extract original URL from wrapped addon
+      const extractOriginalUrl = (wrappedUrl) => {
+        try {
+          const match = wrappedUrl.match(/\/([A-Za-z0-9_-]+)\/manifest\.json$/);
+          if (!match) return null;
+          const encodedConfig = match[1];
+          const decodedConfig = parseConfigFromPath(encodedConfig);
+          return decodedConfig.wrappedAddonUrl || null;
+        } catch (e) {
+          return null;
+        }
+      };
+
       // Skip if it's already a wrapped addon from this service
       // Check manifest ID for .ratings-wrapper suffix
       if (addon.manifest?.id?.includes('.ratings-wrapper')) {
         addonInfo.reason = 'Already wrapped';
+        addonInfo.isRewrappable = true;
+        addonInfo.originalUrl = extractOriginalUrl(manifestUrl);
         return addonInfo;
       }
 
@@ -514,6 +529,8 @@ router.post('/get-wrappable-addons', async (req, res) => {
               url.hostname === 'localhost' ||
               url.hostname === '127.0.0.1') {
             addonInfo.reason = 'Already wrapped';
+            addonInfo.isRewrappable = true;
+            addonInfo.originalUrl = extractOriginalUrl(manifestUrl);
             return addonInfo;
           }
         }

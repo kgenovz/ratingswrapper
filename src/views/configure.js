@@ -47,7 +47,8 @@ function generateConfigureHTML(protocol, host) {
           .addon-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
           .addon-card.wrappable { border-color: #10b981; }
           .addon-card.not-wrappable { opacity: 0.6; cursor: not-allowed; }
-          .addon-card.already-wrapped { opacity: 0.5; cursor: not-allowed; background: #f9fafb; border-color: #d1d5db; }
+          .addon-card.already-wrapped { opacity: 1.0; cursor: pointer; background: #fffbeb; border-color: #f59e0b; }
+          .addon-card.already-wrapped.selected { background: #fef3c7; border-color: #d97706; }
           .addon-card.selected { background: #dbeafe; border-color: #3b82f6; }
           .addon-logo { width: 48px; height: 48px; object-fit: contain; background: #f3f4f6; border-radius: 6px; }
           .addon-info { flex: 1; min-width: 0; }
@@ -488,6 +489,32 @@ function generateConfigureHTML(protocol, host) {
             return url;
           }
 
+          /**
+           * Extracts the original addon URL from a wrapped addon URL
+           * @param {string} wrappedUrl - The wrapped addon URL
+           * @returns {string|null} The original unwrapped URL, or null if extraction fails
+           */
+          function extractOriginalUrl(wrappedUrl) {
+            try {
+              // Match the base64url-encoded config in the URL
+              // Pattern: https://domain.com/{base64config}/manifest.json
+              const match = wrappedUrl.match(/\/([A-Za-z0-9_-]+)\/manifest\.json$/);
+              if (!match) return null;
+
+              const encodedConfig = match[1];
+
+              // Decode base64url to JSON
+              const jsonString = atob(encodedConfig.replace(/-/g, '+').replace(/_/g, '/'));
+              const config = JSON.parse(jsonString);
+
+              // Return the original wrapped addon URL
+              return config.wrappedAddonUrl || null;
+            } catch (e) {
+              console.warn('Failed to extract original URL from:', wrappedUrl, e);
+              return null;
+            }
+          }
+
           // Login section functions
           function toggleLoginAuthMethod() {
             const tokenMethod = document.getElementById('loginAuthTokenMethod');
@@ -680,14 +707,20 @@ function generateConfigureHTML(protocol, host) {
 
               const icon = document.createElement('i');
               if (isAlreadyWrapped) {
-                icon.className = 'fa-solid fa-check-double status-icon';
-                icon.style.color = '#9ca3af';
+                icon.className = 'fa-solid fa-rotate status-icon';
+                icon.style.color = '#f59e0b'; // amber-500
               } else {
                 icon.className = 'fa-solid ' + (addon.wrappable ? 'fa-circle-check status-icon wrappable' : 'fa-circle-xmark status-icon not-wrappable');
               }
 
               const reasonText = document.createElement('span');
-              reasonText.textContent = isCinemeta ? 'Cinemeta (always enabled)' : addon.reason;
+              if (isCinemeta) {
+                reasonText.textContent = 'Cinemeta (always enabled)';
+              } else if (isAlreadyWrapped) {
+                reasonText.textContent = 'Re-wrap with new settings';
+              } else {
+                reasonText.textContent = addon.reason;
+              }
 
               status.appendChild(icon);
               status.appendChild(reasonText);
@@ -699,13 +732,24 @@ function generateConfigureHTML(protocol, host) {
               const checkbox = document.createElement('input');
               checkbox.type = 'checkbox';
               checkbox.className = 'addon-checkbox';
-              checkbox.disabled = isCinemeta || !addon.wrappable || isAlreadyWrapped;
+              // Enable checkbox for wrappable addons AND already-wrapped addons (except Cinemeta)
+              checkbox.disabled = isCinemeta || (!addon.wrappable && !isAlreadyWrapped);
+
+              // Auto-select already-wrapped addons
+              if (isAlreadyWrapped && !isCinemeta) {
+                state.selectedAddons.add(sanitizedUrl);
+                card.classList.add('selected');
+              }
+
               checkbox.checked = isCinemeta || state.selectedAddons.has(sanitizedUrl);
               if (isCinemeta) {
                 checkbox.title = 'Cinemeta is always enabled';
+              } else if (isAlreadyWrapped) {
+                checkbox.title = 'Click to re-wrap with new settings';
               }
 
-              if (!isCinemeta && addon.wrappable && !isAlreadyWrapped) {
+              // Enable toggle for both wrappable and already-wrapped addons
+              if (!isCinemeta && (addon.wrappable || isAlreadyWrapped)) {
                 const toggleSelection = () => {
                   if (state.selectedAddons.has(sanitizedUrl)) {
                     state.selectedAddons.delete(sanitizedUrl);
@@ -784,8 +828,8 @@ function generateConfigureHTML(protocol, host) {
 
             ensureCinemeta();
 
-            // Get the addon details from the displayed list
-            const addonCards = document.querySelectorAll('.addon-card.wrappable.selected');
+            // Get the addon details from the displayed list (wrappable OR already-wrapped)
+            const addonCards = document.querySelectorAll('.addon-card.selected:not(.not-wrappable)');
             let addedCount = 0;
 
             for (const card of addonCards) {
@@ -793,10 +837,27 @@ function generateConfigureHTML(protocol, host) {
               if (!rawUrl) continue;
 
               // Sanitize URL: convert stremio:// to https://
-              const url = sanitizeAddonUrl(rawUrl);
+              let url = sanitizeAddonUrl(rawUrl);
 
-              // Check if already added
-              if (state.items.find(it => it.url === url)) {
+              // Check if this is an already-wrapped addon
+              const isWrapped = card.classList.contains('already-wrapped');
+              let originalUrl = url;
+
+              if (isWrapped) {
+                // Extract the original URL from the wrapped config
+                const extracted = extractOriginalUrl(url);
+                if (extracted) {
+                  originalUrl = extracted;
+                  console.log('Unwrapping addon:', url, '->', originalUrl);
+                } else {
+                  console.warn('Could not extract original URL from wrapped addon:', url);
+                  alert('Warning: Could not extract original URL from ' + card.dataset.addonName + '. Skipping.');
+                  continue;
+                }
+              }
+
+              // Check if already added (by original URL)
+              if (state.items.find(it => it.url === originalUrl)) {
                 continue;
               }
 
@@ -806,7 +867,7 @@ function generateConfigureHTML(protocol, host) {
                 const resp = await fetch(serverUrl + '/api/fetch-manifest', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ url: url })
+                  body: JSON.stringify({ url: originalUrl })
                 });
                 const result = await resp.json();
                 if (result && result.success && result.manifest && result.manifest.name) {
@@ -814,10 +875,15 @@ function generateConfigureHTML(protocol, host) {
                 }
               } catch (e) {
                 // Use the name from the card if manifest fetch fails
-                resolvedName = card.dataset.addonName + ' with Ratings';
+                const baseName = card.dataset.addonName.replace(/ with Ratings$/i, '');
+                resolvedName = baseName + ' with Ratings';
               }
 
-              state.items.push({ url: url, name: resolvedName });
+              state.items.push({
+                url: originalUrl,
+                name: resolvedName,
+                wasWrapped: isWrapped
+              });
               addedCount++;
             }
 
