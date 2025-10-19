@@ -20,6 +20,15 @@
       "episode_offset": 16,
       "notes": "Part 1 has episodes 1-16, Part 2 has episodes 1-12 (mapped to IMDb 17-28)",
       "kitsu_slug": "attack-on-titan-final-season-part-2"
+    },
+    "kitsu:41982": {
+      "title": "Shingeki no Kyojin Season 3 Part 2",
+      "imdb_id": "tt2560140",
+      "imdb_season": 3,
+      "part": 2,
+      "episode_offset": 12,
+      "notes": "Part 1 has episodes 1-12, Part 2 has episodes 1-10 (mapped to IMDb 13-22)",
+      "kitsu_slug": "attack-on-titan-season-3-part-2"
     }
   },
   "_instructions": {
