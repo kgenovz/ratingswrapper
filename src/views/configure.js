@@ -363,9 +363,9 @@ function generateConfigureHTML(protocol, host) {
                     <div class="help-text" style="margin-top: 5px;">Choose which region's streaming providers to display</div>
                   </div>
                   <div id="metadataOrderSection" style="margin-top: 10px; display:none;">
-                    <label style="display: block; font-weight: 600; margin-bottom: 6px;">Order</label>
+                    <label style="display: block; font-weight: 600; margin-bottom: 6px;">Metadata Order</label>
                     <ul id="metadataOrderList" style="list-style: none; padding: 0; margin: 0;"></ul>
-                    <div class="help-text" style="margin-top: 5px;">Use arrows to arrange how metadata appears after the rating.</div>
+                    <div class="help-text" style="margin-top: 5px;">Use arrows to arrange the order of all metadata elements. IMDb rating can now be moved anywhere in the list.</div>
                   </div>
                   <div style="margin-top: 10px;">
                     <label for="metadataSeparator" style="display: block; font-weight: 600; margin-bottom: 6px;">Metadata Separator</label>
@@ -1132,12 +1132,12 @@ function generateConfigureHTML(protocol, host) {
 
           function getMetadataOrder() {
             var list = document.getElementById('metadataOrderList');
-            if (!list) return ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+            if (!list) return ['imdbRating','votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
             var keys = [];
             list.querySelectorAll('li').forEach(function(li){
               var k = li.getAttribute('data-key'); if (k) keys.push(k);
             });
-            return keys.length ? keys : ['votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+            return keys.length ? keys : ['imdbRating','votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
           }
 
           function createOrderItem(key, label) {
@@ -1165,8 +1165,13 @@ function generateConfigureHTML(protocol, host) {
             var section = document.getElementById('metadataOrderSection');
             var list = document.getElementById('metadataOrderList');
             if (!section || !list) return;
-            // Read checkbox states
+
+            // Always show the order section (IMDb rating is always included)
+            section.style.display = 'block';
+
+            // Read checkbox states (IMDb rating is always true since it's the main feature)
             var includes = {
+              imdbRating: true, // Always included
               votes: document.getElementById('includeVotes')?.checked || false,
               mpaa: document.getElementById('includeMpaa')?.checked || false,
               tmdb: document.getElementById('includeTmdbRating')?.checked || false,
@@ -1176,6 +1181,7 @@ function generateConfigureHTML(protocol, host) {
               metacritic: document.getElementById('includeMetacritic')?.checked || false
             };
             var labels = {
+              imdbRating: 'IMDb rating',
               votes: 'Vote count',
               mpaa: 'MPAA rating',
               tmdb: 'TMDB rating',
@@ -1184,14 +1190,9 @@ function generateConfigureHTML(protocol, host) {
               rottenTomatoes: 'Rotten Tomatoes',
               metacritic: 'Metacritic'
             };
-            var defaultOrder = ['votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
+            var defaultOrder = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
             var selected = defaultOrder.filter(function(k){ return includes[k]; });
-            if (selected.length === 0) {
-              section.style.display = 'none';
-              list.innerHTML = '';
-              return;
-            }
-            section.style.display = 'block';
+
             // Keep existing order where possible
             var current = getMetadataOrder();
             var desired = current.filter(function(k){ return includes[k]; });
@@ -1314,9 +1315,12 @@ function generateConfigureHTML(protocol, host) {
               var ratingText = descTpl.replace('{rating}', sampleRating);
 
               // Build metadata parts with configurable order
-              var metadataParts = [ratingText];
               var order = getMetadataOrder();
               var partTexts = {};
+
+              // IMDb rating is always included
+              partTexts.imdbRating = ratingText;
+
               if (includeVotes) {
                 var voteText = '';
                 if (voteCountFormat === 'short') voteText = '1.2M votes';
@@ -1341,7 +1345,9 @@ function generateConfigureHTML(protocol, host) {
                 partTexts.metacritic = mcText;
               }
 
-              var allowed = ['votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
+              // Build final metadata array in the specified order
+              var metadataParts = [];
+              var allowed = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
               order.forEach(function(k){ if (allowed.indexOf(k) !== -1 && partTexts[k]) metadataParts.push(partTexts[k]); });
               // Append any parts not in the order list
               allowed.forEach(function(k){ if (order.indexOf(k) === -1 && partTexts[k]) metadataParts.push(partTexts[k]); });

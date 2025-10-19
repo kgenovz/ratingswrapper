@@ -55,7 +55,7 @@ function sanitizeAddonUrl(url) {
  */
 function validateConfig(userConfig) {
   // Supported order keys and defaults for extended metadata
-  const DEFAULT_METADATA_ORDER = ['votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
+  const DEFAULT_METADATA_ORDER = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
   const ALLOWED_ORDER_KEYS = new Set(DEFAULT_METADATA_ORDER);
   function sanitizeOrder(order) {
     if (!Array.isArray(order)) return DEFAULT_METADATA_ORDER;

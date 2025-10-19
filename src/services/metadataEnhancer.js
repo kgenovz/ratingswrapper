@@ -111,11 +111,11 @@ class MetadataEnhancerService {
     // Build rating template
     let template = formatConfig.template.replace('{rating}', ratingData.rating.toFixed(1));
 
-    // Build metadata parts array
-    const metadataParts = [template];
-
     // Compute each extended metadata text (do not push yet)
     const partTexts = {};
+
+    // IMDb rating (always included)
+    partTexts.imdbRating = template;
 
     // Vote count
     if (formatConfig.includeVotes && ratingData.votes) {
@@ -168,7 +168,8 @@ class MetadataEnhancerService {
     }
 
     // Apply ordering if provided; otherwise keep default order
-    const allowedKeys = ['votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
+    const allowedKeys = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
+    const metadataParts = [];
     if (Array.isArray(formatConfig.metadataOrder)) {
       const order = formatConfig.metadataOrder;
       order.forEach(k => { if (allowedKeys.includes(k) && partTexts[k]) metadataParts.push(partTexts[k]); });
