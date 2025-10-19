@@ -498,7 +498,7 @@ function generateConfigureHTML(protocol, host) {
             try {
               // Match the base64url-encoded config in the URL
               // Pattern: https://domain.com/{base64config}/manifest.json
-              const match = wrappedUrl.match(/\/([A-Za-z0-9_-]+)\/manifest\.json$/);
+              const match = wrappedUrl.match(/\\/([A-Za-z0-9_-]+)\\/manifest\\.json\\$/);
               if (!match) return null;
 
               const encodedConfig = match[1];
