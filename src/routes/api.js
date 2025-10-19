@@ -495,6 +495,27 @@ router.post('/get-wrappable-addons', async (req, res) => {
         return addonInfo;
       }
 
+      // Blocklist: Stream-only addons that should not be wrapped
+      const STREAM_ADDON_BLOCKLIST = [
+        'mediafusion.elfhosted.com',
+        'torrentio.strem.fun',
+        'torbox.app',
+        'sootio.elfhosted.com',
+        'nuviostreams.hayd.uk',
+        'jackettio.elfhosted.com',
+        'comet.elfhosted.com'
+      ];
+
+      // Check if addon URL contains any blocklisted domain
+      const isBlocklisted = STREAM_ADDON_BLOCKLIST.some(domain =>
+        manifestUrl.toLowerCase().includes(domain.toLowerCase())
+      );
+
+      if (isBlocklisted) {
+        addonInfo.reason = 'Stream-only addon (not wrappable)';
+        return addonInfo;
+      }
+
       // Helper to extract original URL from wrapped addon
       const extractOriginalUrl = (wrappedUrl) => {
         try {

@@ -1060,6 +1060,28 @@ function generateConfigureHTML(protocol, host) {
               alert('Cinemeta is already included by default and cannot be added twice.');
               return;
             }
+
+            // Blocklist: Stream-only addons that should not be wrapped
+            const STREAM_ADDON_BLOCKLIST = [
+              'mediafusion.elfhosted.com',
+              'torrentio.strem.fun',
+              'torbox.app',
+              'sootio.elfhosted.com',
+              'nuviostreams.hayd.uk',
+              'jackettio.elfhosted.com',
+              'comet.elfhosted.com'
+            ];
+
+            // Check if addon URL contains any blocklisted domain
+            const isBlocklisted = STREAM_ADDON_BLOCKLIST.some(function(domain) {
+              return url.toLowerCase().includes(domain.toLowerCase());
+            });
+
+            if (isBlocklisted) {
+              alert('This addon cannot be wrapped. Stream-only addons (Torrentio, MediaFusion, etc.) do not benefit from rating injection and would cause unnecessary overhead.');
+              return;
+            }
+
             ensureCinemeta();
 
             // Try to fetch manifest name (best-effort)
