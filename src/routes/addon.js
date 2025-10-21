@@ -9,6 +9,7 @@ const { parseConfigFromPath } = require('../utils/configParser');
 const { createManifestHandler } = require('../handlers/manifest');
 const { createCatalogHandler } = require('../handlers/catalog');
 const { createMetaHandler } = require('../handlers/meta');
+const { catalogCacheMiddleware, metaCacheMiddleware, manifestCacheMiddleware } = require('../middleware/cache');
 
 const router = express.Router();
 
@@ -16,7 +17,7 @@ const router = express.Router();
  * Main addon endpoint - Manifest
  * Serves the manifest for the wrapped addon
  */
-router.get('/:config/manifest.json', async (req, res) => {
+router.get('/:config/manifest.json', manifestCacheMiddleware, async (req, res) => {
   try {
     logger.info(`Manifest request received from ${req.ip}`);
     const userConfig = parseConfigFromPath(req.params.config);
@@ -38,7 +39,7 @@ router.get('/:config/manifest.json', async (req, res) => {
 /**
  * Catalog endpoint - with extra parameters
  */
-router.get('/:config/catalog/:type/:id/:extra.json', async (req, res) => {
+router.get('/:config/catalog/:type/:id/:extra.json', catalogCacheMiddleware, async (req, res) => {
   try {
     const userConfig = parseConfigFromPath(req.params.config);
     const { type, id } = req.params;
@@ -71,7 +72,7 @@ router.get('/:config/catalog/:type/:id/:extra.json', async (req, res) => {
 /**
  * Catalog endpoint - without extra parameters
  */
-router.get('/:config/catalog/:type/:id.json', async (req, res) => {
+router.get('/:config/catalog/:type/:id.json', catalogCacheMiddleware, async (req, res) => {
   try {
     const userConfig = parseConfigFromPath(req.params.config);
     const { type, id } = req.params;
@@ -96,7 +97,7 @@ router.get('/:config/catalog/:type/:id.json', async (req, res) => {
 /**
  * Meta endpoint
  */
-router.get('/:config/meta/:type/:id.json', async (req, res) => {
+router.get('/:config/meta/:type/:id.json', metaCacheMiddleware, async (req, res) => {
   try {
     logger.info(`🔍 META REQUEST from ${req.ip} - ${req.params.type}/${req.params.id}`);
     logger.info(`User-Agent: ${req.headers['user-agent']}`);

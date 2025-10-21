@@ -56,6 +56,24 @@ const config = {
   logging: {
     enabled: true,
     level: process.env.LOG_LEVEL || 'info' // 'debug' | 'info' | 'warn' | 'error'
+  },
+
+  // Redis configuration
+  redis: {
+    url: process.env.REDIS_URL || null,
+    enabled: !!process.env.REDIS_URL,
+    cacheVersion: process.env.CACHE_VERSION || '1',
+    // TTL settings (in seconds)
+    ttl: {
+      catalog: {
+        popular: 6 * 60 * 60,      // 6 hours for popular/trending/top
+        search: 1 * 60 * 60,        // 1 hour for search results
+        userSpecific: 30 * 60,      // 30 minutes for user-specific catalogs
+        default: 6 * 60 * 60        // 6 hours default
+      },
+      meta: 24 * 60 * 60,           // 24 hours for meta (episodes/seasons)
+      manifest: 24 * 60 * 60        // 24 hours for manifest
+    }
   }
 };
 
