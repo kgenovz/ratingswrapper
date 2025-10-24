@@ -134,9 +134,35 @@ This plan implements a **two-tier caching strategy**:
 
 ---
 
-## Phase 4 — UX / Adoption
-- [ ] Default **“Auto-Install”** CTA → manual install in accordion.
-- [ ] Generate **signed user-scoped wrapper URLs** (uses `configHash`) for fair rate-limits.
+## Phase 4 — UX / Adoption ✅ COMPLETED
+- [x] Default **"Auto-Install"** CTA → manual install in accordion.
+- [x] Generate **signed user-scoped wrapper URLs** (uses `userId` hash) for fair rate-limits.
+
+### Implementation Details
+- **Files Modified**:
+  - `src/views/configure.js` - UI improvements and userId generation
+- **Features**:
+  - **Auto Install Prominence:**
+    - Moved "Auto Replace All" button into prominent gradient card
+    - Relabeled to "Auto Install" with magic wand icon
+    - Added descriptive text emphasizing benefits
+    - Made button larger and more visually striking
+  - **Manual Install Accordion:**
+    - Moved manual installation URLs into collapsible accordion
+    - Added warning badge ("⚠️ Not Recommended")
+    - Emphasizes Auto Install as preferred method
+    - Manual URLs hidden by default, must expand to access
+  - **Signed User-Scoped URLs:**
+    - Generate userId from auth token using SHA-256 hash (first 16 chars)
+    - userId included in all wrapped addon configs for authenticated users
+    - Enables authenticated rate limiting tier (10 req/s vs 5 req/s anonymous)
+    - Privacy-preserving: uses hash, not raw auth token
+    - Automatic: no user action required
+- **Benefits**:
+  - Pushes users toward Auto Install (better UX, fewer support issues)
+  - Authenticated users get higher rate limits automatically
+  - Fair rate limiting: same user gets same limits across sessions
+  - Privacy-preserving userId generation
 
 ---
 
