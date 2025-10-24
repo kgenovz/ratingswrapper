@@ -651,4 +651,121 @@ router.post('/get-wrappable-addons', async (req, res) => {
   }
 });
 
+/**
+ * TEST ENDPOINT: SWR Cache Testing
+ * Uses very short TTLs (10s fresh, 10s stale) to quickly test SWR behavior
+ *
+ * Expected behavior:
+ * - 0-10s: X-Ratings-Cache: hit (fresh)
+ * - 10-20s: X-Ratings-Cache: stale (immediate serve + background refresh)
+ * - 20s+: X-Ratings-Cache: miss (expired, must rebuild)
+ */
+router.get('/test-swr', async (req, res) => {
+  const redisService = require('../services/redisService');
+  const { isRedisAvailable } = require('../config/redis');
+
+  if (!isRedisAvailable()) {
+    return res.json({
+      error: 'Redis not available',
+      message: 'SWR testing requires Redis to be configured'
+    });
+  }
+
+  const startTime = Date.now();
+  const testKey = 'test:swr:demo';
+  const freshTTL = 10; // 10 seconds fresh
+  const staleTTL = 10; // 10 seconds stale (total 20 seconds)
+
+  try {
+    // Try to get from cache with SWR
+    const cacheResult = await redisService.getWithSWR(testKey);
+
+    if (cacheResult) {
+      const { data, isStale, isFresh } = cacheResult;
+      const latency = Date.now() - startTime;
+      const age = Math.floor((Date.now() - data.timestamp) / 1000);
+
+      if (isStale) {
+        // Serve stale and trigger background refresh
+        res.setHeader('X-Ratings-Cache', 'stale');
+
+        // Background refresh (non-blocking)
+        setImmediate(async () => {
+          try {
+            const newData = {
+              message: 'SWR Test Data (Refreshed)',
+              timestamp: Date.now(),
+              testValue: Math.random()
+            };
+            await redisService.set(testKey, newData, freshTTL, { staleTtl: staleTTL });
+            logger.info('Background refresh completed for test-swr');
+          } catch (err) {
+            logger.warn('Background refresh failed for test-swr:', err.message);
+          }
+        });
+
+        return res.json({
+          status: 'stale',
+          message: 'Served stale cache immediately. Background refresh triggered.',
+          data,
+          cacheAge: `${age}s`,
+          latency: `${latency}ms`,
+          nextAction: 'Request again to see refreshed data (should be fresh)'
+        });
+      } else {
+        // Serve fresh
+        res.setHeader('X-Ratings-Cache', 'hit');
+        return res.json({
+          status: 'fresh',
+          message: 'Served fresh cache',
+          data,
+          cacheAge: `${age}s`,
+          latency: `${latency}ms`,
+          nextAction: `Wait ${10 - age}s to see stale behavior`
+        });
+      }
+    }
+
+    // Cache miss - create new entry
+    const newData = {
+      message: 'SWR Test Data (Initial)',
+      timestamp: Date.now(),
+      testValue: Math.random()
+    };
+
+    await redisService.set(testKey, newData, freshTTL, { staleTtl: staleTTL });
+
+    const latency = Date.now() - startTime;
+    res.setHeader('X-Ratings-Cache', 'miss');
+
+    res.json({
+      status: 'miss',
+      message: 'Cache miss - created new entry',
+      data: newData,
+      cacheAge: '0s',
+      latency: `${latency}ms`,
+      ttlConfig: {
+        fresh: `${freshTTL}s (0-${freshTTL}s)`,
+        stale: `${staleTTL}s (${freshTTL}-${freshTTL + staleTTL}s)`,
+        expired: `${freshTTL + staleTTL}s+`
+      },
+      nextAction: 'Request again immediately to see fresh cache (hit)',
+      testPlan: [
+        `1. Request now → miss (creates cache)`,
+        `2. Request again → hit (fresh, 0-10s)`,
+        `3. Wait 10s, request → stale (immediate serve + refresh)`,
+        `4. Request again → hit (fresh from refresh)`,
+        `5. Wait 20s total → miss (expired)`
+      ]
+    });
+
+  } catch (error) {
+    logger.error('Test SWR error:', error.message);
+    res.status(500).json({
+      error: 'Test failed',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
