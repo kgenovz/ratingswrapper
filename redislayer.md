@@ -77,13 +77,31 @@ This plan implements a **two-tier caching strategy**:
 
 ---
 
-## Phase 2 — Safety & Fairness
-- [ ] **Rate-limit** per IP (5 r/s, burst 10); stricter for search routes.
-- [ ] **Quota tiers**:
+## Phase 2 — Safety & Fairness ✅ COMPLETED
+- [x] **Rate-limit** per IP (5 r/s, burst 10); stricter for search routes.
+- [x] **Quota tiers**:
   - Anonymous users: 5 req/s (relies on shared Redis cache)
   - Auto-install users: 10 req/s (gets user-scoped cache keys via `userId`)
-- [ ] Rate limits should account for both Redis cache hits and SQLite cache hits.
-- [ ] **Auth safety**: use Stremio token only; discard credentials post-exchange (✅ already true).
+- [x] Rate limits apply to all requests (both cache hits and misses).
+- [x] **Auth safety**: use Stremio token only; discard credentials post-exchange (✅ already true).
+
+### Implementation Details
+- **Files Created**:
+  - `src/utils/ipExtractor.js` - IP extraction with proxy header support
+  - `src/services/rateLimitService.js` - Redis-based sliding window rate limiting
+  - `src/middleware/rateLimit.js` - Rate limiting middleware with tier detection
+- **Files Modified**:
+  - `src/config/index.js` - Added rate limit configuration with env vars
+  - `src/routes/addon.js` - Integrated rate limiting middleware
+  - `.env.example` - Added rate limit environment variables
+- **Features**:
+  - Sliding window counter algorithm with Redis sorted sets
+  - Anonymous (IP-based) vs Authenticated (userId-based) tiers
+  - Stricter limits for search routes (2 req/s anonymous, 5 req/s authenticated)
+  - Standard rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
+  - 429 responses with Retry-After header
+  - Fail-open design (service continues without Redis)
+  - Configurable via environment variables
 
 ---
 

@@ -74,6 +74,32 @@ const config = {
       meta: 24 * 60 * 60,           // 24 hours for meta (episodes/seasons)
       manifest: 24 * 60 * 60        // 24 hours for manifest
     }
+  },
+
+  // Rate limiting configuration (Phase 2)
+  rateLimit: {
+    enabled: !!process.env.REDIS_URL, // Rate limiting requires Redis
+    // Anonymous users (identified by IP)
+    anonymous: {
+      requestsPerSecond: parseInt(process.env.RATE_LIMIT_ANONYMOUS_RPS || '5', 10),
+      burst: parseInt(process.env.RATE_LIMIT_ANONYMOUS_BURST || '10', 10)
+    },
+    // Authenticated users (identified by userId in config)
+    authenticated: {
+      requestsPerSecond: parseInt(process.env.RATE_LIMIT_AUTHENTICATED_RPS || '10', 10),
+      burst: parseInt(process.env.RATE_LIMIT_AUTHENTICATED_BURST || '20', 10)
+    },
+    // Search routes (stricter limits)
+    search: {
+      anonymous: {
+        requestsPerSecond: parseInt(process.env.RATE_LIMIT_SEARCH_ANONYMOUS_RPS || '2', 10),
+        burst: parseInt(process.env.RATE_LIMIT_SEARCH_ANONYMOUS_BURST || '5', 10)
+      },
+      authenticated: {
+        requestsPerSecond: parseInt(process.env.RATE_LIMIT_SEARCH_AUTHENTICATED_RPS || '5', 10),
+        burst: parseInt(process.env.RATE_LIMIT_SEARCH_AUTHENTICATED_BURST || '10', 10)
+      }
+    }
   }
 };
 

@@ -10,8 +10,13 @@ const { createManifestHandler } = require('../handlers/manifest');
 const { createCatalogHandler } = require('../handlers/catalog');
 const { createMetaHandler } = require('../handlers/meta');
 const { catalogCacheMiddleware, metaCacheMiddleware, manifestCacheMiddleware } = require('../middleware/cache');
+const { createStandardRateLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
+
+// Apply rate limiting to all addon routes
+const rateLimiter = createStandardRateLimiter();
+router.use(rateLimiter);
 
 /**
  * Main addon endpoint - Manifest
