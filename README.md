@@ -1,6 +1,6 @@
 # Stremio Ratings Wrapper
 
-A production-ready Stremio addon service that wraps your existing addons to inject IMDb ratings into catalog titles and episode listings. Features a complete web UI for configuration, Stremio account integration, and automatic deployment.
+A Stremio addon service that wraps your existing addons to inject IMDb ratings into catalog titles and episode listings. Features a complete web UI for configuration, Stremio account integration, and automatic deployment.
 
 ## Features
 
