@@ -26,3 +26,7 @@ coverage/
 # Build
 dist/
 build/
+
+# Monitoring data (Prometheus & Grafana volumes)
+monitoring/prometheus-data/
+monitoring/grafana-data/
