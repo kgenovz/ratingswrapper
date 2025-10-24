@@ -300,6 +300,99 @@ async function flushAll() {
   }
 }
 
+/**
+ * Track a hot key by incrementing its count in a time-windowed sorted set
+ * Used to identify the most frequently accessed cache keys
+ *
+ * @param {string} cacheKey - The cache key to track
+ * @returns {Promise<boolean>} - True if tracked successfully
+ */
+async function trackHotKey(cacheKey) {
+  if (!isRedisAvailable()) {
+    return false;
+  }
+
+  try {
+    const client = getRedisClient();
+
+    // Create time window key (5-minute buckets): hotkeys:2025-10-24T18:45
+    const now = new Date();
+    const minutes = Math.floor(now.getMinutes() / 5) * 5; // Round to 5-minute buckets
+    const timeWindow = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    const hotkeysKey = `hotkeys:${timeWindow}`;
+
+    // Increment count for this cache key in the sorted set
+    await client.zincrby(hotkeysKey, 1, cacheKey);
+
+    // Set expiry on the sorted set (60 minutes)
+    await client.expire(hotkeysKey, 3600);
+
+    return true;
+  } catch (error) {
+    // Fail silently - hot keys tracking is optional
+    logger.debug('Hot key tracking error:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Get top hot keys from the last N minutes
+ *
+ * @param {number} windowMinutes - Time window in minutes (default: 15)
+ * @param {number} limit - Maximum number of keys to return (default: 20)
+ * @returns {Promise<Array>} - Array of {key, count} objects, sorted by count desc
+ */
+async function getHotKeys(windowMinutes = 15, limit = 20) {
+  if (!isRedisAvailable()) {
+    return [];
+  }
+
+  try {
+    const client = getRedisClient();
+    const now = new Date();
+
+    // Calculate which 5-minute buckets to query
+    const buckets = [];
+    for (let i = 0; i < Math.ceil(windowMinutes / 5); i++) {
+      const bucketTime = new Date(now.getTime() - (i * 5 * 60 * 1000));
+      const minutes = Math.floor(bucketTime.getMinutes() / 5) * 5;
+      const timeWindow = `${bucketTime.getFullYear()}-${String(bucketTime.getMonth() + 1).padStart(2, '0')}-${String(bucketTime.getDate()).padStart(2, '0')}T${String(bucketTime.getHours()).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      buckets.push(`hotkeys:${timeWindow}`);
+    }
+
+    // Aggregate counts from all buckets
+    const aggregatedCounts = new Map();
+
+    for (const bucket of buckets) {
+      // Get all members with scores from this bucket
+      const members = await client.zrange(bucket, 0, -1, 'WITHSCORES');
+
+      // Parse results (Redis returns [member1, score1, member2, score2, ...])
+      for (let i = 0; i < members.length; i += 2) {
+        const key = members[i];
+        const count = parseFloat(members[i + 1]);
+
+        if (aggregatedCounts.has(key)) {
+          aggregatedCounts.set(key, aggregatedCounts.get(key) + count);
+        } else {
+          aggregatedCounts.set(key, count);
+        }
+      }
+    }
+
+    // Convert to array and sort by count descending
+    const hotKeys = Array.from(aggregatedCounts.entries())
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
+
+    return hotKeys;
+  } catch (error) {
+    logger.warn('Get hot keys error:', error.message);
+    return [];
+  }
+}
+
 module.exports = {
   get,
   getWithSWR,
@@ -308,5 +401,7 @@ module.exports = {
   getOrCompute,
   exists,
   getStats,
-  flushAll
+  flushAll,
+  trackHotKey,
+  getHotKeys
 };

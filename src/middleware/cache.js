@@ -164,6 +164,9 @@ async function catalogCacheMiddleware(req, res, next) {
         logger.info(`Cache STALE for catalog ${type}/${id} (${latency}ms) - triggering background refresh - key: ${cacheKey}`);
         metricsService.recordRequest('catalog', 'stale', latency);
 
+        // Track hot key
+        redisService.trackHotKey(cacheKey);
+
         // Trigger background refresh (non-blocking)
         refreshCatalogInBackground(req, configParam, type, id, extra, cacheKey, ttl, staleTtl);
 
@@ -173,6 +176,9 @@ async function catalogCacheMiddleware(req, res, next) {
         res.setHeader('X-Ratings-Cache', 'hit');
         logger.info(`Cache HIT for catalog ${type}/${id} (${latency}ms) - key: ${cacheKey}`);
         metricsService.recordRequest('catalog', 'hit', latency);
+
+        // Track hot key
+        redisService.trackHotKey(cacheKey);
 
         return res.json(data);
       }
@@ -185,6 +191,9 @@ async function catalogCacheMiddleware(req, res, next) {
       res.setHeader('X-Ratings-Cache', 'miss');
       logger.info(`Cache MISS for catalog ${type}/${id} (${latency}ms) - key: ${cacheKey}`);
       metricsService.recordRequest('catalog', 'miss', latency);
+
+      // Track hot key
+      redisService.trackHotKey(cacheKey);
 
       // Cache the response asynchronously (don't wait)
       redisService.set(cacheKey, data, ttl, { staleTtl }).catch(err => {
@@ -250,6 +259,7 @@ async function metaCacheMiddleware(req, res, next) {
         res.setHeader('X-Ratings-Cache', 'stale');
         logger.info(`Cache STALE for meta ${type}/${id} (${latency}ms) - triggering background refresh - key: ${cacheKey}`);
         metricsService.recordRequest('meta', 'stale', latency);
+        redisService.trackHotKey(cacheKey);
 
         // Trigger background refresh (non-blocking)
         refreshMetaInBackground(req, configParam, type, id, cacheKey, ttl, staleTtl);
@@ -260,6 +270,7 @@ async function metaCacheMiddleware(req, res, next) {
         res.setHeader('X-Ratings-Cache', 'hit');
         logger.info(`Cache HIT for meta ${type}/${id} (${latency}ms) - key: ${cacheKey}`);
         metricsService.recordRequest('meta', 'hit', latency);
+        redisService.trackHotKey(cacheKey);
 
         return res.json(data);
       }
@@ -272,6 +283,7 @@ async function metaCacheMiddleware(req, res, next) {
       res.setHeader('X-Ratings-Cache', 'miss');
       logger.info(`Cache MISS for meta ${type}/${id} (${latency}ms) - key: ${cacheKey}`);
       metricsService.recordRequest('meta', 'miss', latency);
+      redisService.trackHotKey(cacheKey);
 
       // Cache the response asynchronously (don't wait)
       redisService.set(cacheKey, data, ttl, { staleTtl }).catch(err => {
@@ -335,6 +347,7 @@ async function manifestCacheMiddleware(req, res, next) {
         res.setHeader('X-Ratings-Cache', 'stale');
         logger.info(`Cache STALE for manifest (${latency}ms) - triggering background refresh - key: ${cacheKey}`);
         metricsService.recordRequest('manifest', 'stale', latency);
+        redisService.trackHotKey(cacheKey);
 
         // Trigger background refresh (non-blocking)
         refreshManifestInBackground(req, configParam, cacheKey, ttl, staleTtl);
@@ -345,6 +358,7 @@ async function manifestCacheMiddleware(req, res, next) {
         res.setHeader('X-Ratings-Cache', 'hit');
         logger.info(`Cache HIT for manifest (${latency}ms) - key: ${cacheKey}`);
         metricsService.recordRequest('manifest', 'hit', latency);
+        redisService.trackHotKey(cacheKey);
 
         return res.json(data);
       }
@@ -357,6 +371,7 @@ async function manifestCacheMiddleware(req, res, next) {
       res.setHeader('X-Ratings-Cache', 'miss');
       logger.info(`Cache MISS for manifest (${latency}ms) - key: ${cacheKey}`);
       metricsService.recordRequest('manifest', 'miss', latency);
+      redisService.trackHotKey(cacheKey);
 
       // Cache the response asynchronously (don't wait)
       redisService.set(cacheKey, data, ttl, { staleTtl }).catch(err => {
