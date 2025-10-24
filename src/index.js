@@ -12,6 +12,7 @@ const corsMiddleware = require('./middleware/cors');
 const ratingsRouter = require('./routes/ratings');
 const apiRouter = require('./routes/api');
 const addonRouter = require('./routes/addon');
+const monitoringRouter = require('./routes/monitoring');
 const { initRedisClient } = require('./config/redis');
 
 // Create Express app
@@ -43,7 +44,8 @@ app.get('/', (req, res) => {
 /**
  * Mount route modules
  */
-app.use('/ratings', ratingsRouter);  // Internal ratings API routes
+app.use('/', monitoringRouter);       // Monitoring routes (/metrics, /healthz)
+app.use('/ratings', ratingsRouter);   // Internal ratings API routes
 app.use('/api', apiRouter);           // API routes (auth, replace-addon, etc.)
 app.use('/', apiRouter);              // Configuration pages (/configure, /configure-old)
 app.use('/', addonRouter);            // Addon routes (manifest, catalog, meta)
@@ -59,6 +61,8 @@ app.listen(PORT, async () => {
   logger.info(`🚀 Stremio Ratings Wrapper running on port ${PORT}`);
   logger.info(`📝 Configuration helper: http://localhost:${PORT}/configure`);
   logger.info(`💚 Health check: http://localhost:${PORT}/health`);
+  logger.info(`📊 Metrics endpoint: http://localhost:${PORT}/metrics`);
+  logger.info(`🏥 Health check (detailed): http://localhost:${PORT}/healthz`);
 
   // Initialize Redis client if enabled
   if (config.redis.enabled) {

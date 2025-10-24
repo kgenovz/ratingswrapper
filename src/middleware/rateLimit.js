@@ -8,6 +8,7 @@ const { extractClientIp, normalizeIp } = require('../utils/ipExtractor');
 const { decodeConfig } = require('../utils/configParser');
 const logger = require('../utils/logger');
 const config = require('../config');
+const metricsService = require('../services/metricsService');
 
 /**
  * Determine rate limit tier based on request
@@ -104,6 +105,15 @@ function createRateLimitMiddleware(limits) {
         res.setHeader('Retry-After', result.retryAfter);
 
         logger.warn(`Rate limit exceeded: ${tier}:${identifier} on ${req.path}`);
+
+        // Record rate limit metric
+        // Extract route type from path (catalog, meta, manifest, or other)
+        const routeType = req.path.includes('/catalog/') ? 'catalog'
+          : req.path.includes('/meta/') ? 'meta'
+          : req.path.includes('/manifest.json') ? 'manifest'
+          : 'other';
+
+        metricsService.recordRateLimit(routeType, tier);
 
         return res.status(429).json({
           error: 'Too Many Requests',

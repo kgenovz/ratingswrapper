@@ -8,6 +8,7 @@ const redisService = require('../services/redisService');
 const cacheKeys = require('../utils/cacheKeys');
 const logger = require('../utils/logger');
 const config = require('../config');
+const metricsService = require('../services/metricsService');
 
 // Track in-flight background refreshes to prevent duplicate work
 const refreshInProgress = new Map();
@@ -161,6 +162,7 @@ async function catalogCacheMiddleware(req, res, next) {
         // Serve stale content immediately
         res.setHeader('X-Ratings-Cache', 'stale');
         logger.info(`Cache STALE for catalog ${type}/${id} (${latency}ms) - triggering background refresh - key: ${cacheKey}`);
+        metricsService.recordRequest('catalog', 'stale', latency);
 
         // Trigger background refresh (non-blocking)
         refreshCatalogInBackground(req, configParam, type, id, extra, cacheKey, ttl, staleTtl);
@@ -170,6 +172,7 @@ async function catalogCacheMiddleware(req, res, next) {
         // Serve fresh content
         res.setHeader('X-Ratings-Cache', 'hit');
         logger.info(`Cache HIT for catalog ${type}/${id} (${latency}ms) - key: ${cacheKey}`);
+        metricsService.recordRequest('catalog', 'hit', latency);
 
         return res.json(data);
       }
@@ -181,6 +184,7 @@ async function catalogCacheMiddleware(req, res, next) {
       const latency = Date.now() - startTime;
       res.setHeader('X-Ratings-Cache', 'miss');
       logger.info(`Cache MISS for catalog ${type}/${id} (${latency}ms) - key: ${cacheKey}`);
+      metricsService.recordRequest('catalog', 'miss', latency);
 
       // Cache the response asynchronously (don't wait)
       redisService.set(cacheKey, data, ttl, { staleTtl }).catch(err => {
@@ -197,6 +201,7 @@ async function catalogCacheMiddleware(req, res, next) {
     const latency = Date.now() - startTime;
     res.setHeader('X-Ratings-Cache', 'bypass');
     logger.warn(`Cache error for catalog (${latency}ms):`, error.message);
+    metricsService.recordRequest('catalog', 'bypass', latency);
     next();
   }
 }
@@ -244,6 +249,7 @@ async function metaCacheMiddleware(req, res, next) {
         // Serve stale content immediately
         res.setHeader('X-Ratings-Cache', 'stale');
         logger.info(`Cache STALE for meta ${type}/${id} (${latency}ms) - triggering background refresh - key: ${cacheKey}`);
+        metricsService.recordRequest('meta', 'stale', latency);
 
         // Trigger background refresh (non-blocking)
         refreshMetaInBackground(req, configParam, type, id, cacheKey, ttl, staleTtl);
@@ -253,6 +259,7 @@ async function metaCacheMiddleware(req, res, next) {
         // Serve fresh content
         res.setHeader('X-Ratings-Cache', 'hit');
         logger.info(`Cache HIT for meta ${type}/${id} (${latency}ms) - key: ${cacheKey}`);
+        metricsService.recordRequest('meta', 'hit', latency);
 
         return res.json(data);
       }
@@ -264,6 +271,7 @@ async function metaCacheMiddleware(req, res, next) {
       const latency = Date.now() - startTime;
       res.setHeader('X-Ratings-Cache', 'miss');
       logger.info(`Cache MISS for meta ${type}/${id} (${latency}ms) - key: ${cacheKey}`);
+      metricsService.recordRequest('meta', 'miss', latency);
 
       // Cache the response asynchronously (don't wait)
       redisService.set(cacheKey, data, ttl, { staleTtl }).catch(err => {
@@ -280,6 +288,7 @@ async function metaCacheMiddleware(req, res, next) {
     const latency = Date.now() - startTime;
     res.setHeader('X-Ratings-Cache', 'bypass');
     logger.warn(`Cache error for meta (${latency}ms):`, error.message);
+    metricsService.recordRequest('meta', 'bypass', latency);
     next();
   }
 }
@@ -325,6 +334,7 @@ async function manifestCacheMiddleware(req, res, next) {
         // Serve stale content immediately
         res.setHeader('X-Ratings-Cache', 'stale');
         logger.info(`Cache STALE for manifest (${latency}ms) - triggering background refresh - key: ${cacheKey}`);
+        metricsService.recordRequest('manifest', 'stale', latency);
 
         // Trigger background refresh (non-blocking)
         refreshManifestInBackground(req, configParam, cacheKey, ttl, staleTtl);
@@ -334,6 +344,7 @@ async function manifestCacheMiddleware(req, res, next) {
         // Serve fresh content
         res.setHeader('X-Ratings-Cache', 'hit');
         logger.info(`Cache HIT for manifest (${latency}ms) - key: ${cacheKey}`);
+        metricsService.recordRequest('manifest', 'hit', latency);
 
         return res.json(data);
       }
@@ -345,6 +356,7 @@ async function manifestCacheMiddleware(req, res, next) {
       const latency = Date.now() - startTime;
       res.setHeader('X-Ratings-Cache', 'miss');
       logger.info(`Cache MISS for manifest (${latency}ms) - key: ${cacheKey}`);
+      metricsService.recordRequest('manifest', 'miss', latency);
 
       // Cache the response asynchronously (don't wait)
       redisService.set(cacheKey, data, ttl, { staleTtl }).catch(err => {
@@ -361,6 +373,7 @@ async function manifestCacheMiddleware(req, res, next) {
     const latency = Date.now() - startTime;
     res.setHeader('X-Ratings-Cache', 'bypass');
     logger.warn(`Cache error for manifest (${latency}ms):`, error.message);
+    metricsService.recordRequest('manifest', 'bypass', latency);
     next();
   }
 }
