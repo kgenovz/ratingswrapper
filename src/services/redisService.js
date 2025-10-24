@@ -17,7 +17,7 @@ const gunzip = promisify(zlib.gunzip);
 const inflightRequests = new Map();
 
 /**
- * Get value from Redis cache with decompression
+ * Get value from Redis cache with decompression (backward compatible)
  *
  * @param {string} key - Cache key
  * @returns {Promise<Object|null>} - Parsed JSON object or null if not found/error
@@ -42,8 +42,74 @@ async function get(key) {
     const decompressed = await gunzip(compressed);
     const data = JSON.parse(decompressed.toString('utf-8'));
 
-    logger.debug('Cache hit:', key);
+    // Handle new cache entry format (with metadata)
+    if (data && typeof data === 'object' && data.data && data.timestamp) {
+      logger.debug('Cache hit:', key);
+      return data.data; // Return unwrapped data
+    }
+
+    // Backward compatibility: return raw data for old cache entries
+    logger.debug('Cache hit (legacy format):', key);
     return data;
+  } catch (error) {
+    // Fail-open: Log error but don't throw
+    logger.warn('Redis GET error for key', key, ':', error.message);
+    return null;
+  }
+}
+
+/**
+ * Get value from Redis cache with SWR (Stale-While-Revalidate) support
+ * Returns data and staleness status
+ *
+ * @param {string} key - Cache key
+ * @returns {Promise<Object|null>} - { data, isStale, isFresh } or null if not found
+ */
+async function getWithSWR(key) {
+  // Fail-open: If Redis is not available, return null
+  if (!isRedisAvailable()) {
+    logger.debug('Redis not available for GET:', key);
+    return null;
+  }
+
+  try {
+    const client = getRedisClient();
+    const compressed = await client.getBuffer(key);
+
+    if (!compressed) {
+      logger.debug('Cache miss:', key);
+      return null;
+    }
+
+    // Decompress and parse JSON
+    const decompressed = await gunzip(compressed);
+    const cacheEntry = JSON.parse(decompressed.toString('utf-8'));
+
+    // Check if this is new format with metadata
+    if (!cacheEntry || typeof cacheEntry !== 'object' || !cacheEntry.data || !cacheEntry.timestamp) {
+      // Legacy format or malformed data - treat as fresh
+      logger.debug('Cache hit (legacy format):', key);
+      return {
+        data: cacheEntry,
+        isStale: false,
+        isFresh: true
+      };
+    }
+
+    // Calculate age and staleness
+    const now = Date.now();
+    const age = now - cacheEntry.timestamp;
+    const freshTtl = cacheEntry.freshTtl * 1000; // Convert to milliseconds
+    const isStale = age > freshTtl;
+    const isFresh = !isStale;
+
+    logger.debug(`Cache hit: ${key} - Age: ${Math.floor(age / 1000)}s, Fresh TTL: ${cacheEntry.freshTtl}s, Stale: ${isStale}`);
+
+    return {
+      data: cacheEntry.data,
+      isStale,
+      isFresh
+    };
   } catch (error) {
     // Fail-open: Log error but don't throw
     logger.warn('Redis GET error for key', key, ':', error.message);
@@ -57,9 +123,10 @@ async function get(key) {
  * @param {string} key - Cache key
  * @param {Object} value - Value to cache (will be JSON stringified)
  * @param {number} ttl - Time to live in seconds
+ * @param {Object} options - Optional settings { staleTtl: number }
  * @returns {Promise<boolean>} - True if successful, false otherwise
  */
-async function set(key, value, ttl) {
+async function set(key, value, ttl, options = {}) {
   // Fail-open: If Redis is not available, return false but don't throw
   if (!isRedisAvailable()) {
     logger.debug('Redis not available for SET:', key);
@@ -69,14 +136,25 @@ async function set(key, value, ttl) {
   try {
     const client = getRedisClient();
 
+    // Wrap value with metadata for SWR support
+    const cacheEntry = {
+      data: value,
+      timestamp: Date.now(),
+      freshTtl: ttl
+    };
+
     // JSON stringify and compress
-    const json = JSON.stringify(value);
+    const json = JSON.stringify(cacheEntry);
     const compressed = await gzip(Buffer.from(json, 'utf-8'));
 
-    // Set with expiration
-    await client.setex(key, ttl, compressed);
+    // Calculate total TTL (fresh + stale period)
+    const staleTtl = options.staleTtl || ttl; // Default: stale period = fresh period
+    const totalTtl = ttl + staleTtl;
 
-    logger.debug('Cache set:', key, 'TTL:', ttl);
+    // Set with expiration (extended for stale period)
+    await client.setex(key, totalTtl, compressed);
+
+    logger.debug('Cache set:', key, 'Fresh TTL:', ttl, 'Total TTL:', totalTtl);
     return true;
   } catch (error) {
     // Fail-open: Log error but don't throw
@@ -224,6 +302,7 @@ async function flushAll() {
 
 module.exports = {
   get,
+  getWithSWR,
   set,
   del,
   getOrCompute,

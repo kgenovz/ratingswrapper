@@ -105,10 +105,32 @@ This plan implements a **two-tier caching strategy**:
 
 ---
 
-## Phase 3 — Stale-While-Revalidate (SWR)
-- [ ] Serve **stale cache** immediately on expiry, refresh in background.
-- [ ] Tag served stales → `X-Ratings: stale-serve`.
+## Phase 3 — Stale-While-Revalidate (SWR) ✅ COMPLETED
+- [x] Serve **stale cache** immediately on expiry, refresh in background.
+- [x] Tag served stales → `X-Ratings-Cache: stale`.
   - ✅ *Done when:* users never wait on cache rebuilds; origin QPS stable.
+
+### Implementation Details
+- **Files Modified**:
+  - `src/services/redisService.js` - Added SWR support with metadata tracking
+  - `src/middleware/cache.js` - Background refresh for catalog, meta, manifest
+- **Features**:
+  - Two-tier TTL system: fresh period + stale period (both equal, e.g., 6h + 6h = 12h total)
+  - Cache states: `fresh` (serve immediately), `stale` (serve + background refresh), `expired` (must rebuild)
+  - Background refresh with deduplication (prevents multiple refreshes for same key)
+  - Fail-safe: if refresh fails, stale cache continues to be served
+  - Updated cache entry format with metadata (timestamp, freshTtl, data)
+  - Backward compatible with Phase 1 cache entries (legacy format detection)
+- **Cache Headers**:
+  - `X-Ratings-Cache: hit` - Fresh cache served
+  - `X-Ratings-Cache: stale` - Stale cache served, background refresh triggered
+  - `X-Ratings-Cache: miss` - No cache, fresh data fetched
+  - `X-Ratings-Cache: bypass` - Cache error, no caching attempted
+- **Benefits**:
+  - Users never wait for cache rebuilds
+  - Consistently fast response times (always serves immediately)
+  - Eventually consistent data (refreshes in background)
+  - Reduced load spikes (smooth refresh pattern vs all-at-once expiry)
 
 ---
 
