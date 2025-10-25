@@ -1,0 +1,50 @@
+/**
+ * Configure Page Styles
+ * Extracted from src/views/configure.js for better maintainability
+ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f1f5f9; min-height: 100vh; padding: 20px; }
+.container { max-width: 960px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); overflow: hidden; }
+.header { background: #eef2ff; color: #111827; padding: 24px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+.brand { background: #4f46e5; color: #ffffff; padding: 16px 18px; border-radius: 10px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 12px rgba(79,70,229,0.15); }
+.brand h1 { font-size: 28px; margin: 0; line-height: 1.2; }
+.brand .icon { font-size: 22px; opacity: 0.95; }
+.brand .tag { background: rgba(255,255,255,0.15); color: #fff; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-left: auto; }
+.header h2 { font-size: 18px; margin: 14px 0 6px 0; color: #111827; }
+.subtitle { color: #374151; font-size: 14px; margin-bottom: 8px; }
+.steps { margin: 6px 0 0 18px; color: #4b5563; font-size: 13px; }
+.steps li { margin: 2px 0; }
+.content { padding: 24px; }
+.form-group { margin-bottom: 18px; }
+label { display: block; font-weight: 600; margin-bottom: 6px; color: #333; font-size: 14px; }
+input[type="text"], input[type="url"], input[type="email"], input[type="password"], select { width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+.btn { background: #4f46e5; color: white; border: none; padding: 12px 22px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.btn:hover { background: #4338ca; }
+.row { display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px; align-items: end; }
+.row-2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; align-items: start; }
+.url-display { background: #f8fafc; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; word-break: break-all; overflow-wrap: break-word; }
+.advanced-toggle { display: none; }
+.advanced-options { display: block; margin-top: 8px; }
+.section-title { font-size: 16px; font-weight: 700; margin: 6px 0 8px 0; color: #1f2937; }
+.preview { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: #111827; white-space: pre-wrap; }
+.install-btn { background: #0ea5e9; color: white; text-decoration: none; padding: 8px 14px; border-radius: 6px; display: inline-block; font-size: 13px; font-weight: 600; margin-left: 8px; }
+.copy-btn { background: #22c55e; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.help-text { font-size: 12px; color: #666; margin-top: 5px; }
+.login-section { background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 8px; padding: 16px; margin-bottom: 22px; }
+.addon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 12px; }
+.addon-card { background: white; border: 2px solid #e5e7eb; border-radius: 8px; padding: 12px; display: flex; align-items: center; gap: 10px; transition: all 0.2s; cursor: pointer; }
+.addon-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.addon-card.wrappable { border-color: #10b981; }
+.addon-card.not-wrappable { opacity: 0.6; cursor: not-allowed; }
+.addon-card.already-wrapped { opacity: 1.0; cursor: pointer; background: #fffbeb; border-color: #f59e0b; }
+.addon-card.already-wrapped.selected { background: #fef3c7; border-color: #d97706; }
+.addon-card.selected { background: #dbeafe; border-color: #3b82f6; }
+.addon-logo { width: 48px; height: 48px; object-fit: contain; background: #f3f4f6; border-radius: 6px; }
+.addon-info { flex: 1; min-width: 0; }
+.addon-name { font-weight: 600; font-size: 14px; color: #111827; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.addon-status { font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 4px; }
+.status-icon { font-size: 14px; }
+.status-icon.wrappable { color: #10b981; }
+.status-icon.not-wrappable { color: #ef4444; }
+.addon-checkbox { width: 18px; height: 18px; cursor: pointer; }

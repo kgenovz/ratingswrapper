@@ -4,6 +4,7 @@
  */
 
 const express = require('express');
+const path = require('path');
 const { spawn } = require('child_process');
 const logger = require('./utils/logger');
 const { requestLoggingMiddleware } = require('./utils/requestLogger');
@@ -34,6 +35,9 @@ app.use(corsMiddleware);
 if (process.env.LOG_FORMAT === 'json') {
   app.use(requestLoggingMiddleware);
 }
+
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 /**
  * Health check endpoint
