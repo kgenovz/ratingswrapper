@@ -15,8 +15,8 @@ const fs = require('fs').promises;
 const path = require('path');
 const adminAuth = require('../middleware/adminAuth');
 
-// Apply authentication middleware to all admin routes
-router.use(adminAuth);
+// Apply authentication middleware only to /admin/* routes
+router.use('/admin', adminAuth);
 
 /**
  * GET /admin/hotkeys
