@@ -262,6 +262,32 @@ function generateConfigureHTML(protocol, host) {
                     <div class="help-text" style="margin-top: 5px;">Choose how to display Metacritic scores</div>
                   </div>
 
+                  <!-- MAL (MyAnimeList) Ratings -->
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeMalRating" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include MAL rating</span>
+                  </label>
+                  <div id="malRatingFormatSection" style="margin-left: 26px; margin-bottom: 10px; display: none;">
+                    <label for="malRatingFormat" style="display: block; font-weight: 600; margin-bottom: 6px;">MAL Rating Format</label>
+                    <select id="malRatingFormat">
+                      <option value="decimal" selected>Decimal (8.5 MAL)</option>
+                      <option value="outof10">Out of 10 (8.5/10 MAL)</option>
+                    </select>
+                    <div class="help-text" style="margin-top: 5px;">Choose how to display MAL ratings</div>
+                  </div>
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeMalVotes" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include MAL vote count</span>
+                  </label>
+                  <div id="malVoteFormatSection" style="margin-left: 26px; margin-bottom: 10px; display: none;">
+                    <label for="malVoteFormat" style="display: block; font-weight: 600; margin-bottom: 6px;">MAL Vote Format</label>
+                    <select id="malVoteFormat">
+                      <option value="short" selected>Short (1.2M MAL votes)</option>
+                      <option value="full">Full (1,200,000 MAL votes)</option>
+                    </select>
+                    <div class="help-text" style="margin-top: 5px;">Choose how to display MAL vote counts</div>
+                  </div>
+
                   <!-- TMDB Rating -->
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeTmdbRating" style="width: 18px; height: 18px;" />

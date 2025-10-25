@@ -55,7 +55,7 @@ function sanitizeAddonUrl(url) {
  */
 function validateConfig(userConfig) {
   // Supported order keys and defaults for extended metadata
-  const DEFAULT_METADATA_ORDER = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
+  const DEFAULT_METADATA_ORDER = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic','malRating','malVotes'];
   const ALLOWED_ORDER_KEYS = new Set(DEFAULT_METADATA_ORDER);
   function sanitizeOrder(order) {
     if (!Array.isArray(order)) return DEFAULT_METADATA_ORDER;
@@ -135,6 +135,13 @@ function validateConfig(userConfig) {
       includeMetacritic: descriptionFormat?.includeMetacritic || false,
       // Metacritic format: 'score' (68), 'outof100' (68/100)
       metacriticFormat: descriptionFormat?.metacriticFormat || 'score',
+      // MAL (MyAnimeList) metadata options
+      includeMalRating: descriptionFormat?.includeMalRating || false,
+      includeMalVotes: descriptionFormat?.includeMalVotes || false,
+      // MAL rating format: 'decimal' (8.5), 'outof10' (8.5/10)
+      malRatingFormat: descriptionFormat?.malRatingFormat || 'decimal',
+      // MAL vote format: 'short' (1.2M), 'full' (1,200,000)
+      malVoteFormat: descriptionFormat?.malVoteFormat || 'short',
       // Streaming services metadata options
       includeStreamingServices: descriptionFormat?.includeStreamingServices || false,
       streamingRegion: descriptionFormat?.streamingRegion || 'US',
