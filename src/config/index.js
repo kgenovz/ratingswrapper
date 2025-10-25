@@ -82,7 +82,13 @@ const config = {
     }
   },
 
-  // Rate limiting configuration (Phase 2)
+  // Rate limiting configuration
+  // NOTE: Rate limiting is applied AFTER cache check (Cache → Rate Limit → Handler)
+  // This means:
+  // - Cache hits (fresh or stale) bypass rate limiting entirely
+  // - Singleflight cache hits also bypass rate limiting
+  // - Only cache misses are rate limited
+  // - For load testing, increase these limits via environment variables
   rateLimit: {
     enabled: !!process.env.REDIS_URL, // Rate limiting requires Redis
     // Anonymous users (identified by IP)

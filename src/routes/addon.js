@@ -14,15 +14,15 @@ const { createStandardRateLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
-// Apply rate limiting to all addon routes
+// Create rate limiter instance (applied per-route after cache)
 const rateLimiter = createStandardRateLimiter();
-router.use(rateLimiter);
 
 /**
  * Main addon endpoint - Manifest
- * Serves the manifest for the wrapped addon
+ * Middleware order: Cache → Rate Limit → Handler
+ * Cached responses bypass rate limiting
  */
-router.get('/:config/manifest.json', manifestCacheMiddleware, async (req, res) => {
+router.get('/:config/manifest.json', manifestCacheMiddleware, rateLimiter, async (req, res) => {
   try {
     logger.info(`Manifest request received from ${req.ip}`);
     const userConfig = parseConfigFromPath(req.params.config);
@@ -43,8 +43,9 @@ router.get('/:config/manifest.json', manifestCacheMiddleware, async (req, res) =
 
 /**
  * Catalog endpoint - with extra parameters
+ * Middleware order: Cache → Rate Limit → Handler
  */
-router.get('/:config/catalog/:type/:id/:extra.json', catalogCacheMiddleware, async (req, res) => {
+router.get('/:config/catalog/:type/:id/:extra.json', catalogCacheMiddleware, rateLimiter, async (req, res) => {
   try {
     const userConfig = parseConfigFromPath(req.params.config);
     const { type, id } = req.params;
@@ -76,8 +77,9 @@ router.get('/:config/catalog/:type/:id/:extra.json', catalogCacheMiddleware, asy
 
 /**
  * Catalog endpoint - without extra parameters
+ * Middleware order: Cache → Rate Limit → Handler
  */
-router.get('/:config/catalog/:type/:id.json', catalogCacheMiddleware, async (req, res) => {
+router.get('/:config/catalog/:type/:id.json', catalogCacheMiddleware, rateLimiter, async (req, res) => {
   try {
     const userConfig = parseConfigFromPath(req.params.config);
     const { type, id } = req.params;
@@ -101,8 +103,9 @@ router.get('/:config/catalog/:type/:id.json', catalogCacheMiddleware, async (req
 
 /**
  * Meta endpoint
+ * Middleware order: Cache → Rate Limit → Handler
  */
-router.get('/:config/meta/:type/:id.json', metaCacheMiddleware, async (req, res) => {
+router.get('/:config/meta/:type/:id.json', metaCacheMiddleware, rateLimiter, async (req, res) => {
   try {
     logger.info(`🔍 META REQUEST from ${req.ip} - ${req.params.type}/${req.params.id}`);
     logger.info(`User-Agent: ${req.headers['user-agent']}`);

@@ -13,6 +13,10 @@ const metricsService = require('../services/metricsService');
 // Track in-flight background refreshes to prevent duplicate work
 const refreshInProgress = new Map();
 
+// Track in-flight cache miss requests to prevent stampedes (singleflight)
+// Key: cache key, Value: Promise that resolves when the response is ready
+const inflightCacheMisses = new Map();
+
 /**
  * Background refresh for catalog cache (non-blocking)
  * Fetches fresh data and updates cache without blocking the response
@@ -184,7 +188,36 @@ async function catalogCacheMiddleware(req, res, next) {
       }
     }
 
-    // Cache miss - intercept response to cache it
+    // Cache miss - check if there's an in-flight request for this key (singleflight)
+    if (inflightCacheMisses.has(cacheKey)) {
+      logger.info(`Singleflight: Waiting for in-flight catalog request for ${type}/${id} - key: ${cacheKey}`);
+
+      try {
+        // Wait for the in-flight request to complete
+        const data = await inflightCacheMisses.get(cacheKey);
+        const latency = Date.now() - startTime;
+
+        res.setHeader('X-Ratings-Cache', 'hit-singleflight');
+        logger.info(`Singleflight: Served catalog ${type}/${id} from in-flight request (${latency}ms) - key: ${cacheKey}`);
+        metricsService.recordRequest('catalog', 'hit-singleflight', latency);
+        redisService.trackHotKey(cacheKey);
+
+        return res.json(data);
+      } catch (error) {
+        // If singleflight fails, fall through to normal miss handling
+        logger.warn(`Singleflight failed for catalog ${type}/${id}, falling back to normal fetch:`, error.message);
+      }
+    }
+
+    // Create a promise for this request that other concurrent requests can wait on
+    let resolveInflight, rejectInflight;
+    const inflightPromise = new Promise((resolve, reject) => {
+      resolveInflight = resolve;
+      rejectInflight = reject;
+    });
+    inflightCacheMisses.set(cacheKey, inflightPromise);
+
+    // Intercept response to cache it and resolve in-flight promise
     const originalJson = res.json.bind(res);
     res.json = function(data) {
       const latency = Date.now() - startTime;
@@ -200,7 +233,24 @@ async function catalogCacheMiddleware(req, res, next) {
         logger.warn('Failed to cache catalog response:', err.message);
       });
 
+      // Resolve the in-flight promise so waiting requests can proceed
+      resolveInflight(data);
+
+      // Clean up in-flight map after a short delay (allow concurrent requests to complete)
+      setTimeout(() => inflightCacheMisses.delete(cacheKey), 100);
+
       return originalJson(data);
+    };
+
+    // Handle errors to clean up in-flight promise
+    const originalStatus = res.status.bind(res);
+    res.status = function(code) {
+      if (code >= 400) {
+        // Reject the in-flight promise on error
+        rejectInflight(new Error(`Request failed with status ${code}`));
+        inflightCacheMisses.delete(cacheKey);
+      }
+      return originalStatus(code);
     };
 
     next();
@@ -276,7 +326,36 @@ async function metaCacheMiddleware(req, res, next) {
       }
     }
 
-    // Cache miss - intercept response to cache it
+    // Cache miss - check if there's an in-flight request for this key (singleflight)
+    if (inflightCacheMisses.has(cacheKey)) {
+      logger.info(`Singleflight: Waiting for in-flight meta request for ${type}/${id} - key: ${cacheKey}`);
+
+      try {
+        // Wait for the in-flight request to complete
+        const data = await inflightCacheMisses.get(cacheKey);
+        const latency = Date.now() - startTime;
+
+        res.setHeader('X-Ratings-Cache', 'hit-singleflight');
+        logger.info(`Singleflight: Served meta ${type}/${id} from in-flight request (${latency}ms) - key: ${cacheKey}`);
+        metricsService.recordRequest('meta', 'hit-singleflight', latency);
+        redisService.trackHotKey(cacheKey);
+
+        return res.json(data);
+      } catch (error) {
+        // If singleflight fails, fall through to normal miss handling
+        logger.warn(`Singleflight failed for meta ${type}/${id}, falling back to normal fetch:`, error.message);
+      }
+    }
+
+    // Create a promise for this request that other concurrent requests can wait on
+    let resolveInflight, rejectInflight;
+    const inflightPromise = new Promise((resolve, reject) => {
+      resolveInflight = resolve;
+      rejectInflight = reject;
+    });
+    inflightCacheMisses.set(cacheKey, inflightPromise);
+
+    // Intercept response to cache it and resolve in-flight promise
     const originalJson = res.json.bind(res);
     res.json = function(data) {
       const latency = Date.now() - startTime;
@@ -290,7 +369,23 @@ async function metaCacheMiddleware(req, res, next) {
         logger.warn('Failed to cache meta response:', err.message);
       });
 
+      // Resolve the in-flight promise so waiting requests can proceed
+      resolveInflight(data);
+
+      // Clean up in-flight map after a short delay
+      setTimeout(() => inflightCacheMisses.delete(cacheKey), 100);
+
       return originalJson(data);
+    };
+
+    // Handle errors to clean up in-flight promise
+    const originalStatus = res.status.bind(res);
+    res.status = function(code) {
+      if (code >= 400) {
+        rejectInflight(new Error(`Request failed with status ${code}`));
+        inflightCacheMisses.delete(cacheKey);
+      }
+      return originalStatus(code);
     };
 
     next();
@@ -364,7 +459,36 @@ async function manifestCacheMiddleware(req, res, next) {
       }
     }
 
-    // Cache miss - intercept response to cache it
+    // Cache miss - check if there's an in-flight request for this key (singleflight)
+    if (inflightCacheMisses.has(cacheKey)) {
+      logger.info(`Singleflight: Waiting for in-flight manifest request - key: ${cacheKey}`);
+
+      try {
+        // Wait for the in-flight request to complete
+        const data = await inflightCacheMisses.get(cacheKey);
+        const latency = Date.now() - startTime;
+
+        res.setHeader('X-Ratings-Cache', 'hit-singleflight');
+        logger.info(`Singleflight: Served manifest from in-flight request (${latency}ms) - key: ${cacheKey}`);
+        metricsService.recordRequest('manifest', 'hit-singleflight', latency);
+        redisService.trackHotKey(cacheKey);
+
+        return res.json(data);
+      } catch (error) {
+        // If singleflight fails, fall through to normal miss handling
+        logger.warn(`Singleflight failed for manifest, falling back to normal fetch:`, error.message);
+      }
+    }
+
+    // Create a promise for this request that other concurrent requests can wait on
+    let resolveInflight, rejectInflight;
+    const inflightPromise = new Promise((resolve, reject) => {
+      resolveInflight = resolve;
+      rejectInflight = reject;
+    });
+    inflightCacheMisses.set(cacheKey, inflightPromise);
+
+    // Intercept response to cache it and resolve in-flight promise
     const originalJson = res.json.bind(res);
     res.json = function(data) {
       const latency = Date.now() - startTime;
@@ -378,7 +502,23 @@ async function manifestCacheMiddleware(req, res, next) {
         logger.warn('Failed to cache manifest response:', err.message);
       });
 
+      // Resolve the in-flight promise so waiting requests can proceed
+      resolveInflight(data);
+
+      // Clean up in-flight map after a short delay
+      setTimeout(() => inflightCacheMisses.delete(cacheKey), 100);
+
       return originalJson(data);
+    };
+
+    // Handle errors to clean up in-flight promise
+    const originalStatus = res.status.bind(res);
+    res.status = function(code) {
+      if (code >= 400) {
+        rejectInflight(new Error(`Request failed with status ${code}`));
+        inflightCacheMisses.delete(cacheKey);
+      }
+      return originalStatus(code);
     };
 
     next();

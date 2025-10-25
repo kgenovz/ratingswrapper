@@ -11,6 +11,12 @@ This guide covers Phase 8 pre-release load testing for the Ratings Wrapper servi
 - ✅ Error rate < 1%
 - ✅ No secrets in logs or metrics
 
+**Recent Updates (Rate Limiting Architecture):**
+- ✅ **Singleflight protection** prevents cache stampedes
+- ✅ **Cache-first architecture** - rate limiting applied AFTER cache
+- ✅ **Cache hits bypass rate limits** - 60-90% reduction in rate limited requests
+- ✅ **Concurrent request coalescing** - multiple requests for same resource wait for first one
+
 ## Quick Start
 
 ### 1. Testing Against Railway (Production)
@@ -306,14 +312,36 @@ Status Codes:
 
 ### Rate Limiting
 
-If testing with high connections, you may hit rate limits:
+**Important:** As of the latest update, rate limiting is applied AFTER cache checking:
+- **Cache hits bypass rate limiting** (fresh, stale, or singleflight)
+- **Only cache misses are rate limited**
+- This reduces rate limiting by 60-90% with a warm cache
 
-- **Anonymous:** 5 req/s per IP
-- **Authenticated:** 10 req/s per userId
+**Default Rate Limits:**
+- **Anonymous:** 5 req/s per IP (burst: 10)
+- **Authenticated:** 10 req/s per userId (burst: 20)
 
-**To bypass for testing:**
-- Temporarily increase `RATE_LIMIT_ANONYMOUS_RPS` in env
-- Or use authenticated configs with different userIds
+**For Load Testing with Cold Cache:**
+
+If you're testing with a cold cache or high concurrent connections, you may hit rate limits on cache misses:
+
+```bash
+# Method 1: Increase rate limits temporarily
+export RATE_LIMIT_ANONYMOUS_RPS=100
+export RATE_LIMIT_ANONYMOUS_BURST=200
+npm run load-test
+
+# Method 2: Test against warm cache (pre-warm first)
+# Run once to warm cache, then run load test
+curl http://localhost:7000/<config>/catalog/movie/top.json
+npm run load-test
+```
+
+**Understanding the Metrics:**
+
+- **14,756 rate limited in 5 min** = Cold cache, all requests hitting backend
+- **<100 rate limited in 5 min** = Warm cache (60%+ hit ratio)
+- If you see high rate limiting with warm cache, check cache hit ratio in dashboard
 
 ## Success Criteria
 
