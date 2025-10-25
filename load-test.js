@@ -16,29 +16,68 @@ const DURATION = parseInt(process.env.TEST_DURATION || '300', 10); // 5 minutes 
 const CONNECTIONS = parseInt(process.env.TEST_CONNECTIONS || '75', 10); // 75 VUs default
 const PIPELINING = 1; // Requests per connection
 
-// Test catalog endpoints (using a real Cinemeta wrapped config)
-const CINEMETA_CONFIG = Buffer.from(JSON.stringify({
-  wrappedAddonUrl: 'https://v3-cinemeta.strem.io/manifest.json',
-  addonName: 'Cinemeta with Ratings (Load Test)',
-  enableRatings: true,
-  enableTitleRatings: true,
-  ratingLocation: 'title',
-  ratingFormat: {
-    position: 'prefix',
-    template: '⭐ {rating}',
-    separator: ' | '
-  }
-})).toString('base64url');
+// Test catalog endpoints with multiple configs (simulating different users)
+const CONFIGS = [
+  // Config 1: Cinemeta with prefix ratings
+  Buffer.from(JSON.stringify({
+    wrappedAddonUrl: 'https://v3-cinemeta.strem.io/manifest.json',
+    addonName: 'Cinemeta with Ratings (Config 1)',
+    enableRatings: true,
+    enableTitleRatings: true,
+    ratingLocation: 'title',
+    ratingFormat: {
+      position: 'prefix',
+      template: '⭐ {rating}',
+      separator: ' | '
+    }
+  })).toString('base64url'),
 
-// Endpoints to test with weights (simulating realistic traffic)
-const endpoints = [
-  { path: `/${CINEMETA_CONFIG}/catalog/movie/top.json`, weight: 30 },          // Popular catalogs
-  { path: `/${CINEMETA_CONFIG}/catalog/movie/popular.json`, weight: 25 },
-  { path: `/${CINEMETA_CONFIG}/catalog/series/top.json`, weight: 20 },
-  { path: `/${CINEMETA_CONFIG}/catalog/series/popular.json`, weight: 15 },
-  { path: `/${CINEMETA_CONFIG}/meta/movie/tt0111161.json`, weight: 5 },        // Meta endpoints
-  { path: `/${CINEMETA_CONFIG}/meta/series/tt0944947.json`, weight: 5 },
+  // Config 2: Cinemeta with suffix ratings
+  Buffer.from(JSON.stringify({
+    wrappedAddonUrl: 'https://v3-cinemeta.strem.io/manifest.json',
+    addonName: 'Cinemeta with Ratings (Config 2)',
+    enableRatings: true,
+    enableTitleRatings: true,
+    ratingLocation: 'title',
+    ratingFormat: {
+      position: 'suffix',
+      template: '[{rating}]',
+      separator: ' '
+    }
+  })).toString('base64url'),
+
+  // Config 3: Cinemeta with description ratings
+  Buffer.from(JSON.stringify({
+    wrappedAddonUrl: 'https://v3-cinemeta.strem.io/manifest.json',
+    addonName: 'Cinemeta with Ratings (Config 3)',
+    enableRatings: true,
+    enableTitleRatings: true,
+    ratingLocation: 'description',
+    ratingFormat: {
+      position: 'prefix',
+      template: 'Rating: {rating}',
+      separator: ' - '
+    }
+  })).toString('base64url')
 ];
+
+// Endpoints to test with weights (simulating realistic traffic across multiple configs)
+// Distribute traffic across 3 different user configs
+const endpoints = [];
+
+// For each config, add weighted endpoints
+CONFIGS.forEach((config, index) => {
+  const weight = index === 0 ? 10 : (index === 1 ? 7 : 5); // Config 1: 10, Config 2: 7, Config 3: 5
+
+  endpoints.push(
+    { path: `/${config}/catalog/movie/top.json`, weight: weight },
+    { path: `/${config}/catalog/movie/popular.json`, weight: Math.ceil(weight * 0.8) },
+    { path: `/${config}/catalog/series/top.json`, weight: Math.ceil(weight * 0.6) },
+    { path: `/${config}/catalog/series/popular.json`, weight: Math.ceil(weight * 0.4) },
+    { path: `/${config}/meta/movie/tt0111161.json`, weight: Math.ceil(weight * 0.2) },
+    { path: `/${config}/meta/series/tt0944947.json`, weight: Math.ceil(weight * 0.2) }
+  );
+});
 
 // Build weighted request array
 const requests = [];
@@ -56,13 +95,13 @@ console.log(chalk.gray('═'.repeat(60)));
 console.log(chalk.white('Target URL:      '), chalk.yellow(TARGET_URL));
 console.log(chalk.white('Duration:        '), chalk.yellow(`${DURATION} seconds (${Math.floor(DURATION / 60)} min ${DURATION % 60} sec)`));
 console.log(chalk.white('Connections:     '), chalk.yellow(`${CONNECTIONS} concurrent`));
+console.log(chalk.white('Test Configs:    '), chalk.yellow(`${CONFIGS.length} different user configurations`));
 console.log(chalk.white('Test Endpoints:  '), chalk.yellow(endpoints.length));
 console.log(chalk.gray('═'.repeat(60)));
-console.log(chalk.white('\nEndpoint Distribution:'));
-endpoints.forEach(({ path, weight }) => {
-  const percentage = ((weight / 100) * 100).toFixed(0);
-  console.log(chalk.gray(`  ${percentage}% - ${path.split('/').slice(-1)[0]}`));
-});
+console.log(chalk.white('\nConfig Distribution:'));
+console.log(chalk.gray(`  Config 1: Prefix ratings (⭐) - Higher traffic`));
+console.log(chalk.gray(`  Config 2: Suffix ratings ([]) - Medium traffic`));
+console.log(chalk.gray(`  Config 3: Description ratings - Lower traffic`));
 console.log(chalk.gray('═'.repeat(60)));
 console.log(chalk.bold.green('\n✓ Monitor the dashboard at: ') + chalk.cyan(`${TARGET_URL}/admin/observability`));
 console.log(chalk.bold.yellow('⚠ Starting in 3 seconds...\n'));
@@ -104,9 +143,10 @@ setTimeout(() => {
     console.log(chalk.white('  p75:             '), chalk.yellow(result.latency.p75.toFixed(2) + ' ms'));
     console.log(chalk.white('  p90:             '), chalk.yellow(result.latency.p90.toFixed(2) + ' ms'));
 
-    const p95Color = result.latency.p95 < 300 ? chalk.green : chalk.red;
-    console.log(chalk.white('  p95:             '), p95Color(result.latency.p95.toFixed(2) + ' ms') +
-      (result.latency.p95 < 300 ? chalk.green(' ✓') : chalk.red(' ✗ (target: < 300ms)')));
+    const p95 = result.latency.p95 || result.latency.p99 || 0;
+    const p95Color = p95 < 300 ? chalk.green : chalk.red;
+    console.log(chalk.white('  p95:             '), p95Color(p95.toFixed(2) + ' ms') +
+      (p95 < 300 ? chalk.green(' ✓') : chalk.red(' ✗ (target: < 300ms)')));
 
     console.log(chalk.white('  p99:             '), chalk.yellow(result.latency.p99.toFixed(2) + ' ms'));
     console.log(chalk.white('  Max:             '), chalk.yellow(result.latency.max.toFixed(2) + ' ms'));
@@ -134,7 +174,7 @@ setTimeout(() => {
     // Acceptance criteria check
     console.log(chalk.bold.cyan('\n✓ Acceptance Criteria Check:\n'));
 
-    const p95Pass = result.latency.p95 < 300;
+    const p95Pass = p95 < 300;
     const errorRatePass = errorRate < 1;
 
     console.log(p95Pass ? chalk.green('  ✓ p95 latency < 300ms') : chalk.red('  ✗ p95 latency >= 300ms'));
