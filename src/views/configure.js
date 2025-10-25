@@ -431,21 +431,37 @@ function generateConfigureHTML(protocol, host) {
 
               <button class="btn" onclick="testAuth()" id="testAuthBtn" style="margin-bottom: 10px; display:none;"><i class="fa-solid fa-key" style="margin-right:6px"></i>Test Auth Token</button>
               <div id="authStatus" style="display:none; padding: 10px; border-radius: 6px; margin-bottom: 12px;"></div>
-              <button class="btn" onclick="autoReplaceAll()" id="replaceAllBtn" style="display:none;"><i class="fa-solid fa-rotate" style="margin-right:6px"></i>Auto Replace All</button>
-              <div id="replaceStatus" style="display:none; padding: 12px; border-radius: 6px; margin-top: 12px;"></div>
 
-              <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
-                <h3 style="margin-bottom: 10px;">Manual Installation URLs</h3>
-                <div class="help-text" style="font-size: 13px; color:#374151; margin-bottom: 10px;">
-                  Recommended: use <strong>Auto Replace</strong> above to avoid duplicates and ordering issues.
-                  If you prefer manual install, please ensure:
-                  <ul style="margin:6px 0 0 18px;">
-                    <li>Only one version of each addon exists in your library — keep the <strong>wrapped</strong> one.</li>
-                    <li>Install a <strong>wrapped Cinemeta</strong> and hide/remove the original Cinemeta.</li>
-                    <li>If you wrap a metadata addon (e.g., TMDB or AIO Metadata), remove the non‑wrapped Cinemeta.</li>
-                  </ul>
+              <!-- Auto Install (Primary CTA) -->
+              <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(79, 70, 229, 0.3);" id="autoInstallSection">
+                <h3 style="color: white; margin: 0 0 8px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-bolt"></i>
+                  Recommended: Auto Install
+                </h3>
+                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin-bottom: 12px;">
+                  Instantly replace all your addons with wrapped versions. No manual work, no duplicates, perfect ordering.
+                </p>
+                <button class="btn" onclick="autoReplaceAll()" id="replaceAllBtn" style="display:none; background: white; color: #4f46e5; font-size: 16px; padding: 14px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px"></i>Auto Install</button>
+                <div id="replaceStatus" style="display:none; padding: 12px; border-radius: 6px; margin-top: 12px; background: white;"></div>
+              </div>
+
+              <!-- Manual Install (Accordion) -->
+              <div style="margin-top: 20px; border: 2px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                <button onclick="toggleManualInstall()" id="manualInstallToggle" style="width: 100%; background: #f9fafb; border: none; padding: 16px; text-align: left; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 600; color: #374151;">
+                  <span><i class="fa-solid fa-link" style="margin-right: 8px; color: #6b7280;"></i>Manual Installation URLs</span>
+                  <i class="fa-solid fa-chevron-down" id="manualInstallChevron" style="color: #9ca3af; transition: transform 0.2s;"></i>
+                </button>
+                <div id="manualInstallContent" style="display: none; padding: 16px; background: white; border-top: 1px solid #e5e7eb;">
+                  <div class="help-text" style="font-size: 13px; color:#374151; margin-bottom: 10px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 6px; padding: 10px;">
+                    <strong>⚠️ Not Recommended:</strong> Use <strong>Auto Install</strong> above to avoid duplicates and ordering issues. If you prefer manual install, please ensure:
+                    <ul style="margin:6px 0 0 18px;">
+                      <li>Only one version of each addon exists in your library — keep the <strong>wrapped</strong> one.</li>
+                      <li>Install a <strong>wrapped Cinemeta</strong> and hide/remove the original Cinemeta.</li>
+                      <li>If you wrap a metadata addon (e.g., TMDB or AIO Metadata), remove the non‑wrapped Cinemeta.</li>
+                    </ul>
+                  </div>
+                  <div id="manualList"></div>
                 </div>
-                <div id="manualList"></div>
               </div>
             </div>
 
@@ -473,7 +489,29 @@ function generateConfigureHTML(protocol, host) {
         <script>
           const serverUrl = '${protocol}://${host}';
           const CINEMETA_URL = 'https://v3-cinemeta.strem.io/manifest.json';
-          const state = { items: [], selectedAddons: new Set() };
+          const state = { items: [], selectedAddons: new Set(), authToken: null };
+
+          /**
+           * Generate a user ID from auth token for rate limiting
+           * Creates a short hash of the auth token for privacy
+           * @param {string} authToken - Stremio auth token
+           * @returns {string} - User ID (first 16 chars of hash)
+           */
+          async function generateUserId(authToken) {
+            if (!authToken) return null;
+            try {
+              const encoder = new TextEncoder();
+              const data = encoder.encode(authToken);
+              const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+              const hashArray = Array.from(new Uint8Array(hashBuffer));
+              const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+              // Use first 16 characters for userId (64 bits of hash)
+              return hashHex.substring(0, 16);
+            } catch (e) {
+              console.warn('Failed to generate userId:', e);
+              return null;
+            }
+          }
 
           /**
            * Sanitizes addon URL by converting stremio:// protocol to https://
@@ -565,6 +603,7 @@ function generateConfigureHTML(protocol, host) {
                 document.getElementById('loginAuthToken').value = result.authKey;
                 // Also set the auth token in the Auto Replace section
                 document.getElementById('authToken').value = result.authKey;
+                state.authToken = result.authKey; // Store for userId generation (Phase 4)
                 statusDiv.style.background = '#d1fae5';
                 statusDiv.style.border = '1px solid #10b981';
                 statusDiv.innerHTML = '✔ Login successful! Fetching addons...';
@@ -595,6 +634,10 @@ function generateConfigureHTML(protocol, host) {
               alert('Please enter your auth token');
               return;
             }
+
+            state.authToken = authToken; // Store for userId generation (Phase 4)
+            // Also set in Auto Replace section
+            document.getElementById('authToken').value = authToken;
 
             loginBtn.disabled = true;
             loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px"></i>Fetching...';
@@ -1367,7 +1410,7 @@ function generateConfigureHTML(protocol, host) {
             }
           }
 
-          function generateAll() {
+          async function generateAll() {
             ensureCinemeta();
 
             // Get location checkboxes
@@ -1383,6 +1426,9 @@ function generateConfigureHTML(protocol, host) {
             } else if (enableTitleLocation) {
               ratingLocation = 'title';
             }
+
+            // Generate userId from auth token for signed URLs (Phase 4)
+            const userId = state.authToken ? await generateUserId(state.authToken) : null;
 
             // Get title format settings
             const titlePosition = document.getElementById('titlePosition')?.value || 'prefix';
@@ -1423,6 +1469,8 @@ function generateConfigureHTML(protocol, host) {
                 wrappedAddonUrl: it.url,
                 enableRatings: true, // Inferred from granular settings; keep global flag for compatibility
                 ratingLocation: ratingLocation,
+                // User ID for authenticated rate limiting (Phase 4)
+                ...(userId && { userId }),
                 // Separate formats for title and description
                 titleFormat: {
                   position: titlePosition,
@@ -1582,6 +1630,19 @@ function generateConfigureHTML(protocol, host) {
             });
           }
 
+          function toggleManualInstall() {
+            const content = document.getElementById('manualInstallContent');
+            const chevron = document.getElementById('manualInstallChevron');
+
+            if (content.style.display === 'none') {
+              content.style.display = 'block';
+              chevron.style.transform = 'rotate(180deg)';
+            } else {
+              content.style.display = 'none';
+              chevron.style.transform = 'rotate(0deg)';
+            }
+          }
+
           function toggleAuthMethod() {
             const tokenMethod = document.getElementById('authTokenMethod');
             const emailPasswordMethod = document.getElementById('emailPasswordMethod');
@@ -1632,6 +1693,7 @@ function generateConfigureHTML(protocol, host) {
 
               if (result.success && result.authKey) {
                 document.getElementById('authToken').value = result.authKey;
+                state.authToken = result.authKey; // Store for userId generation (Phase 4)
                 statusDiv.style.background = '#d1fae5';
                 statusDiv.style.border = '1px solid #10b981';
                 statusDiv.innerHTML = '✔ ' + result.message;

@@ -46,7 +46,7 @@ A Stremio addon service that wraps your existing addons to inject IMDb ratings i
   - Change rating settings without manual unwrapping
   - Visual distinction (amber border) for wrapped addons
 - 🔧 **URL-Based Config**: No database needed - all configuration encoded in addon URLs
-- 🚀 **Production Ready**:
+- 🚀 **Deployment Features**:
   - Configurable logging levels
   - Error handling and caching
   - Batch rating fetching with concurrency control
@@ -229,6 +229,8 @@ https://your-app.railway.app/{base64url-config}/manifest.json
 | `EMBED_RATINGS_API` | `true` | Start embedded IMDb ratings API server |
 | `RATINGS_PORT` | `3001` | Port for embedded ratings API (when `EMBED_RATINGS_API=true`) |
 | `RATINGS_API_URL` | `http://127.0.0.1:{PORT}/ratings` | IMDb ratings API endpoint (override if using external API) |
+| `REDIS_URL` | _(empty)_ | Redis connection URL for response caching (e.g., `redis://localhost:6379`)<br>Leave empty to disable Redis caching |
+| `CACHE_VERSION` | `1` | Cache version number - increment to invalidate all Redis cache (e.g., after IMDb data refresh) |
 
 ### Log Level Guide
 

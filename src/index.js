@@ -6,12 +6,17 @@
 const express = require('express');
 const { spawn } = require('child_process');
 const logger = require('./utils/logger');
+const { requestLoggingMiddleware } = require('./utils/requestLogger');
 const kitsuMappingService = require('./services/kitsuMappingService');
 const config = require('./config');
 const corsMiddleware = require('./middleware/cors');
 const ratingsRouter = require('./routes/ratings');
 const apiRouter = require('./routes/api');
 const addonRouter = require('./routes/addon');
+const monitoringRouter = require('./routes/monitoring');
+const adminRouter = require('./routes/admin');
+const webhookRouter = require('./routes/webhook');
+const { initRedisClient } = require('./config/redis');
 
 // Create Express app
 const app = express();
@@ -24,6 +29,11 @@ app.use(express.json());
 
 // Add CORS headers for all routes (required for Stremio to access the addon)
 app.use(corsMiddleware);
+
+// Add structured request logging (if enabled via LOG_FORMAT=json)
+if (process.env.LOG_FORMAT === 'json') {
+  app.use(requestLoggingMiddleware);
+}
 
 /**
  * Health check endpoint
@@ -42,7 +52,10 @@ app.get('/', (req, res) => {
 /**
  * Mount route modules
  */
-app.use('/ratings', ratingsRouter);  // Internal ratings API routes
+app.use('/', monitoringRouter);       // Monitoring routes (/metrics, /healthz)
+app.use('/', adminRouter);            // Admin routes (/admin/hotkeys, /admin/stats)
+app.use('/', webhookRouter);          // Webhook routes (/api/webhook/alerts)
+app.use('/ratings', ratingsRouter);   // Internal ratings API routes
 app.use('/api', apiRouter);           // API routes (auth, replace-addon, etc.)
 app.use('/', apiRouter);              // Configuration pages (/configure, /configure-old)
 app.use('/', addonRouter);            // Addon routes (manifest, catalog, meta)
@@ -58,6 +71,22 @@ app.listen(PORT, async () => {
   logger.info(`🚀 Stremio Ratings Wrapper running on port ${PORT}`);
   logger.info(`📝 Configuration helper: http://localhost:${PORT}/configure`);
   logger.info(`💚 Health check: http://localhost:${PORT}/health`);
+  logger.info(`📊 Metrics endpoint: http://localhost:${PORT}/metrics`);
+  logger.info(`🏥 Health check (detailed): http://localhost:${PORT}/healthz`);
+  logger.info(`🔥 Hot keys tracking: http://localhost:${PORT}/admin/hotkeys`);
+
+  // Initialize Redis client if enabled
+  if (config.redis.enabled) {
+    try {
+      initRedisClient();
+      logger.info(`🗄️  Redis caching enabled (version: ${config.redis.cacheVersion})`);
+    } catch (error) {
+      logger.warn('Failed to initialize Redis client:', error.message);
+      logger.warn('Continuing without Redis caching (fail-open)');
+    }
+  } else {
+    logger.info('Redis caching is disabled');
+  }
 
   // Load Kitsu → IMDb mappings in background
   try {
