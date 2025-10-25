@@ -7,25 +7,57 @@ const crypto = require('crypto');
 const config = require('../config');
 
 /**
+ * Recursively sorts object keys to ensure deterministic JSON stringification
+ * This is critical for cache key generation - even identical configs with different
+ * key ordering must produce the same hash
+ * @param {*} obj - Object to sort (or primitive value)
+ * @returns {*} - Sorted object or original value
+ * @private
+ */
+function sortObjectKeys(obj) {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(sortObjectKeys);
+  }
+
+  const sorted = {};
+  const keys = Object.keys(obj).sort();
+
+  for (const key of keys) {
+    sorted[key] = sortObjectKeys(obj[key]);
+  }
+
+  return sorted;
+}
+
+/**
  * Generate a hash of the config object for cache key uniqueness
  * @param {Object} addonConfig - The addon configuration object
- * @returns {string} - SHA256 hash of the config (first 12 characters)
+ * @returns {string} - SHA256 hash of the config (first 16 characters)
  */
 function generateConfigHash(addonConfig) {
   if (!addonConfig) {
     return 'default';
   }
 
-  // Create a stable string representation of the config
-  // Sort keys to ensure consistent hashing
-  const configString = JSON.stringify(addonConfig, Object.keys(addonConfig).sort());
+  // Recursively sort all keys to ensure identical configs always produce the same hash
+  // This prevents cache collisions/misses due to key ordering differences
+  const sortedConfig = sortObjectKeys(addonConfig);
 
-  // Generate SHA256 hash and take first 12 characters for brevity
+  // Create a stable string representation
+  const configString = JSON.stringify(sortedConfig);
+
+  // Generate SHA256 hash and take first 16 characters (64 bits)
+  // Increased from 12 to 16 to reduce collision probability
+  // With 16 chars, collision probability is negligible until ~4 billion configs
   const hash = crypto
     .createHash('sha256')
     .update(configString)
     .digest('hex')
-    .substring(0, 12);
+    .substring(0, 16);
 
   return hash;
 }
