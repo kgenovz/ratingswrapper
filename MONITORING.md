@@ -250,15 +250,169 @@ ratings-wrapper/
 
 ---
 
-## 🎯 Next Steps
+## 📝 Structured Logging (Phase 6)
 
-After Phase 2, consider:
-- **Phase 3**: Hot keys tracking (`/admin/hotkeys`)
-- **Phase 4**: SWR visibility improvements
-- **Phase 5**: Alerting rules (low hit ratio, high latency, etc.)
-- **Phase 6**: Structured JSON logging
-- **Phase 7**: Admin UI for live metrics
+### Overview
+
+The application supports structured JSON logging with privacy-preserving request tracking and automatic log rotation.
+
+### Enable Structured Logging
+
+Add to your `.env` file or Railway environment variables:
+
+```bash
+# Enable JSON structured logging
+LOG_FORMAT=json
+
+# Optional: Enable file logging with rotation
+LOG_TO_FILE=true
+LOG_DIR=./logs
+MAX_LOG_SIZE_MB=100  # Default: 100MB
+```
+
+### Log Fields
+
+Each request is logged as a single-line JSON with complete context:
+
+```json
+{
+  "ts": "2025-10-25T02:30:45.123Z",
+  "level": "info",
+  "route": "catalog",
+  "method": "GET",
+  "cache": "hit",
+  "status": 200,
+  "latency_ms": 45,
+  "key_digest": "a1b2c3d4",
+  "type": "movie",
+  "catalogId": "top",
+  "page": "0",
+  "search_len": 0,
+  "user_scope": "_",
+  "ip": "127.0.0.1"
+}
+```
+
+### Privacy Features
+
+- **Cache keys hashed**: SHA1 → first 8 chars only (`key_digest`)
+- **User IDs masked**: Shows `user` or `_` (anonymous)
+- **No PII logged**: No auth tokens, passwords, or credentials
+- **Sanitized data**: User agents truncated to 50 chars
+
+### Log Rotation
+
+Logs automatically rotate based on:
+- **Daily files**: `ratings-wrapper-2025-10-25.log`
+- **Size-based**: When file exceeds `MAX_LOG_SIZE_MB` (default 100MB)
+- **Rotated files**: Timestamped automatically (e.g., `ratings-wrapper-2025-10-25-14-30-15.log`)
+
+### Log Aggregation
+
+JSON format is ready for:
+- **Elasticsearch + Kibana** (ELK stack)
+- **Grafana Loki** (works with existing Grafana setup)
+- **Splunk**
+- **Datadog**
+- **CloudWatch Logs Insights**
+
+Example queries:
+```javascript
+// Find all slow requests (>500ms)
+latency_ms > 500
+
+// Find all cache misses
+cache == "miss"
+
+// Find all catalog requests
+route == "catalog"
+
+// Correlate spike with specific key
+key_digest == "a1b2c3d4"
+```
 
 ---
 
-✅ **Result**: Real-time visibility into cache performance, latency, and system health!
+## 🚨 Alerting (Phase 5)
+
+### Overview
+
+Prometheus Alertmanager monitors metrics and sends notifications when issues are detected.
+
+### Alert Rules Configured
+
+9 actionable, low-noise alerts covering:
+
+**Cache Health:**
+- `LowCacheHitRatio` (warning): <50% hit ratio for 10m
+- `CriticalCacheHitRatio` (critical): <30% hit ratio for 10m
+- `HighStaleCacheServes` (warning): >40% stale serves for 15m
+
+**Performance:**
+- `HighLatency` (warning): p95 >500ms for 10m
+- `CriticalLatency` (critical): p95 >1s for 5m
+
+**Redis Health:**
+- `HighRedisMemory` (warning): >85% of 2GB for 10m
+- `HighRedisEvictions` (warning): >1000 evictions in 10m
+- `RedisDown` (critical): Redis not responding for 2m
+
+**Service Health:**
+- `HealthCheckFailing` (critical): Service down for 1m
+- `HighRateLimiting` (warning): >5 req/sec being rate limited
+
+### Access Alertmanager
+
+- **Alertmanager UI**: http://localhost:9093
+- **Webhook endpoint**: `POST /api/webhook/alerts`
+
+### View Active Alerts
+
+- **Prometheus Alerts**: http://localhost:9090/alerts
+- Shows: Inactive, Pending, Firing alerts with details
+
+### Configure Notifications
+
+Edit `monitoring/alertmanager.yml` to enable:
+
+**Slack:**
+```yaml
+slack_configs:
+  - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+    channel: '#alerts'
+```
+
+**Email:**
+```yaml
+email_configs:
+  - to: 'alerts@yourdomain.com'
+    from: 'prometheus@yourdomain.com'
+    smarthost: 'smtp.gmail.com:587'
+    auth_username: 'your-email@gmail.com'
+    auth_password: 'your-app-password'
+```
+
+**Webhook** (currently active):
+- Sends to `/api/webhook/alerts`
+- Logs alerts to console/files
+- Extensible for Slack, Discord, etc.
+
+---
+
+## 🎯 Next Steps
+
+Completed phases:
+- ✅ **Phase 1**: Metrics plumbing (MVP)
+- ✅ **Phase 2**: Prometheus + Grafana stack
+- ✅ **Phase 3**: Hot keys tracking (`/admin/hotkeys`)
+- ✅ **Phase 4**: SWR & expiry visibility
+- ✅ **Phase 5**: Alerting (Alertmanager)
+- ✅ **Phase 6**: Structured JSON logging
+
+Optional enhancements:
+- **Phase 7**: Admin UI for live metrics
+- **Phase 8**: Pre-release checks and load testing
+
+---
+
+✅ **Result**: Production-grade observability with metrics, alerts, and structured logging!
