@@ -144,7 +144,7 @@ async function catalogCacheMiddleware(req, res, next) {
     const cacheKey = cacheKeys.generateCatalogKey({
       addonConfig,
       type,
-      id,
+      catalogId: id,
       page: extra.skip || '',
       search: extra.search || '',
       genre: extra.genre || ''
