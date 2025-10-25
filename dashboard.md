@@ -183,12 +183,54 @@
 
 ---
 
-## Phase 6 — Logs that Help (Without PII)
-- [ ] Structured logs per request (JSON):
-  - [ ] `ts, route, cache, status, latency_ms, key_digest, type, catalogId, page, search_len, user_scope`
-  - [ ] **Mask** any tokens/user IDs; only log a short digest of keys (`sha1(key).slice(0,8)`)
-- [ ] Rotate logs (size/time-based)
+## Phase 6 — Logs that Help (Without PII) ✅ COMPLETED
+- [x] Structured logs per request (JSON):
+  - [x] `ts, route, cache, status, latency_ms, key_digest, type, catalogId, page, search_len, user_scope`
+  - [x] **Mask** any tokens/user IDs; only log a short digest of keys (`sha1(key).slice(0,8)`)
+- [x] Rotate logs (size/time-based)
 - **Acceptance:** A single log line is enough to correlate a spike with a key/cause.
+
+### Implementation Details
+- **Files Created**:
+  - `src/utils/requestLogger.js` - Structured request logging with privacy-preserving key digests
+- **Files Modified**:
+  - `src/utils/logger.js` - Enhanced with JSON format support and log rotation
+  - `src/index.js` - Integrated request logging middleware
+  - `.env.example` - Added logging configuration variables
+- **Features**:
+  - **Structured JSON Logging**: Enable with `LOG_FORMAT=json`
+    - Fields: `ts`, `route`, `method`, `cache`, `status`, `latency_ms`, `key_digest`, `type`, `catalogId`, `metaId`, `page`, `search_len`, `user_scope`, `ip`, `user_agent`
+    - Single-line JSON for easy parsing with log aggregation tools (ELK, Loki, etc.)
+  - **Privacy-Preserving**:
+    - Cache keys hashed with SHA1, only first 8 chars logged
+    - User IDs masked (shows `user` or `_` for anonymous)
+    - Sensitive values masked with `****` pattern
+    - No auth tokens or credentials in logs
+  - **Log Rotation**:
+    - Daily log files: `ratings-wrapper-YYYY-MM-DD.log`
+    - Size-based rotation: Rotates when file exceeds `MAX_LOG_SIZE_MB` (default 100MB)
+    - Rotated files timestamped: `ratings-wrapper-YYYY-MM-DD-HH-MM-SS.log`
+    - Optional file logging: Enable with `LOG_TO_FILE=true`
+  - **Request Logging Middleware**:
+    - Automatically logs all HTTP requests
+    - Captures latency, status code, cache hit/miss/stale
+    - Extracts route type (catalog/meta/manifest/api/admin)
+    - Reads `X-Ratings-Cache` header for cache status
+  - **Configuration**:
+    - `LOG_FORMAT`: `text` (default) or `json`
+    - `LOG_TO_FILE`: `false` (default) or `true`
+    - `LOG_DIR`: Directory for log files (default: `./logs`)
+    - `MAX_LOG_SIZE_MB`: Max file size before rotation (default: 100MB)
+- **Example JSON Log**:
+  ```json
+  {"ts":"2025-10-25T02:30:45.123Z","level":"info","route":"catalog","method":"GET","cache":"hit","status":200,"latency_ms":45,"key_digest":"a1b2c3d4","type":"movie","catalogId":"top","page":"0","search_len":0,"user_scope":"_","ip":"127.0.0.1"}
+  ```
+- **Benefits**:
+  - Single log line contains all context for troubleshooting
+  - Easy correlation between spikes and specific routes/keys
+  - Privacy-compliant (no PII or credentials)
+  - Rotation prevents disk space issues
+  - Works with standard log aggregation tools
 
 ---
 

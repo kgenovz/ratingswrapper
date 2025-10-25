@@ -6,6 +6,7 @@
 const express = require('express');
 const { spawn } = require('child_process');
 const logger = require('./utils/logger');
+const { requestLoggingMiddleware } = require('./utils/requestLogger');
 const kitsuMappingService = require('./services/kitsuMappingService');
 const config = require('./config');
 const corsMiddleware = require('./middleware/cors');
@@ -28,6 +29,11 @@ app.use(express.json());
 
 // Add CORS headers for all routes (required for Stremio to access the addon)
 app.use(corsMiddleware);
+
+// Add structured request logging (if enabled via LOG_FORMAT=json)
+if (process.env.LOG_FORMAT === 'json') {
+  app.use(requestLoggingMiddleware);
+}
 
 /**
  * Health check endpoint
