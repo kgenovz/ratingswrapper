@@ -51,7 +51,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
+        "w": 4,
         "x": 0,
         "y": 0
       },
@@ -76,6 +76,66 @@
         }
       ],
       "title": "Cache Hit Ratio (5m)",
+      "type": "gauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "orange",
+                "value": 0.3
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "id": 9,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "sum(rate(catalog_requests_total{cache=\"stale\"}[5m])) / sum(rate(catalog_requests_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "% Stale Serves (5m)",
       "type": "gauge"
     },
     {
@@ -122,8 +182,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 9,
-        "x": 6,
+        "w": 8,
+        "x": 8,
         "y": 0
       },
       "id": 2,
@@ -197,8 +257,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 9,
-        "x": 15,
+        "w": 8,
+        "x": 16,
         "y": 0
       },
       "id": 3,
@@ -231,11 +291,11 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "",
+            "axisLabel": "Requests/sec",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 100,
+            "drawStyle": "line",
+            "fillOpacity": 50,
             "gradientMode": "none",
             "hideFrom": {
               "tooltip": false,
@@ -243,13 +303,17 @@
               "legend": false
             },
             "lineInterpolation": "linear",
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -274,7 +338,7 @@
       "id": 4,
       "options": {
         "legend": {
-          "calcs": [],
+          "calcs": ["mean", "last"],
           "displayMode": "table",
           "placement": "right"
         },
@@ -290,17 +354,17 @@
           "refId": "A"
         },
         {
-          "expr": "sum(rate(catalog_requests_total{cache=\"miss\"}[5m])) by (route)",
-          "legendFormat": "Miss - {{route}}",
-          "refId": "B"
-        },
-        {
           "expr": "sum(rate(catalog_requests_total{cache=\"stale\"}[5m])) by (route)",
           "legendFormat": "Stale - {{route}}",
           "refId": "C"
+        },
+        {
+          "expr": "sum(rate(catalog_requests_total{cache=\"miss\"}[5m])) by (route)",
+          "legendFormat": "Miss - {{route}}",
+          "refId": "B"
         }
       ],
-      "title": "Cache Performance (Hit vs Miss vs Stale)",
+      "title": "Cache Performance: Hit vs Stale vs Miss (Stacked)",
       "type": "timeseries"
     },
     {
