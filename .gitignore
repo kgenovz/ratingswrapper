@@ -30,3 +30,6 @@ build/
 # Monitoring data (Prometheus & Grafana volumes)
 monitoring/prometheus-data/
 monitoring/grafana-data/
+
+# Cache version history
+.cache-version-history.json
