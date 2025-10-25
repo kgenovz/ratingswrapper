@@ -3,7 +3,38 @@
  * Real-time monitoring of cache performance, latency, and system health
  */
 
-function generateObservabilityHTML(wrapperUrl) {
+function generateObservabilityHTML(wrapperUrl, grafanaUrl = null) {
+  // Generate Grafana section HTML conditionally
+  const grafanaSection = grafanaUrl ? `
+          <!-- Grafana Link -->
+          <div class="table-card">
+            <div class="table-header">
+              <div class="table-title">Advanced Monitoring</div>
+            </div>
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 12px;">
+              For detailed time-series graphs, custom queries, and historical data analysis, access the Grafana dashboard.
+            </p>
+            <a href="${grafanaUrl}" target="_blank" class="btn">
+              <i class="fa-solid fa-chart-line"></i> Open Grafana Dashboard
+            </a>
+          </div>
+  ` : `
+          <!-- Grafana Not Configured -->
+          <div class="table-card" style="background: #f9fafb; border: 2px dashed #d1d5db;">
+            <div class="table-header">
+              <div class="table-title">Advanced Monitoring</div>
+            </div>
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 12px;">
+              <i class="fa-solid fa-info-circle"></i> Grafana is available for local development.
+              Set <code style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">GRAFANA_URL</code>
+              environment variable to enable the link in production.
+            </p>
+            <p style="color: #9ca3af; font-size: 12px; margin-top: 8px;">
+              For local development: <code style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">docker-compose -f docker-compose.monitoring.yml up -d</code>
+            </p>
+          </div>
+  `;
+
   return `
     <!DOCTYPE html>
     <html>
@@ -404,21 +435,7 @@ function generateObservabilityHTML(wrapperUrl) {
             </div>
           </div>
 
-          <!-- Grafana Link -->
-          <div class="table-card">
-            <div class="table-header">
-              <div class="table-title">Advanced Monitoring</div>
-            </div>
-            <p style="color: #6b7280; font-size: 14px; margin-bottom: 12px;">
-              For detailed time-series graphs, custom queries, and historical data analysis, access the Grafana dashboard.
-            </p>
-            <a href="http://localhost:3002" target="_blank" class="btn">
-              <i class="fa-solid fa-chart-line"></i> Open Grafana Dashboard
-            </a>
-            <p style="color: #9ca3af; font-size: 12px; margin-top: 8px;">
-              Default credentials: admin / admin (change on first login)
-            </p>
-          </div>
+          ${grafanaSection}
         </div>
 
         <script>

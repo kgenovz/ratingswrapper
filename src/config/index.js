@@ -58,6 +58,12 @@ const config = {
     level: process.env.LOG_LEVEL || 'info' // 'debug' | 'info' | 'warn' | 'error'
   },
 
+  // Admin panel configuration
+  admin: {
+    password: process.env.ADMIN_PASSWORD || null, // Set to enable basic auth protection
+    grafanaUrl: process.env.GRAFANA_URL || null   // Set to show Grafana link (e.g., https://grafana.yourdomain.com)
+  },
+
   // Redis configuration
   redis: {
     url: process.env.REDIS_URL || null,
@@ -100,6 +106,20 @@ const config = {
         burst: parseInt(process.env.RATE_LIMIT_SEARCH_AUTHENTICATED_BURST || '10', 10)
       }
     }
+  },
+
+  // Convenience accessors
+  get adminPassword() {
+    return this.admin.password;
+  },
+  get grafanaUrl() {
+    return this.admin.grafanaUrl;
+  },
+  get cacheVersion() {
+    return this.redis.cacheVersion;
+  },
+  set cacheVersion(value) {
+    this.redis.cacheVersion = value;
   }
 };
 

@@ -13,6 +13,10 @@ const { generateObservabilityHTML } = require('../views/observability');
 const metricsService = require('../services/metricsService');
 const fs = require('fs').promises;
 const path = require('path');
+const adminAuth = require('../middleware/adminAuth');
+
+// Apply authentication middleware to all admin routes
+router.use(adminAuth);
 
 /**
  * GET /admin/hotkeys
@@ -126,8 +130,9 @@ router.get('/admin/observability', (req, res) => {
     const protocol = req.protocol;
     const host = req.get('host');
     const wrapperUrl = `${protocol}://${host}`;
+    const grafanaUrl = config.grafanaUrl; // null if not configured
 
-    const html = generateObservabilityHTML(wrapperUrl);
+    const html = generateObservabilityHTML(wrapperUrl, grafanaUrl);
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
   } catch (error) {
