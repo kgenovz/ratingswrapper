@@ -9,7 +9,6 @@ const logger = require('../utils/logger');
 const stremioApi = require('../services/stremioApi');
 const { parseConfigFromPath } = require('../utils/configParser');
 const { generateConfigureHTML } = require('../views/configure');
-const { generateConfigureOldHTML } = require('../views/configure-old');
 const config = require('../config');
 
 const router = express.Router();
@@ -21,12 +20,6 @@ router.get('/configure', (req, res) => {
   const host = req.get('host') || `localhost:${config.port}`;
   const protocol = req.protocol;
   res.send(generateConfigureHTML(protocol, host));
-});
-
-router.get('/configure-old', (req, res) => {
-  const host = req.get('host') || `localhost:${config.port}`;
-  const protocol = req.protocol;
-  res.send(generateConfigureOldHTML(protocol, host));
 });
 
 /**

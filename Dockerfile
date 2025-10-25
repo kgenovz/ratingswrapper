@@ -17,6 +17,7 @@ RUN npm ci --only=production && \
     npm ci --only=production --prefix imdb-ratings-api
 
 COPY src ./src
+COPY public ./public
 COPY imdb-ratings-api ./imdb-ratings-api
 COPY README.md ./README.md
 
