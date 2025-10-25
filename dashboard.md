@@ -135,16 +135,51 @@
 
 ---
 
-## Phase 5 — Alerting (Actionable, Low-Noise)
-- [ ] Prometheus alert rules:
-  - [ ] **Low Hit Ratio**: hit ratio < 0.50 for 10m (warn), < 0.30 for 10m (crit)
-  - [ ] **Latency**: p95 > 0.5s for 10m (warn), > 1.0s for 5m (crit)
-  - [ ] **Redis Memory**: > 85% of `maxmemory` for 10m
-  - [ ] **Evictions**: `increase(redis_evictions_total[10m]) > 1000`
-  - [ ] **429s Spike**: `sum(rate(rate_limited_total[5m])) > 5`
-  - [ ] **Healthz Failing**: `/healthz` != 200 for 3 consecutive scrapes
-- [ ] Hook to your notifier (email/Slack/Webhook)
+## Phase 5 — Alerting (Actionable, Low-Noise) ✅ COMPLETED
+- [x] Prometheus alert rules:
+  - [x] **Low Hit Ratio**: hit ratio < 0.50 for 10m (warn), < 0.30 for 10m (crit)
+  - [x] **Latency**: p95 > 0.5s for 10m (warn), > 1.0s for 5m (crit)
+  - [x] **Redis Memory**: > 85% of `maxmemory` for 10m
+  - [x] **Evictions**: `increase(redis_evictions_total[10m]) > 1000`
+  - [x] **429s Spike**: `sum(rate(rate_limited_total[5m])) > 5`
+  - [x] **Healthz Failing**: `/healthz` != 200 for 3 consecutive scrapes
+- [x] Hook to your notifier (email/Slack/Webhook)
 - **Acceptance:** A synthetic spike (load test) triggers alerts appropriately.
+
+### Implementation Details
+- **Files Created**:
+  - `monitoring/alert-rules.yml` - Prometheus alert rules with 9 alerts
+  - `monitoring/alertmanager.yml` - Alertmanager configuration with webhook/email/Slack support
+  - `src/routes/webhook.js` - Webhook endpoint to receive alerts from Alertmanager
+- **Files Modified**:
+  - `monitoring/prometheus.yml` - Added alertmanager config and rule_files
+  - `docker-compose.monitoring.yml` - Added Alertmanager service
+  - `src/index.js` - Integrated webhook router
+- **Alert Rules**:
+  - **LowCacheHitRatio** (warning): <50% hit ratio for 10m
+  - **CriticalCacheHitRatio** (critical): <30% hit ratio for 10m
+  - **HighLatency** (warning): p95 >500ms for 10m
+  - **CriticalLatency** (critical): p95 >1s for 5m
+  - **HighRedisMemory** (warning): >85% of 2GB for 10m
+  - **HighRedisEvictions** (warning): >1000 evictions in 10m
+  - **HighRateLimiting** (warning): >5 req/sec being rate limited for 5m
+  - **HealthCheckFailing** (critical): Service down for 1m
+  - **RedisDown** (critical): Redis not responding for 2m
+  - **HighStaleCacheServes** (warning): >40% stale serves for 15m (SWR-specific)
+- **Features**:
+  - **Alertmanager**: Routes alerts based on severity (critical vs warning)
+  - **Notification Channels**:
+    - Webhook to `/api/webhook/alerts` (logs alerts, extensible for Slack/Discord)
+    - Email support (commented, ready to configure)
+    - Slack support (commented, ready to configure)
+  - **Alert Grouping**: Groups by alertname, severity, and component
+  - **Inhibition Rules**: Suppresses warning alerts when critical alerts for same component are firing
+  - **Repeat Intervals**: 1h for critical, 4h for warnings
+- **Benefits**:
+  - Proactive issue detection before users are impacted
+  - Actionable alerts with clear severity levels
+  - Low noise through grouping, inhibition, and sensible thresholds
+  - Extensible notification system (webhook can forward to any service)
 
 ---
 

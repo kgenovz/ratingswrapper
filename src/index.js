@@ -14,6 +14,7 @@ const apiRouter = require('./routes/api');
 const addonRouter = require('./routes/addon');
 const monitoringRouter = require('./routes/monitoring');
 const adminRouter = require('./routes/admin');
+const webhookRouter = require('./routes/webhook');
 const { initRedisClient } = require('./config/redis');
 
 // Create Express app
@@ -47,6 +48,7 @@ app.get('/', (req, res) => {
  */
 app.use('/', monitoringRouter);       // Monitoring routes (/metrics, /healthz)
 app.use('/', adminRouter);            // Admin routes (/admin/hotkeys, /admin/stats)
+app.use('/', webhookRouter);          // Webhook routes (/api/webhook/alerts)
 app.use('/ratings', ratingsRouter);   // Internal ratings API routes
 app.use('/api', apiRouter);           // API routes (auth, replace-addon, etc.)
 app.use('/', apiRouter);              // Configuration pages (/configure, /configure-old)

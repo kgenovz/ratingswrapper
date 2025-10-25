@@ -1,0 +1,132 @@
+groups:
+  - name: ratings_wrapper_alerts
+    interval: 30s
+    rules:
+      # Alert: Low Cache Hit Ratio
+      - alert: LowCacheHitRatio
+        expr: |
+          (
+            sum(rate(catalog_requests_total{cache="hit"}[5m]))
+            /
+            sum(rate(catalog_requests_total[5m]))
+          ) < 0.50
+        for: 10m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Cache hit ratio is low ({{ $value | humanizePercentage }})"
+          description: "Cache hit ratio has been below 50% for 10 minutes. Current value: {{ $value | humanizePercentage }}. This may indicate cache issues or cold cache."
+
+      - alert: CriticalCacheHitRatio
+        expr: |
+          (
+            sum(rate(catalog_requests_total{cache="hit"}[5m]))
+            /
+            sum(rate(catalog_requests_total[5m]))
+          ) < 0.30
+        for: 10m
+        labels:
+          severity: critical
+          component: cache
+        annotations:
+          summary: "Cache hit ratio is critically low ({{ $value | humanizePercentage }})"
+          description: "Cache hit ratio has been below 30% for 10 minutes. Current value: {{ $value | humanizePercentage }}. Cache may be down or heavily thrashing."
+
+      # Alert: High Latency
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(catalog_latency_seconds_bucket[5m])) by (le)
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "p95 latency is high ({{ $value | humanizeDuration }})"
+          description: "95th percentile latency has been above 500ms for 10 minutes. Current value: {{ $value | humanizeDuration }}. Users may experience slow responses."
+
+      - alert: CriticalLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(catalog_latency_seconds_bucket[5m])) by (le)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: critical
+          component: performance
+        annotations:
+          summary: "p95 latency is critically high ({{ $value | humanizeDuration }})"
+          description: "95th percentile latency has been above 1 second for 5 minutes. Current value: {{ $value | humanizeDuration }}. Service performance is severely degraded."
+
+      # Alert: High Redis Memory Usage
+      - alert: HighRedisMemory
+        expr: |
+          (redis_memory_bytes / (2 * 1024 * 1024 * 1024)) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: redis
+        annotations:
+          summary: "Redis memory usage is high ({{ $value | humanizePercentage }} of 2GB)"
+          description: "Redis is using more than 85% of allocated memory (2GB) for 10 minutes. Current: {{ $value | humanizePercentage }}. May start evicting soon."
+
+      # Alert: High Redis Evictions
+      - alert: HighRedisEvictions
+        expr: increase(redis_evictions_total[10m]) > 1000
+        for: 0m
+        labels:
+          severity: warning
+          component: redis
+        annotations:
+          summary: "High Redis eviction rate detected"
+          description: "Redis has evicted more than 1000 keys in the last 10 minutes ({{ $value }} evictions). Consider increasing Redis memory or adjusting TTLs."
+
+      # Alert: High Rate Limiting
+      - alert: HighRateLimiting
+        expr: sum(rate(rate_limited_total[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: rate_limiter
+        annotations:
+          summary: "High rate of 429 responses ({{ $value | humanize }}/sec)"
+          description: "Rate limiting is triggering frequently. Current rate: {{ $value | humanize }} requests/sec being blocked. May indicate abuse or need to adjust limits."
+
+      # Alert: Health Check Failing
+      - alert: HealthCheckFailing
+        expr: up{job="ratings-wrapper"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: service
+        annotations:
+          summary: "Service health check is failing"
+          description: "The ratings-wrapper service has been unreachable for 1 minute. Service may be down."
+
+      - alert: RedisDown
+        expr: redis_memory_bytes == 0 or absent(redis_memory_bytes)
+        for: 2m
+        labels:
+          severity: critical
+          component: redis
+        annotations:
+          summary: "Redis is not responding"
+          description: "Redis metrics are not being reported. Redis may be down or unreachable."
+
+      # Alert: High Stale Cache Serves (SWR-specific)
+      - alert: HighStaleCacheServes
+        expr: |
+          (
+            sum(rate(catalog_requests_total{cache="stale"}[5m]))
+            /
+            sum(rate(catalog_requests_total[5m]))
+          ) > 0.40
+        for: 15m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "High percentage of stale cache serves ({{ $value | humanizePercentage }})"
+          description: "More than 40% of requests are being served from stale cache for 15 minutes. Current: {{ $value | humanizePercentage }}. TTLs may be too short or refresh logic may be failing."
