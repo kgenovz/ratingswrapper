@@ -12,6 +12,7 @@ class KitsuMappingService {
   constructor() {
     this.kitsuMappings = new Map(); // kitsuId -> imdbId
     this.malMappings = new Map();   // malId -> imdbId
+    this.imdbToMal = new Map();     // imdbId -> malId
     this.kitsuToMal = new Map();    // kitsuId -> malId
     this.malToKitsu = new Map();    // malId -> kitsuId
     this.kitsuMeta = new Map();     // kitsuId -> { imdb_id, animePlanetId, type, thetvdb_id, themoviedb_id }
@@ -71,6 +72,12 @@ class KitsuMappingService {
           if (anime.mal_id) {
             this.malMappings.set(String(anime.mal_id), anime.imdb_id);
             this.malMappings.set(anime.mal_id, anime.imdb_id);
+            // Also build reverse lookup: IMDb -> MAL
+            const imdbKey = String(anime.imdb_id);
+            const malKey = String(anime.mal_id);
+            if (!this.imdbToMal.has(imdbKey)) {
+              this.imdbToMal.set(imdbKey, malKey);
+            }
             malCount++;
           }
 
@@ -262,6 +269,24 @@ class KitsuMappingService {
     }
 
     return imdbId || null;
+  }
+
+  /**
+   * Gets MAL ID for an IMDb ID
+   * @param {string} imdbId - IMDb ID (e.g., "tt0388629")
+   * @returns {string|null} MAL ID or null if not found
+   */
+  getMalIdFromImdb(imdbId) {
+    if (!this.loaded) {
+      logger.warn('Anime mappings not loaded yet');
+      return null;
+    }
+    if (!imdbId) return null;
+    const malId = this.imdbToMal.get(String(imdbId));
+    if (malId) {
+      logger.debug(`IMDb ID ${imdbId} → MAL ID ${malId}`);
+    }
+    return malId || null;
   }
 
   /**

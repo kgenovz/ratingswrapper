@@ -574,8 +574,16 @@ class MetadataEnhancerService {
           if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) &&
               (location === 'description' || location === 'both')) {
             const malSourceId = meta.id || contentId;
-            const malId = kitsuMappingService.extractMalId(malSourceId);
+            let malId = kitsuMappingService.extractMalId(malSourceId);
             logger.debug(`Extracting MAL ID for main meta from: ${malSourceId} -> ${malId}`);
+            // If not found via meta.id, try mapping from IMDb ID
+            if (!malId && imdbId) {
+              const mapped = kitsuMappingService.getMalIdFromImdb(imdbId);
+              if (mapped) {
+                logger.info(`Mapped IMDb → MAL for main meta: imdb=${imdbId} mal=${mapped}`);
+                malId = mapped;
+              }
+            }
             if (malId) {
               malData = await malService.getMalDataByMalId(malId);
               if (malData) {
