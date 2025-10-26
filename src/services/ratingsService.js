@@ -159,6 +159,8 @@ class RatingsService {
         const cached = await redisService.get(cacheKey);
         if (cached) {
           logger.debug(`IMDb rating cache HIT: ${imdbId}`);
+          // Track hot key usage for observability
+          redisService.trackHotKey(cacheKey);
           return cached;
         }
         logger.debug(`IMDb rating cache MISS: ${imdbId}`);
@@ -181,6 +183,8 @@ class RatingsService {
           const ttl = cacheKeys.getRawDataTTL();
           await redisService.set(cacheKey, ratingData, ttl);
           logger.debug(`Cached IMDb rating: ${imdbId} (TTL: ${ttl}s)`);
+          // Track hot key after write
+          redisService.trackHotKey(cacheKey);
         }
 
         return ratingData;
@@ -312,6 +316,8 @@ class RatingsService {
         const cached = await redisService.get(cacheKey);
         if (cached) {
           logger.debug(`MPAA rating cache HIT: ${imdbId}`);
+          // Track hot key usage for observability
+          redisService.trackHotKey(cacheKey);
           return cached;
         }
         logger.debug(`MPAA rating cache MISS: ${imdbId}`);
@@ -329,6 +335,8 @@ class RatingsService {
           const ttl = cacheKeys.getRawDataTTL();
           await redisService.set(cacheKey, mpaa, ttl);
           logger.debug(`Cached MPAA rating: ${imdbId} (TTL: ${ttl}s)`);
+          // Track hot key after write
+          redisService.trackHotKey(cacheKey);
         }
 
         return mpaa;

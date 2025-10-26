@@ -55,6 +55,8 @@ class MALService {
         const cached = await redisService.get(cacheKey);
         if (cached) {
           logger.debug(`MAL data cache HIT: ${normalizedMalId}`);
+          // Track hot key usage for observability
+          redisService.trackHotKey(cacheKey);
           return cached;
         }
         logger.debug(`MAL data cache MISS: ${normalizedMalId}`);
@@ -76,6 +78,8 @@ class MALService {
           const ttl = cacheKeys.getRawDataTTL();
           await redisService.set(cacheKey, response.data, ttl);
           logger.debug(`Cached MAL data: ${normalizedMalId} (TTL: ${ttl}s)`);
+          // Track hot key after write
+          redisService.trackHotKey(cacheKey);
         }
 
         return response.data;

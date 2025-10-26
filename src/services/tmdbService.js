@@ -263,6 +263,8 @@ class TMDBService {
         const cached = await redisService.get(cacheKey);
         if (cached) {
           logger.debug(`TMDB data cache HIT: ${imdbId} (region: ${region})`);
+          // Track hot key usage for observability
+          redisService.trackHotKey(cacheKey);
           return cached;
         }
         logger.debug(`TMDB data cache MISS: ${imdbId} (region: ${region})`);
@@ -285,6 +287,8 @@ class TMDBService {
           const ttl = cacheKeys.getRawDataTTL();
           await redisService.set(cacheKey, response.data, ttl);
           logger.debug(`Cached TMDB data: ${imdbId} (TTL: ${ttl}s, region: ${region})`);
+          // Track hot key after write
+          redisService.trackHotKey(cacheKey);
         }
 
         return response.data;

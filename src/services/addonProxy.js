@@ -121,6 +121,8 @@ class AddonProxyService {
         const cached = await redisService.get(cacheKey);
         if (cached) {
           logger.info(`Raw catalog cache HIT: ${cacheKey}`);
+          // Track hot key usage for observability
+          redisService.trackHotKey(cacheKey);
           return cached;
         }
 
@@ -172,6 +174,8 @@ class AddonProxyService {
         const ttl = cacheKeys.getCatalogTTL(id);
         await redisService.set(cacheKey, catalogResponse, ttl);
         logger.debug(`Cached raw catalog: ${cacheKey} (TTL: ${ttl}s)`);
+        // Track hot key after write
+        redisService.trackHotKey(cacheKey);
       }
 
       return catalogResponse;

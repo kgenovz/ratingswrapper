@@ -52,6 +52,8 @@ class OMDBService {
         const cached = await redisService.get(cacheKey);
         if (cached) {
           logger.debug(`OMDB data cache HIT: ${imdbId}`);
+          // Track hot key usage for observability
+          redisService.trackHotKey(cacheKey);
           return cached;
         }
         logger.debug(`OMDB data cache MISS: ${imdbId}`);
@@ -73,6 +75,8 @@ class OMDBService {
           const ttl = cacheKeys.getRawDataTTL();
           await redisService.set(cacheKey, response.data, ttl);
           logger.debug(`Cached OMDB data: ${imdbId} (TTL: ${ttl}s)`);
+          // Track hot key after write
+          redisService.trackHotKey(cacheKey);
         }
 
         return response.data;
