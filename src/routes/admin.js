@@ -111,6 +111,8 @@ router.get('/admin/stats', async (req, res) => {
     res.json({
       redis: 'available',
       memoryUsed: memoryMatch ? memoryMatch[1].trim() : 'unknown',
+      // Back-compat field for UI expecting `memory`
+      memory: memoryMatch ? memoryMatch[1].trim() : 'unknown',
       maxMemory: maxMemoryMatch ? maxMemoryMatch[1].trim() : 'unknown',
       maxMemoryBytes: maxMemoryBytesMatch ? parseInt(maxMemoryBytesMatch[1], 10) : null,
       evictionPolicy: policyMatch ? policyMatch[1].trim() : 'unknown',

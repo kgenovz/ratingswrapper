@@ -498,9 +498,14 @@ function generateObservabilityHTML(wrapperUrl, grafanaUrl = null) {
               if (!response.ok) throw new Error('Failed to fetch Redis stats');
               const data = await response.json();
 
-              // Update Redis memory
-              const memory = data.memory || 'N/A';
-              document.getElementById('redisMemory').innerHTML = memory;
+              // Update Redis memory (support newer fields)
+              const used = data.memoryUsed || data.memory || 'N/A';
+              const max = data.maxMemory || null;
+              const policy = data.evictionPolicy || null;
+              let memDisplay = used;
+              if (max && max !== 'unknown') memDisplay += ` / ${max}`;
+              if (policy && policy !== 'unknown') memDisplay += ` (${policy})`;
+              document.getElementById('redisMemory').innerHTML = memDisplay;
 
               // Update Redis keys
               const keys = data.keys !== undefined ? data.keys.toLocaleString() : 'N/A';
