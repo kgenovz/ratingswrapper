@@ -694,12 +694,12 @@ function encodeConfig(obj) {
 
 function getMetadataOrder() {
   var list = document.getElementById('metadataOrderList');
-  if (!list) return ['imdbRating','votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+  if (!list) return ['imdbRating','votes','mpaa','tmdb','malRating','malVotes','releaseDate','streamingServices','rottenTomatoes','metacritic'];
   var keys = [];
   list.querySelectorAll('li').forEach(function(li){
     var k = li.getAttribute('data-key'); if (k) keys.push(k);
   });
-  return keys.length ? keys : ['imdbRating','votes','mpaa','tmdb','releaseDate','rottenTomatoes','metacritic'];
+  return keys.length ? keys : ['imdbRating','votes','mpaa','tmdb','malRating','malVotes','releaseDate','streamingServices','rottenTomatoes','metacritic'];
 }
 
 function createOrderItem(key, label) {
@@ -752,9 +752,11 @@ function renderMetadataOrderList() {
     releaseDate: 'Release date',
     streamingServices: 'Streaming services',
     rottenTomatoes: 'Rotten Tomatoes',
-    metacritic: 'Metacritic'
+    metacritic: 'Metacritic',
+    malRating: 'MAL rating',
+    malVotes: 'MAL votes'
   };
-  var defaultOrder = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
+  var defaultOrder = ['imdbRating','votes','mpaa','tmdb','malRating','malVotes','releaseDate','streamingServices','rottenTomatoes','metacritic'];
   var selected = defaultOrder.filter(function(k){ return includes[k]; });
 
   // Keep existing order where possible
