@@ -1348,17 +1348,17 @@ async function fetchMalDataByMalId(malId) {
                 'X-MAL-CLIENT-ID': MAL_CLIENT_ID
             },
             params: {
-                fields: 'mean,num_list_users,title'
+                fields: 'mean,num_scoring_users,title'
             },
             timeout: MAL_TIMEOUT
         });
 
         const data = response.data;
 
-        // MAL API can use different field names for vote count
-        const voteCount = data.num_list_users || data.num_scoring_users || data.scored_by || null;
+        // Use num_scoring_users (people who actually rated it)
+        const voteCount = data.num_scoring_users || null;
 
-        if (!data || (!data.mean && !voteCount)) {
+        if (!data || !data.mean) {
             console.info(`[MAL] No rating data found for ${malId}`);
             return null;
         }
