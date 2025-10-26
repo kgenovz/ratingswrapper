@@ -110,6 +110,13 @@ class MetadataEnhancerService {
   async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null, malData = null) {
     if (!ratingData || !ratingData.rating) return description;
 
+    // Debug: Check what data we received
+    logger.debug(`_formatDescriptionRating called with: tmdbData=${!!tmdbData}, omdbData=${!!omdbData}, malData=${!!malData}`);
+    if (malData) {
+      logger.debug(`MAL data in formatting: ${JSON.stringify(malData)}`);
+      logger.debug(`Format config: includeMalRating=${formatConfig.includeMalRating}, includeMalVotes=${formatConfig.includeMalVotes}`);
+    }
+
     // Build rating template
     let template = formatConfig.template.replace('{rating}', ratingData.rating.toFixed(1));
 
@@ -169,6 +176,7 @@ class MetadataEnhancerService {
       partTexts.malRating = malRatingFormat === 'outof10'
         ? `${malData.malRating.toFixed(1)}/10 MAL`
         : `${malData.malRating.toFixed(1)} MAL`;
+      logger.debug(`Added MAL rating to partTexts: ${partTexts.malRating}`);
     }
 
     // MAL vote count
@@ -176,6 +184,7 @@ class MetadataEnhancerService {
       const malVoteFormat = formatConfig.malVoteFormat || 'short';
       const formattedVotes = this._formatVoteCount(malData.malVotes, malVoteFormat);
       partTexts.malVotes = `${formattedVotes} MAL votes`;
+      logger.debug(`Added MAL votes to partTexts: ${partTexts.malVotes}`);
     }
 
     // Streaming Services (TMDB) - limit to 3 results
