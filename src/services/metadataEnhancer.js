@@ -588,20 +588,13 @@ class MetadataEnhancerService {
             logger.debug(`MAL data not fetched: location=${location}, includeRating=${descriptionFormat.includeMalRating}, includeVotes=${descriptionFormat.includeMalVotes}`);
           }
 
-          // Build location string based on what's enabled for catalog items
-          let catalogLocation = 'title';
-          if (enableCatalogInTitle && enableCatalogInDescription) {
-            catalogLocation = 'both';
-          } else if (enableCatalogInDescription) {
-            catalogLocation = 'description';
-          }
-
           // Add rating to main title or description (or both)
-          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, tmdbData, omdbData, malData, catalogLocation);
+          // Use regular location setting (not catalog-specific flags) for main meta
+          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, tmdbData, omdbData, malData);
 
-          if (catalogLocation === 'description') {
+          if (location === 'description') {
             enhancedMeta.description = enhancedWithRating.description;
-          } else if (catalogLocation === 'both') {
+          } else if (location === 'both') {
             enhancedMeta.name = enhancedWithRating.name;
             enhancedMeta.description = enhancedWithRating.description;
           } else {
