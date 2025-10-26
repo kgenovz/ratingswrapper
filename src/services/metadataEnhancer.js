@@ -564,9 +564,19 @@ class MetadataEnhancerService {
           if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) &&
               (location === 'description' || location === 'both')) {
             const malId = kitsuMappingService.extractMalId(contentId);
+            logger.debug(`Extracting MAL ID from contentId: ${contentId} -> ${malId}`);
             if (malId) {
               malData = await malService.getMalDataByMalId(malId);
+              if (malData) {
+                logger.info(`✓ MAL data retrieved for main meta: ${malData.title} - ${malData.malRating}/10 (${malData.malVotes} votes)`);
+              } else {
+                logger.warn(`✗ MAL data fetch failed for MAL ID: ${malId}`);
+              }
+            } else {
+              logger.warn(`✗ No MAL ID found in contentId: ${contentId}. MAL ratings require addon IDs in format "mal:123" or "kitsu:123"`);
             }
+          } else if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes)) {
+            logger.debug(`MAL data not fetched: location=${location}, includeRating=${descriptionFormat.includeMalRating}, includeVotes=${descriptionFormat.includeMalVotes}`);
           }
 
           // Build location string based on what's enabled for catalog items
