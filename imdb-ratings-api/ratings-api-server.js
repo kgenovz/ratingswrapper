@@ -1348,14 +1348,17 @@ async function fetchMalDataByMalId(malId) {
                 'X-MAL-CLIENT-ID': MAL_CLIENT_ID
             },
             params: {
-                fields: 'mean,num_scoring_users,title'
+                fields: 'mean,num_list_users,title'
             },
             timeout: MAL_TIMEOUT
         });
 
         const data = response.data;
 
-        if (!data || (!data.mean && !data.num_scoring_users)) {
+        // MAL API can use different field names for vote count
+        const voteCount = data.num_list_users || data.num_scoring_users || data.scored_by || null;
+
+        if (!data || (!data.mean && !voteCount)) {
             console.info(`[MAL] No rating data found for ${malId}`);
             return null;
         }
@@ -1364,9 +1367,11 @@ async function fetchMalDataByMalId(malId) {
             malId,
             title: data.title || null,
             malRating: data.mean || null,
-            malVotes: data.num_scoring_users || null,
+            malVotes: voteCount,
             imdbId: null // Can be populated if we have a mapping
         };
+
+        console.info(`[MAL] Retrieved data for ${malId}: title="${data.title}", mean=${data.mean}, votes=${voteCount}`);
 
         // Store in database if we have any data
         if (malData.malRating || malData.malVotes) {
