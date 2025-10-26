@@ -431,7 +431,13 @@ class MetadataEnhancerService {
 
             // Extract MAL ID from various formats
             const id = meta.id || item.id;
-            return kitsuMappingService.extractMalId(id);
+            const malId = kitsuMappingService.extractMalId(id);
+
+            if (!malId && id) {
+              logger.debug(`No MAL ID found in: ${id} (title: ${meta.name || 'unknown'})`);
+            }
+
+            return malId;
           })
           .filter(id => id !== null);
 
@@ -439,8 +445,10 @@ class MetadataEnhancerService {
         const uniqueMalIds = [...new Set(malIds)];
 
         if (uniqueMalIds.length > 0) {
-          logger.info(`Batch fetching MAL data for ${uniqueMalIds.length} unique titles`);
+          logger.info(`Batch fetching MAL data for ${uniqueMalIds.length} unique titles: ${uniqueMalIds.join(', ')}`);
           malMap = await malService.getMalDataBatch(uniqueMalIds);
+        } else if (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) {
+          logger.warn(`MAL ratings enabled but no MAL IDs found in ${metas.length} catalog items. IDs should be in format "mal:123" or "mal-123"`);
         }
       }
 
