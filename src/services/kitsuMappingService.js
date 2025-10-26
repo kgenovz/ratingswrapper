@@ -12,6 +12,8 @@ class KitsuMappingService {
   constructor() {
     this.kitsuMappings = new Map(); // kitsuId -> imdbId
     this.malMappings = new Map();   // malId -> imdbId
+    this.kitsuToMal = new Map();    // kitsuId -> malId
+    this.malToKitsu = new Map();    // malId -> kitsuId
     this.kitsuMeta = new Map();     // kitsuId -> { imdb_id, animePlanetId, type, thetvdb_id, themoviedb_id }
     this.splitCourMappings = new Map(); // 'kitsu:ID' or 'mal:ID' -> { episode_offset, imdb_id, imdb_season, part }
     this.loaded = false;
@@ -43,9 +45,10 @@ class KitsuMappingService {
 
       const animeList = JSON.parse(data);
 
-      // Build mappings: kitsu_id -> imdb_id AND mal_id -> imdb_id
+      // Build mappings: kitsu_id -> imdb_id AND mal_id -> imdb_id AND kitsu_id <-> mal_id
       let kitsuCount = 0;
       let malCount = 0;
+      let crossMappingCount = 0;
       for (const anime of animeList) {
         if (anime.imdb_id) {
           // Map Kitsu IDs
@@ -70,11 +73,18 @@ class KitsuMappingService {
             this.malMappings.set(anime.mal_id, anime.imdb_id);
             malCount++;
           }
+
+          // Create cross-mapping between Kitsu and MAL
+          if (anime.kitsu_id && anime.mal_id) {
+            this.kitsuToMal.set(String(anime.kitsu_id), String(anime.mal_id));
+            this.malToKitsu.set(String(anime.mal_id), String(anime.kitsu_id));
+            crossMappingCount++;
+          }
         }
       }
 
       this.loaded = true;
-      logger.info(`Loaded ${kitsuCount} Kitsu and ${malCount} MAL → IMDb mappings (from ${animeList.length} total anime)`);
+      logger.info(`Loaded ${kitsuCount} Kitsu and ${malCount} MAL → IMDb mappings (${crossMappingCount} cross-mapped) from ${animeList.length} total anime`);
 
       // Load split-cour mappings from local JSON file
       this.loadSplitCourMappings();
@@ -277,17 +287,30 @@ class KitsuMappingService {
   }
 
   /**
-   * Extracts MAL ID from various ID formats
-   * @param {string} id - Content ID (e.g., "mal:40028", "mal-40028", "40028")
-   * @returns {string|null} MAL ID or null if not MAL format
+   * Extracts MAL ID from various ID formats, including Kitsu IDs
+   * @param {string} id - Content ID (e.g., "mal:40028", "kitsu:12345")
+   * @returns {string|null} MAL ID or null if not found
    */
   extractMalId(id) {
     if (!id) return null;
 
-    // Format: "mal:40028" or "mal-40028"
+    // Direct MAL ID format: "mal:40028" or "mal-40028"
     if (id.includes('mal')) {
       const match = id.match(/mal[:-](\d+)/);
       if (match) return match[1];
+    }
+
+    // Kitsu ID format: "kitsu:12345" or "kitsu-12345" - convert to MAL
+    if (id.includes('kitsu')) {
+      const match = id.match(/kitsu[:-](\d+)/);
+      if (match) {
+        const kitsuId = match[1];
+        const malId = this.kitsuToMal.get(kitsuId);
+        if (malId) {
+          logger.debug(`Mapped Kitsu ID ${kitsuId} to MAL ID ${malId}`);
+          return malId;
+        }
+      }
     }
 
     return null;

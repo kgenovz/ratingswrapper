@@ -8,6 +8,7 @@ const ratingsService = require('./ratingsService');
 const kitsuMappingService = require('./kitsuMappingService');
 const tmdbService = require('./tmdbService');
 const omdbService = require('./omdbService');
+const malService = require('./malService');
 
 /**
  * Format release date based on format preference
@@ -97,16 +98,24 @@ class MetadataEnhancerService {
    * Formats rating for description injection (with extended metadata support)
    * @param {string} description - Original description
    * @param {Object} ratingData - Rating data object {rating, votes}
-   * @param {Object} formatConfig - Format configuration {position, template, separator, includeVotes, includeMpaa, includeTmdbRating, includeReleaseDate, includeRottenTomatoes, includeMetacritic}
+   * @param {Object} formatConfig - Format configuration {position, template, separator, includeVotes, includeMpaa, includeTmdbRating, includeReleaseDate, includeRottenTomatoes, includeMetacritic, includeMalRating, includeMalVotes}
    * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
    * @param {string} mpaaRating - Pre-fetched MPAA rating (optional, to avoid individual lookups)
    * @param {Object} tmdbData - Pre-fetched TMDB data (optional)
    * @param {Object} omdbData - Pre-fetched OMDB data (optional)
+   * @param {Object} malData - Pre-fetched MAL data (optional)
    * @returns {Promise<string>} Enhanced description
    * @private
    */
-  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null) {
+  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null, malData = null) {
     if (!ratingData || !ratingData.rating) return description;
+
+    // Debug: Check what data we received
+    logger.debug(`_formatDescriptionRating called with: tmdbData=${!!tmdbData}, omdbData=${!!omdbData}, malData=${!!malData}`);
+    if (malData) {
+      logger.debug(`MAL data in formatting: ${JSON.stringify(malData)}`);
+      logger.debug(`Format config: includeMalRating=${formatConfig.includeMalRating}, includeMalVotes=${formatConfig.includeMalVotes}`);
+    }
 
     // Build rating template
     let template = formatConfig.template.replace('{rating}', ratingData.rating.toFixed(1));
@@ -161,6 +170,23 @@ class MetadataEnhancerService {
         : `${omdbData.metacritic} MC`;
     }
 
+    // MAL (MyAnimeList) rating
+    if (formatConfig.includeMalRating && malData && malData.malRating) {
+      const malRatingFormat = formatConfig.malRatingFormat || 'decimal';
+      partTexts.malRating = malRatingFormat === 'outof10'
+        ? `${malData.malRating.toFixed(1)}/10 MAL`
+        : `${malData.malRating.toFixed(1)} MAL`;
+      logger.debug(`Added MAL rating to partTexts: ${partTexts.malRating}`);
+    }
+
+    // MAL vote count
+    if (formatConfig.includeMalVotes && malData && malData.malVotes) {
+      const malVoteFormat = formatConfig.malVoteFormat || 'short';
+      const formattedVotes = this._formatVoteCount(malData.malVotes, malVoteFormat);
+      partTexts.malVotes = `${formattedVotes} MAL votes`;
+      logger.debug(`Added MAL votes to partTexts: ${partTexts.malVotes}`);
+    }
+
     // Streaming Services (TMDB) - limit to 3 results
     if (formatConfig.includeStreamingServices && tmdbData && tmdbData.streamingProviders && tmdbData.streamingProviders.length > 0) {
       const limitedProviders = tmdbData.streamingProviders.slice(0, 3);
@@ -168,7 +194,7 @@ class MetadataEnhancerService {
     }
 
     // Apply ordering if provided; otherwise keep default order
-    const allowedKeys = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
+    const allowedKeys = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic','malRating','malVotes'];
     const metadataParts = [];
     if (Array.isArray(formatConfig.metadataOrder)) {
       const order = formatConfig.metadataOrder;
@@ -204,11 +230,12 @@ class MetadataEnhancerService {
    * @param {string} mpaaRating - Pre-fetched MPAA rating (optional)
    * @param {Object} tmdbData - Pre-fetched TMDB data (optional)
    * @param {Object} omdbData - Pre-fetched OMDB data (optional)
+   * @param {Object} malData - Pre-fetched MAL data (optional)
    * @param {string} locationOverride - Override the config location (optional)
    * @returns {Promise<Object>} Enhanced meta object
    * @private
    */
-  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null, locationOverride = null) {
+  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null, malData = null, locationOverride = null) {
     if (!ratingData || !config) {
       return meta;
     }
@@ -236,7 +263,8 @@ class MetadataEnhancerService {
         imdbId,
         mpaaRating,
         tmdbData,
-        omdbData
+        omdbData,
+        malData
       );
     }
 
@@ -397,6 +425,42 @@ class MetadataEnhancerService {
         }
       }
 
+      // Batch fetch MAL data if enabled and using description location
+      let malMap = new Map();
+
+      if (config.enableRatings && descriptionFormat &&
+          (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) &&
+          (location === 'description' || location === 'both')) {
+
+        // Extract MAL IDs from metas
+        const malIds = metas
+          .map((meta, index) => {
+            const item = items.find(i => i.originalIndex === index);
+            if (!item || !ratingsMap.has(item.id)) return null;
+
+            // Extract MAL ID from various formats
+            const id = meta.id || item.id;
+            const malId = kitsuMappingService.extractMalId(id);
+
+            if (!malId && id) {
+              logger.debug(`No MAL ID found in: ${id} (title: ${meta.name || 'unknown'})`);
+            }
+
+            return malId;
+          })
+          .filter(id => id !== null);
+
+        // Remove duplicates
+        const uniqueMalIds = [...new Set(malIds)];
+
+        if (uniqueMalIds.length > 0) {
+          logger.info(`Batch fetching MAL data for ${uniqueMalIds.length} unique titles: ${uniqueMalIds.join(', ')}`);
+          malMap = await malService.getMalDataBatch(uniqueMalIds);
+        } else if (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) {
+          logger.warn(`MAL ratings enabled but no MAL IDs found in ${metas.length} catalog items. IDs should be in format "mal:123" or "mal-123"`);
+        }
+      }
+
       // Determine which locations should be used for catalog items
       let catalogLocation = 'title'; // default
       if (enableCatalogInTitle && enableCatalogInDescription) {
@@ -426,8 +490,13 @@ class MetadataEnhancerService {
         const tmdbData = imdbId ? tmdbMap.get(imdbId) : null;
         const omdbData = imdbId ? omdbMap.get(imdbId) : null;
 
+        // Get MAL ID and data (if pre-fetched)
+        const id = meta.id || item.id;
+        const malId = kitsuMappingService.extractMalId(id);
+        const malData = malId ? malMap.get(malId) : null;
+
         // Pass catalogLocation to override the config location for catalog items
-        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating, tmdbData, omdbData, catalogLocation);
+        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating, tmdbData, omdbData, malData, catalogLocation);
       }));
 
       const enhancedCount = enhancedMetas.filter((meta, idx) =>
@@ -499,20 +568,37 @@ class MetadataEnhancerService {
             omdbData = await omdbService.getOmdbDataByImdbId(imdbId);
           }
 
-          // Build location string based on what's enabled for catalog items
-          let catalogLocation = 'title';
-          if (enableCatalogInTitle && enableCatalogInDescription) {
-            catalogLocation = 'both';
-          } else if (enableCatalogInDescription) {
-            catalogLocation = 'description';
+          // Fetch MAL data if needed for description location
+          // Prefer extracting from original meta.id (mal:/kitsu:) rather than contentId which may be imdb_id
+          let malData = null;
+          if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) &&
+              (location === 'description' || location === 'both')) {
+            const malSourceId = meta.id || contentId;
+            const malId = kitsuMappingService.extractMalId(malSourceId);
+            logger.debug(`Extracting MAL ID for main meta from: ${malSourceId} -> ${malId}`);
+            if (malId) {
+              malData = await malService.getMalDataByMalId(malId);
+              if (malData) {
+                logger.info(`✓ MAL data retrieved for main meta: ${malData.title} - ${malData.malRating}/10 (${malData.malVotes} votes)`);
+              } else {
+                logger.warn(`✗ MAL data fetch failed for MAL ID: ${malId}`);
+              }
+            } else if (meta.id) {
+              logger.warn(`✗ No MAL ID found in meta.id: ${meta.id}. MAL ratings require addon IDs like "mal:123" or "kitsu:123"`);
+            } else {
+              logger.debug(`No MAL ID available (meta.id absent); contentId=${contentId}`);
+            }
+          } else if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes)) {
+            logger.debug(`MAL data not fetched: location=${location}, includeRating=${descriptionFormat.includeMalRating}, includeVotes=${descriptionFormat.includeMalVotes}`);
           }
 
           // Add rating to main title or description (or both)
-          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, tmdbData, omdbData, catalogLocation);
+          // Use regular location setting (not catalog-specific flags) for main meta
+          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, tmdbData, omdbData, malData);
 
-          if (catalogLocation === 'description') {
+          if (location === 'description') {
             enhancedMeta.description = enhancedWithRating.description;
-          } else if (catalogLocation === 'both') {
+          } else if (location === 'both') {
             enhancedMeta.name = enhancedWithRating.name;
             enhancedMeta.description = enhancedWithRating.description;
           } else {
@@ -836,12 +922,22 @@ class MetadataEnhancerService {
             episodeOmdbData = await omdbService.getOmdbDataByImdbId(mpaaLookupId);
           }
 
+          // Fetch MAL data if needed for description location
+          let episodeMalData = null;
+          if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) &&
+              (episodeLocation === 'description' || episodeLocation === 'both')) {
+            const malId = kitsuMappingService.extractMalId(video.id || lookupId);
+            if (malId) {
+              episodeMalData = await malService.getMalDataByMalId(malId);
+            }
+          }
+
           // Create a temporary meta-like object to use the enhancer
           // Different addons use different fields: Cinemeta uses 'name', others may use 'title'
           const episodeName = video.name || video.title;
           const episodeDescription = video.description || video.overview || '';
           const tempMeta = { name: episodeName, description: episodeDescription };
-          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId, null, episodeTmdbData, episodeOmdbData, episodeLocation);
+          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId, null, episodeTmdbData, episodeOmdbData, episodeMalData, episodeLocation);
 
           // Update the appropriate field(s) based on episodeLocation (not config.ratingLocation)
           if (episodeLocation === 'description') {

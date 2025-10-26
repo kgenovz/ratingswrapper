@@ -740,7 +740,9 @@ function renderMetadataOrderList() {
     releaseDate: document.getElementById('includeReleaseDate')?.checked || false,
     streamingServices: document.getElementById('includeStreamingServices')?.checked || false,
     rottenTomatoes: document.getElementById('includeRottenTomatoes')?.checked || false,
-    metacritic: document.getElementById('includeMetacritic')?.checked || false
+    metacritic: document.getElementById('includeMetacritic')?.checked || false,
+    malRating: document.getElementById('includeMalRating')?.checked || false,
+    malVotes: document.getElementById('includeMalVotes')?.checked || false
   };
   var labels = {
     imdbRating: 'IMDb rating',
@@ -822,6 +824,20 @@ function updateRatingPreview() {
     metacriticFormatSection.style.display = includeMetacritic ? 'block' : 'none';
   }
 
+  // Show/hide MAL rating format dropdown based on includeMalRating checkbox
+  var includeMalRating = document.getElementById('includeMalRating')?.checked || false;
+  var malRatingFormatSection = document.getElementById('malRatingFormatSection');
+  if (malRatingFormatSection) {
+    malRatingFormatSection.style.display = includeMalRating ? 'block' : 'none';
+  }
+
+  // Show/hide MAL votes format dropdown based on includeMalVotes checkbox
+  var includeMalVotes = document.getElementById('includeMalVotes')?.checked || false;
+  var malVoteFormatSection = document.getElementById('malVoteFormatSection');
+  if (malVoteFormatSection) {
+    malVoteFormatSection.style.display = includeMalVotes ? 'block' : 'none';
+  }
+
   // Show/hide streaming region dropdown based on includeStreamingServices checkbox
   var includeStreamingServices = document.getElementById('includeStreamingServices')?.checked || false;
   var streamingRegionSection = document.getElementById('streamingRegionSection');
@@ -864,9 +880,13 @@ function updateRatingPreview() {
     var includeStreamingServices = document.getElementById('includeStreamingServices')?.checked || false;
     var includeRottenTomatoes = document.getElementById('includeRottenTomatoes')?.checked || false;
     var includeMetacritic = document.getElementById('includeMetacritic')?.checked || false;
+    var includeMalRating = document.getElementById('includeMalRating')?.checked || false;
+    var includeMalVotes = document.getElementById('includeMalVotes')?.checked || false;
     var metaSep = document.getElementById('metadataSeparator')?.value || ' • ';
     var voteCountFormat = document.getElementById('voteCountFormat')?.value || 'short';
     var tmdbRatingFormat = document.getElementById('tmdbRatingFormat')?.value || 'decimal';
+    var malRatingFormat = document.getElementById('malRatingFormat')?.value || 'decimal';
+    var malVoteFormat = document.getElementById('malVoteFormat')?.value || 'short';
     var releaseDateFormat = document.getElementById('releaseDateFormat')?.value || 'year';
     var metacriticFormat = document.getElementById('metacriticFormat')?.value || 'score';
 
@@ -906,10 +926,18 @@ function updateRatingPreview() {
       var mcText = metacriticFormat === 'score' ? '68 MC' : '68/100 MC';
       partTexts.metacritic = mcText;
     }
+    if (includeMalRating) {
+      var malText = malRatingFormat === 'decimal' ? '8.5 MAL' : '8.5/10 MAL';
+      partTexts.malRating = malText;
+    }
+    if (includeMalVotes) {
+      var malVotesText = malVoteFormat === 'short' ? '1.2M MAL votes' : '1,200,000 MAL votes';
+      partTexts.malVotes = malVotesText;
+    }
 
     // Build final metadata array in the specified order
     var metadataParts = [];
-    var allowed = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic'];
+    var allowed = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic','malRating','malVotes'];
     order.forEach(function(k){ if (allowed.indexOf(k) !== -1 && partTexts[k]) metadataParts.push(partTexts[k]); });
     // Append any parts not in the order list
     allowed.forEach(function(k){ if (order.indexOf(k) === -1 && partTexts[k]) metadataParts.push(partTexts[k]); });
@@ -975,6 +1003,10 @@ async function generateAll() {
   const includeRottenTomatoes = document.getElementById('includeRottenTomatoes')?.checked || false;
   const includeMetacritic = document.getElementById('includeMetacritic')?.checked || false;
   const metacriticFormat = document.getElementById('metacriticFormat')?.value || 'score';
+  const includeMalRating = document.getElementById('includeMalRating')?.checked || false;
+  const includeMalVotes = document.getElementById('includeMalVotes')?.checked || false;
+  const malRatingFormat = document.getElementById('malRatingFormat')?.value || 'decimal';
+  const malVoteFormat = document.getElementById('malVoteFormat')?.value || 'short';
   const metadataOrder = getMetadataOrder();
 
   // Global enable toggles removed; per-location settings control behavior
@@ -1011,6 +1043,11 @@ async function generateAll() {
         streamingRegion: streamingRegion,
         includeRottenTomatoes: includeRottenTomatoes,
         includeMetacritic: includeMetacritic,
+        metacriticFormat: metacriticFormat,
+        includeMalRating: includeMalRating,
+        includeMalVotes: includeMalVotes,
+        malRatingFormat: malRatingFormat,
+        malVoteFormat: malVoteFormat,
         metadataSeparator: metadataSeparator,
         voteCountFormat: voteCountFormat,
         tmdbRatingFormat: tmdbRatingFormat,
@@ -1056,6 +1093,11 @@ async function generateAll() {
   var streamingRegion = document.getElementById('streamingRegion');
   var includeRottenTomatoes = document.getElementById('includeRottenTomatoes');
   var includeMetacritic = document.getElementById('includeMetacritic');
+  var metacriticFormat = document.getElementById('metacriticFormat');
+  var includeMalRating = document.getElementById('includeMalRating');
+  var includeMalVotes = document.getElementById('includeMalVotes');
+  var malRatingFormat = document.getElementById('malRatingFormat');
+  var malVoteFormat = document.getElementById('malVoteFormat');
   var metaSep = document.getElementById('metadataSeparator');
   var voteCountFormat = document.getElementById('voteCountFormat');
   var tmdbRatingFormat = document.getElementById('tmdbRatingFormat');
@@ -1081,6 +1123,11 @@ async function generateAll() {
   if (streamingRegion) streamingRegion.addEventListener('change', updateRatingPreview);
   if (includeRottenTomatoes) includeRottenTomatoes.addEventListener('change', updateRatingPreview);
   if (includeMetacritic) includeMetacritic.addEventListener('change', updateRatingPreview);
+  if (metacriticFormat) metacriticFormat.addEventListener('change', updateRatingPreview);
+  if (includeMalRating) includeMalRating.addEventListener('change', updateRatingPreview);
+  if (includeMalVotes) includeMalVotes.addEventListener('change', updateRatingPreview);
+  if (malRatingFormat) malRatingFormat.addEventListener('change', updateRatingPreview);
+  if (malVoteFormat) malVoteFormat.addEventListener('change', updateRatingPreview);
   if (metaSep) metaSep.addEventListener('change', updateRatingPreview);
   if (voteCountFormat) voteCountFormat.addEventListener('change', updateRatingPreview);
   if (tmdbRatingFormat) tmdbRatingFormat.addEventListener('change', updateRatingPreview);

@@ -20,6 +20,11 @@ const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
 const OMDB_BASE_URL = 'http://www.omdbapi.com';
 const OMDB_TIMEOUT = 10000; // 10 seconds
 
+// MAL API configuration
+const MAL_CLIENT_ID = process.env.MAL_CLIENT_ID || null;
+const MAL_BASE_URL = 'https://api.myanimelist.net/v2';
+const MAL_TIMEOUT = 10000; // 10 seconds
+
 // Parse cron schedule from environment variable, default to 2 AM daily
 const UPDATE_CRON_SCHEDULE = process.env.UPDATE_CRON_SCHEDULE || '0 2 * * *';
 
@@ -139,6 +144,17 @@ function initDatabase() {
             ratings_cached_at INTEGER
         ) WITHOUT ROWID`);
 
+        // Table for MAL (MyAnimeList) ratings cache
+        db.exec(`CREATE TABLE IF NOT EXISTS mal_metadata (
+            mal_id TEXT PRIMARY KEY,
+            title TEXT,
+            mal_rating REAL,
+            mal_votes INTEGER,
+            updated_at INTEGER NOT NULL,
+            ratings_cached_at INTEGER,
+            imdb_id TEXT
+        ) WITHOUT ROWID`);
+
         // Optimized indexes
         db.exec(`CREATE INDEX IF NOT EXISTS idx_episodes_lookup ON episodes(series_id, season, episode)`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_episodes_id ON episodes(episode_id)`);
@@ -149,6 +165,8 @@ function initDatabase() {
         db.exec(`CREATE INDEX IF NOT EXISTS idx_tmdb_metadata_imdb ON tmdb_metadata(imdb_id)`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_tmdb_metadata_title ON tmdb_metadata(title)`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_mpaa_ratings_updated ON mpaa_ratings(updated_at)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_mal_metadata_mal_id ON mal_metadata(mal_id)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_mal_metadata_imdb_id ON mal_metadata(imdb_id)`);
 
         console.log('✅ Database tables and indexes created');
 
@@ -257,7 +275,43 @@ function runMigrations() {
             db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(2, Date.now());
         }
 
-        console.log(`✅ Database schema version: ${Math.max(version, 2)}`);
+        // Migration 3: Add MAL metadata table
+        if (version < 3) {
+            console.log('Running migration 3: Creating MAL metadata table...');
+
+            // Check if mal_metadata table exists
+            const tableExists = db.prepare(`
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='mal_metadata'
+            `).get();
+
+            if (!tableExists) {
+                console.log('  Creating mal_metadata table...');
+
+                db.exec(`CREATE TABLE mal_metadata (
+                    mal_id TEXT PRIMARY KEY,
+                    title TEXT,
+                    mal_rating REAL,
+                    mal_votes INTEGER,
+                    updated_at INTEGER NOT NULL,
+                    ratings_cached_at INTEGER,
+                    imdb_id TEXT
+                ) WITHOUT ROWID`);
+
+                // Create indexes
+                db.exec('CREATE INDEX IF NOT EXISTS idx_mal_metadata_mal_id ON mal_metadata(mal_id)');
+                db.exec('CREATE INDEX IF NOT EXISTS idx_mal_metadata_imdb_id ON mal_metadata(imdb_id)');
+
+                console.log('  Migration 3 completed successfully');
+            } else {
+                console.log('  mal_metadata table already exists, skipping...');
+            }
+
+            // Mark migration as applied
+            db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(3, Date.now());
+        }
+
+        console.log(`✅ Database schema version: ${Math.max(version, 3)}`);
     } catch (err) {
         console.error('Migration error:', err);
         // Don't fail startup on migration errors
@@ -1272,6 +1326,221 @@ app.post('/api/tmdb-data', (req, res) => {
     } catch (error) {
         console.error('TMDB data write error:', error);
         res.status(500).json({ error: 'TMDB data write failed' });
+    }
+});
+
+// *** MAL (MyAnimeList) HELPER FUNCTIONS ***
+
+/**
+ * Fetch MAL data (rating, votes) by MAL ID
+ * @param {string} malId - MAL ID (e.g., "40028")
+ * @returns {Promise<Object|null>} - MAL data object or null
+ */
+async function fetchMalDataByMalId(malId) {
+    if (!MAL_CLIENT_ID) {
+        return null;
+    }
+
+    try {
+        const url = `${MAL_BASE_URL}/anime/${malId}`;
+        const response = await axios.get(url, {
+            headers: {
+                'X-MAL-CLIENT-ID': MAL_CLIENT_ID
+            },
+            params: {
+                fields: 'mean,num_scoring_users,title'
+            },
+            timeout: MAL_TIMEOUT
+        });
+
+        const data = response.data;
+
+        // Use num_scoring_users (people who actually rated it)
+        const voteCount = data.num_scoring_users || null;
+
+        if (!data || !data.mean) {
+            console.info(`[MAL] No rating data found for ${malId}`);
+            return null;
+        }
+
+        const malData = {
+            malId,
+            title: data.title || null,
+            malRating: data.mean || null,
+            malVotes: voteCount,
+            imdbId: null // Can be populated if we have a mapping
+        };
+
+        console.info(`[MAL] Retrieved data for ${malId}: title="${data.title}", mean=${data.mean}, votes=${voteCount}`);
+
+        // Store in database if we have any data
+        if (malData.malRating || malData.malVotes) {
+            try {
+                const now = Date.now();
+                const stmt = db.prepare(`
+                    INSERT OR REPLACE INTO mal_metadata
+                    (mal_id, title, mal_rating, mal_votes, updated_at, ratings_cached_at, imdb_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `);
+
+                stmt.run(
+                    malId,
+                    malData.title,
+                    malData.malRating,
+                    malData.malVotes,
+                    now,
+                    now,
+                    malData.imdbId
+                );
+
+                console.info(`[MAL] Stored MAL data for ${malId}: ${malData.title} - Rating=${malData.malRating}, Votes=${malData.malVotes}`);
+            } catch (dbError) {
+                console.error(`[MAL] Error storing MAL data: ${dbError.message}`);
+            }
+        }
+
+        return malData;
+
+    } catch (error) {
+        if (error.response?.status === 429) {
+            console.warn(`[MAL] Rate limit hit for ${malId}`);
+        } else if (error.response?.status === 401) {
+            console.error(`[MAL] Invalid API Client ID`);
+        } else if (error.response?.status === 404) {
+            console.info(`[MAL] Anime not found: ${malId}`);
+        } else {
+            console.warn(`[MAL] Error fetching ${malId}: ${error.message}`);
+        }
+        return null;
+    }
+}
+
+// *** MAL DATA API ENDPOINTS ***
+
+// GET /api/mal-data/:malId - Get MAL data (rating, votes) with caching
+app.get('/api/mal-data/:malId', async (req, res) => {
+    try {
+        const { malId } = req.params;
+        console.info(`[MAL-DATA] Request for: ${malId}`);
+
+        if (!malId || !/^\d+$/.test(malId)) {
+            return res.status(400).json({ error: 'Invalid MAL ID. Must be a numeric ID' });
+        }
+
+        // Step 1: Check database first
+        const result = db.prepare(`
+            SELECT mal_id, title, mal_rating, mal_votes, updated_at, ratings_cached_at, imdb_id
+            FROM mal_metadata WHERE mal_id = ?
+        `).get(malId);
+
+        if (result) {
+            const now = Date.now();
+            const oneWeek = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
+
+            // Check if ratings need refresh (older than 1 week)
+            const ratingsNeedRefresh = result.ratings_cached_at && (now - result.ratings_cached_at) > oneWeek;
+
+            if (!ratingsNeedRefresh) {
+                console.info(`[MAL-DATA] Found in database (cached): ${result.title} - Rating=${result.mal_rating}, Votes=${result.mal_votes}`);
+                return res.json({
+                    malId: result.mal_id,
+                    title: result.title,
+                    malRating: result.mal_rating,
+                    malVotes: result.mal_votes,
+                    imdbId: result.imdb_id,
+                    updatedAt: new Date(result.updated_at).toISOString(),
+                    ratingsCachedAt: result.ratings_cached_at ? new Date(result.ratings_cached_at).toISOString() : null,
+                    source: 'database',
+                    cached: true
+                });
+            } else {
+                console.info(`[MAL-DATA] Ratings stale for ${malId}, will refetch from MAL`);
+            }
+        }
+
+        // Step 2: Not in database or ratings are stale, fetch from MAL
+        if (!MAL_CLIENT_ID) {
+            console.warn('[MAL-DATA] MAL_CLIENT_ID not configured');
+            return res.status(503).json({ error: 'MAL API not configured' });
+        }
+
+        console.info(`[MAL-DATA] Fetching from MAL API: ${malId}`);
+        const malData = await fetchMalDataByMalId(malId);
+
+        if (malData && (malData.malRating || malData.malVotes)) {
+            console.info(`[MAL-DATA] Fetched from MAL: ${malData.title} - Rating=${malData.malRating}, Votes=${malData.malVotes}`);
+            return res.json({
+                ...malData,
+                source: 'mal',
+                cached: false
+            });
+        }
+
+        // Step 3: Not found anywhere — write negative cache entry to avoid repeated fetches
+        try {
+            const now = Date.now();
+            const stmt = db.prepare(`
+                INSERT OR REPLACE INTO mal_metadata
+                (mal_id, title, mal_rating, mal_votes, updated_at, ratings_cached_at, imdb_id)
+                VALUES (?, NULL, NULL, NULL, ?, ?, NULL)
+            `);
+            stmt.run(malId, now, now);
+            console.info(`[MAL-DATA] Negative cache stored for ${malId} (no MAL data)`);
+        } catch (dbErr) {
+            console.warn(`[MAL-DATA] Failed to store negative cache for ${malId}: ${dbErr.message}`);
+        }
+
+        console.info(`[MAL-DATA] Not found in database or MAL: ${malId}`);
+        return res.status(404).json({ error: 'MAL data not found' });
+
+    } catch (error) {
+        console.error(`[MAL-DATA] Error processing ${req.params.malId}:`, error);
+        res.status(500).json({ error: 'MAL data fetch failed' });
+    }
+});
+
+// POST /api/mal-data - Store MAL data
+app.post('/api/mal-data', (req, res) => {
+    try {
+        const {
+            malId, title, malRating, malVotes, imdbId
+        } = req.body;
+
+        if (!malId) {
+            return res.status(400).json({ error: 'Missing malId' });
+        }
+
+        const now = Date.now();
+
+        const stmt = db.prepare(`
+            INSERT OR REPLACE INTO mal_metadata
+            (mal_id, title, mal_rating, mal_votes, updated_at, ratings_cached_at, imdb_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        stmt.run(
+            malId,
+            title || null,
+            malRating || null,
+            malVotes || null,
+            now,
+            now,
+            imdbId || null
+        );
+
+        console.info(`[MAL-DATA] Stored: MAL ID ${malId} - ${title} (Rating: ${malRating}, Votes: ${malVotes})`);
+
+        res.json({
+            message: 'MAL data stored successfully',
+            malId,
+            title,
+            malRating,
+            malVotes,
+            imdbId
+        });
+    } catch (error) {
+        console.error('[MAL-DATA] Error storing MAL data:', error);
+        res.status(500).json({ error: 'Failed to store MAL data' });
     }
 });
 
