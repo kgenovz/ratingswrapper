@@ -503,8 +503,8 @@ function generateObservabilityHTML(wrapperUrl, grafanaUrl = null) {
               const max = data.maxMemory || null;
               const policy = data.evictionPolicy || null;
               let memDisplay = used;
-              if (max && max !== 'unknown') memDisplay += ` / ${max}`;
-              if (policy && policy !== 'unknown') memDisplay += ` (${policy})`;
+              if (max && max !== 'unknown') memDisplay += ' / ' + max;
+              if (policy && policy !== 'unknown') memDisplay += ' (' + policy + ')';
               document.getElementById('redisMemory').innerHTML = memDisplay;
 
               // Update Redis keys
