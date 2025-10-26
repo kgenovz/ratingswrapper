@@ -6,6 +6,8 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
 const config = require('../config');
+const redisService = require('./redisService');
+const cacheKeys = require('../utils/cacheKeys');
 
 class MALService {
   constructor() {
@@ -46,6 +48,20 @@ class MALService {
       // Normalize MAL ID to string
       const normalizedMalId = String(malId);
 
+      // Check Redis cache if enabled
+      const cacheEnabled = config.redis.enabled && config.redis.enableRawDataCache;
+      if (cacheEnabled) {
+        const cacheKey = cacheKeys.generateMalDataKey(normalizedMalId);
+        const cached = await redisService.get(cacheKey);
+        if (cached) {
+          logger.debug(`MAL data cache HIT: ${normalizedMalId}`);
+          // Track hot key usage for observability
+          redisService.trackHotKey(cacheKey);
+          return cached;
+        }
+        logger.debug(`MAL data cache MISS: ${normalizedMalId}`);
+      }
+
       // Check ratings-api database endpoint (has built-in caching logic)
       const ratingsApiUrl = config.ratingsApiUrl || 'http://localhost:3001';
       const response = await axios.get(`${ratingsApiUrl}/api/mal-data/${normalizedMalId}`, {
@@ -55,6 +71,17 @@ class MALService {
 
       if (response.status === 200 && response.data) {
         logger.debug(`MAL data retrieved for ${normalizedMalId}: ${response.data.title || 'Unknown'} - Rating: ${response.data.malRating || 'N/A'}, Votes: ${response.data.malVotes || 'N/A'}`);
+
+        // Cache the successful result
+        if (cacheEnabled) {
+          const cacheKey = cacheKeys.generateMalDataKey(normalizedMalId);
+          const ttl = cacheKeys.getRawDataTTL();
+          await redisService.set(cacheKey, response.data, ttl);
+          logger.debug(`Cached MAL data: ${normalizedMalId} (TTL: ${ttl}s)`);
+          // Track hot key after write
+          redisService.trackHotKey(cacheKey);
+        }
+
         return response.data;
       }
 

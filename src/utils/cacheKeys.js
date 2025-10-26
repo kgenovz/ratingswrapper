@@ -219,13 +219,143 @@ function getManifestTTL() {
   return config.redis.ttl.manifest;
 }
 
+/**
+ * Generate cache key for raw catalog (format-agnostic)
+ * This key is based only on the addon URL and catalog parameters,
+ * NOT on format settings, so it can be shared across different format configs
+ *
+ * Format: v{CACHE_VERSION}:raw:catalog:{baseUrl}:{type}:{catalogId}:{page?}:{search?}:{genre?}
+ *
+ * @param {Object} params - Cache key parameters
+ * @param {string} params.addonUrl - Base URL of the wrapped addon
+ * @param {string} params.type - Content type (movie, series, etc.)
+ * @param {string} params.catalogId - Catalog ID (top, popular, etc.)
+ * @param {string} [params.page] - Page number for pagination
+ * @param {string} [params.search] - Search query
+ * @param {string} [params.genre] - Genre filter
+ * @returns {string} - Cache key
+ */
+function generateRawCatalogKey(params) {
+  const {
+    addonUrl,
+    type,
+    catalogId,
+    page = '',
+    search = '',
+    genre = ''
+  } = params;
+
+  const version = config.redis.cacheVersion;
+
+  // Create hash of addon URL for more compact keys
+  const urlHash = crypto
+    .createHash('sha256')
+    .update(addonUrl)
+    .digest('hex')
+    .substring(0, 12);
+
+  // Build key parts, filtering out empty values
+  const parts = [
+    `v${version}`,
+    'raw',
+    'catalog',
+    urlHash,
+    type,
+    catalogId,
+    page,
+    search,
+    genre
+  ];
+
+  // Join parts, removing empty trailing parts
+  return parts.filter(part => part !== '').join(':');
+}
+
+/**
+ * Generate cache key for IMDb rating data
+ * Format: v{CACHE_VERSION}:rating:imdb:{imdbId}
+ *
+ * @param {string} imdbId - IMDb ID (e.g., "tt1234567")
+ * @returns {string} - Cache key
+ */
+function generateImdbRatingKey(imdbId) {
+  const version = config.redis.cacheVersion;
+  return `v${version}:rating:imdb:${imdbId}`;
+}
+
+/**
+ * Generate cache key for MPAA rating data
+ * Format: v{CACHE_VERSION}:rating:mpaa:{imdbId}
+ *
+ * @param {string} imdbId - IMDb ID (e.g., "tt1234567")
+ * @returns {string} - Cache key
+ */
+function generateMpaaRatingKey(imdbId) {
+  const version = config.redis.cacheVersion;
+  return `v${version}:rating:mpaa:${imdbId}`;
+}
+
+/**
+ * Generate cache key for TMDB data
+ * Format: v{CACHE_VERSION}:data:tmdb:{imdbId}:{region}
+ *
+ * @param {string} imdbId - IMDb ID (e.g., "tt1234567")
+ * @param {string} [region] - Region code for streaming services (default: 'US')
+ * @returns {string} - Cache key
+ */
+function generateTmdbDataKey(imdbId, region = 'US') {
+  const version = config.redis.cacheVersion;
+  return `v${version}:data:tmdb:${imdbId}:${region}`;
+}
+
+/**
+ * Generate cache key for OMDB data
+ * Format: v{CACHE_VERSION}:data:omdb:{imdbId}
+ *
+ * @param {string} imdbId - IMDb ID (e.g., "tt1234567")
+ * @returns {string} - Cache key
+ */
+function generateOmdbDataKey(imdbId) {
+  const version = config.redis.cacheVersion;
+  return `v${version}:data:omdb:${imdbId}`;
+}
+
+/**
+ * Generate cache key for MAL (MyAnimeList) data
+ * Format: v{CACHE_VERSION}:data:mal:{malId}
+ *
+ * @param {string|number} malId - MyAnimeList ID
+ * @returns {string} - Cache key
+ */
+function generateMalDataKey(malId) {
+  const version = config.redis.cacheVersion;
+  return `v${version}:data:mal:${malId}`;
+}
+
+/**
+ * Get TTL for raw data caches (individual ratings and metadata)
+ * These are format-agnostic and can be cached longer
+ * @returns {number} - TTL in seconds (24 hours)
+ */
+function getRawDataTTL() {
+  // Raw data TTL: 24 hours (can be cached longer since format-agnostic)
+  return config.redis.ttl.rawData || 86400;
+}
+
 module.exports = {
   generateConfigHash,
   generateCatalogKey,
   generateMetaKey,
   generateManifestKey,
+  generateRawCatalogKey,
+  generateImdbRatingKey,
+  generateMpaaRatingKey,
+  generateTmdbDataKey,
+  generateOmdbDataKey,
+  generateMalDataKey,
   isUserSpecificAddon,
   getCatalogTTL,
   getMetaTTL,
-  getManifestTTL
+  getManifestTTL,
+  getRawDataTTL
 };

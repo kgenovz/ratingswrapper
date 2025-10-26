@@ -6,6 +6,9 @@
 const https = require('https');
 const http = require('http');
 const logger = require('../utils/logger');
+const redisService = require('./redisService');
+const cacheKeys = require('../utils/cacheKeys');
+const appConfig = require('../config');
 
 /**
  * Extracts IMDb ID from various ID formats
@@ -94,7 +97,7 @@ class RatingsService {
   }
 
   /**
-   * Fetches rating for a single content item
+   * Fetches rating for a single content item with Redis caching
    * @param {string} id - Content ID (IMDb ID or prefixed ID)
    * @param {string} type - Content type (movie, series, etc.)
    * @returns {Promise<Object|null>} Rating object {rating, votes} or null if not found
@@ -119,6 +122,7 @@ class RatingsService {
         if (parts.length === 3) {
           const [seriesId, season, episode] = parts;
 
+          // For episodes, we don't cache (too many unique IDs)
           // Use the episode endpoint to get the actual episode IMDb ID
           logger.debug(`Fetching episode rating: ${seriesId} S${season}E${episode}`);
           const response = await this._fetchFromApi(`/api/episode/${seriesId}/${season}/${episode}`);
@@ -148,6 +152,20 @@ class RatingsService {
         return null;
       }
 
+      // Check Redis cache if enabled
+      const cacheEnabled = appConfig.redis.enabled && appConfig.redis.enableRawDataCache;
+      if (cacheEnabled) {
+        const cacheKey = cacheKeys.generateImdbRatingKey(imdbId);
+        const cached = await redisService.get(cacheKey);
+        if (cached) {
+          logger.debug(`IMDb rating cache HIT: ${imdbId}`);
+          // Track hot key usage for observability
+          redisService.trackHotKey(cacheKey);
+          return cached;
+        }
+        logger.debug(`IMDb rating cache MISS: ${imdbId}`);
+      }
+
       // Call the IMDb Ratings API
       const response = await this._fetchFromApi(`/api/rating/${imdbId}`);
 
@@ -158,6 +176,17 @@ class RatingsService {
           voteCount: response.votes ? parseInt(response.votes) : null
         };
         logger.debug(`Rating for ${imdbId}: ${ratingData.rating} (${ratingData.votes} votes)`);
+
+        // Cache the successful result
+        if (cacheEnabled) {
+          const cacheKey = cacheKeys.generateImdbRatingKey(imdbId);
+          const ttl = cacheKeys.getRawDataTTL();
+          await redisService.set(cacheKey, ratingData, ttl);
+          logger.debug(`Cached IMDb rating: ${imdbId} (TTL: ${ttl}s)`);
+          // Track hot key after write
+          redisService.trackHotKey(cacheKey);
+        }
+
         return ratingData;
       }
 
@@ -269,7 +298,7 @@ class RatingsService {
   }
 
   /**
-   * Fetches MPAA rating for a specific IMDb ID
+   * Fetches MPAA rating for a specific IMDb ID with Redis caching
    * @param {string} imdbId - IMDb ID (e.g., "tt1234567")
    * @returns {Promise<string|null>} MPAA rating or null if not found
    */
@@ -280,11 +309,36 @@ class RatingsService {
         return null;
       }
 
+      // Check Redis cache if enabled
+      const cacheEnabled = appConfig.redis.enabled && appConfig.redis.enableRawDataCache;
+      if (cacheEnabled) {
+        const cacheKey = cacheKeys.generateMpaaRatingKey(imdbId);
+        const cached = await redisService.get(cacheKey);
+        if (cached) {
+          logger.debug(`MPAA rating cache HIT: ${imdbId}`);
+          // Track hot key usage for observability
+          redisService.trackHotKey(cacheKey);
+          return cached;
+        }
+        logger.debug(`MPAA rating cache MISS: ${imdbId}`);
+      }
+
       const response = await this._fetchFromApi(`/api/mpaa-rating/${imdbId}`);
 
       if (response && (response.mpaaRating || response.mpaa_rating)) {
         const mpaa = response.mpaaRating || response.mpaa_rating;
         logger.debug(`MPAA rating for ${imdbId}: ${mpaa}`);
+
+        // Cache the successful result
+        if (cacheEnabled) {
+          const cacheKey = cacheKeys.generateMpaaRatingKey(imdbId);
+          const ttl = cacheKeys.getRawDataTTL();
+          await redisService.set(cacheKey, mpaa, ttl);
+          logger.debug(`Cached MPAA rating: ${imdbId} (TTL: ${ttl}s)`);
+          // Track hot key after write
+          redisService.trackHotKey(cacheKey);
+        }
+
         return mpaa;
       }
 
