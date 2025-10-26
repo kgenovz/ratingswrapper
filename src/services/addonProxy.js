@@ -6,6 +6,8 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
 const appConfig = require('../config');
+const redisService = require('./redisService');
+const cacheKeys = require('../utils/cacheKeys');
 
 class AddonProxyService {
   constructor() {
@@ -90,7 +92,7 @@ class AddonProxyService {
   }
 
   /**
-   * Fetches catalog from wrapped addon
+   * Fetches catalog from wrapped addon with optional caching
    * @param {string} addonUrl - Base URL of the wrapped addon
    * @param {string} type - Content type (movie, series, etc.)
    * @param {string} id - Catalog ID
@@ -100,6 +102,30 @@ class AddonProxyService {
   async fetchCatalog(addonUrl, type, id, extra = {}) {
     try {
       const baseUrl = this._normalizeAddonUrl(addonUrl);
+
+      // Check if raw data caching is enabled
+      const cacheEnabled = appConfig.redis.enabled && appConfig.redis.enableRawDataCache;
+
+      if (cacheEnabled) {
+        // Generate cache key based on addon URL and catalog parameters (format-agnostic)
+        const cacheKey = cacheKeys.generateRawCatalogKey({
+          addonUrl: baseUrl,
+          type,
+          catalogId: id,
+          page: extra.skip || '',
+          search: extra.search || '',
+          genre: extra.genre || ''
+        });
+
+        // Try to get from cache first
+        const cached = await redisService.get(cacheKey);
+        if (cached) {
+          logger.info(`Raw catalog cache HIT: ${cacheKey}`);
+          return cached;
+        }
+
+        logger.debug(`Raw catalog cache MISS: ${cacheKey}`);
+      }
 
       // Build catalog URL with extra parameters
       let catalogUrl = `${baseUrl}/catalog/${type}/${id}`;
@@ -131,6 +157,23 @@ class AddonProxyService {
       }
 
       logger.debug(`Catalog fetched: ${catalogResponse.metas.length} items`);
+
+      // Cache the raw catalog response if caching is enabled
+      if (cacheEnabled) {
+        const cacheKey = cacheKeys.generateRawCatalogKey({
+          addonUrl: baseUrl,
+          type,
+          catalogId: id,
+          page: extra.skip || '',
+          search: extra.search || '',
+          genre: extra.genre || ''
+        });
+
+        const ttl = cacheKeys.getCatalogTTL(id);
+        await redisService.set(cacheKey, catalogResponse, ttl);
+        logger.debug(`Cached raw catalog: ${cacheKey} (TTL: ${ttl}s)`);
+      }
+
       return catalogResponse;
 
     } catch (error) {

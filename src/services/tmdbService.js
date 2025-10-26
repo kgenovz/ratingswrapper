@@ -6,6 +6,8 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
 const config = require('../config');
+const redisService = require('./redisService');
+const cacheKeys = require('../utils/cacheKeys');
 
 class TMDBService {
   constructor() {
@@ -254,6 +256,18 @@ class TMDBService {
         return null;
       }
 
+      // Check Redis cache if enabled
+      const cacheEnabled = config.redis.enabled && config.redis.enableRawDataCache;
+      if (cacheEnabled) {
+        const cacheKey = cacheKeys.generateTmdbDataKey(imdbId, region);
+        const cached = await redisService.get(cacheKey);
+        if (cached) {
+          logger.debug(`TMDB data cache HIT: ${imdbId} (region: ${region})`);
+          return cached;
+        }
+        logger.debug(`TMDB data cache MISS: ${imdbId} (region: ${region})`);
+      }
+
       // Check ratings-api database endpoint (has built-in caching logic)
       const ratingsApiUrl = config.ratingsApiUrl || 'http://localhost:3001';
       const response = await axios.get(`${ratingsApiUrl}/api/tmdb-data/${imdbId}`, {
@@ -264,6 +278,15 @@ class TMDBService {
 
       if (response.status === 200 && response.data) {
         logger.debug(`TMDB data retrieved for ${imdbId}: ${response.data.title || 'Unknown'}${response.data.streamingProviders ? ` (streaming: ${response.data.streamingProviders.join(', ')})` : ''}`);
+
+        // Cache the successful result
+        if (cacheEnabled) {
+          const cacheKey = cacheKeys.generateTmdbDataKey(imdbId, region);
+          const ttl = cacheKeys.getRawDataTTL();
+          await redisService.set(cacheKey, response.data, ttl);
+          logger.debug(`Cached TMDB data: ${imdbId} (TTL: ${ttl}s, region: ${region})`);
+        }
+
         return response.data;
       }
 

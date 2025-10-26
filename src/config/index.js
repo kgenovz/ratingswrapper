@@ -70,6 +70,8 @@ const config = {
     url: process.env.REDIS_URL || null,
     enabled: !!process.env.REDIS_URL,
     cacheVersion: process.env.CACHE_VERSION || '1',
+    // Enable raw data caching (building blocks: catalogs, ratings, metadata)
+    enableRawDataCache: process.env.ENABLE_RAW_DATA_CACHE !== 'false', // default true
     // TTL settings (in seconds)
     ttl: {
       catalog: {
@@ -79,7 +81,8 @@ const config = {
         default: 6 * 60 * 60        // 6 hours default
       },
       meta: 24 * 60 * 60,           // 24 hours for meta (episodes/seasons)
-      manifest: 24 * 60 * 60        // 24 hours for manifest
+      manifest: 24 * 60 * 60,       // 24 hours for manifest
+      rawData: 24 * 60 * 60         // 24 hours for raw data (ratings, TMDB, OMDB, MAL, etc.)
     }
   },
 
