@@ -102,12 +102,18 @@ router.get('/admin/stats', async (req, res) => {
 
     // Parse Redis info strings into structured data
     const memoryMatch = stats.memory.match(/used_memory_human:([^\r\n]+)/);
+    const maxMemoryMatch = stats.memory.match(/maxmemory_human:([^\r\n]+)/);
+    const maxMemoryBytesMatch = stats.memory.match(/maxmemory:(\d+)/);
+    const policyMatch = stats.memory.match(/maxmemory_policy:([^\r\n]+)/);
     const keysMatch = stats.keyspace.match(/db0:keys=(\d+)/);
     const evictionsMatch = stats.info.match(/evicted_keys:(\d+)/);
 
     res.json({
       redis: 'available',
-      memory: memoryMatch ? memoryMatch[1].trim() : 'unknown',
+      memoryUsed: memoryMatch ? memoryMatch[1].trim() : 'unknown',
+      maxMemory: maxMemoryMatch ? maxMemoryMatch[1].trim() : 'unknown',
+      maxMemoryBytes: maxMemoryBytesMatch ? parseInt(maxMemoryBytesMatch[1], 10) : null,
+      evictionPolicy: policyMatch ? policyMatch[1].trim() : 'unknown',
       keys: keysMatch ? parseInt(keysMatch[1], 10) : 0,
       evictions: evictionsMatch ? parseInt(evictionsMatch[1], 10) : 0,
       inflightRequests: stats.inflightRequests || 0

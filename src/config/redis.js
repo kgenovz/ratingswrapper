@@ -39,6 +39,25 @@ function initRedisClient() {
 
     redisClient.on('ready', () => {
       logger.info('Redis client ready');
+      // On ready, log memory and eviction policy for visibility
+      try {
+        redisClient.info('memory').then((mem) => {
+          const usedMatch = mem.match(/used_memory_human:([^\r\n]+)/);
+          const maxMatch = mem.match(/maxmemory_human:([^\r\n]+)/);
+          const policyMatch = mem.match(/maxmemory_policy:([^\r\n]+)/);
+          const used = usedMatch ? usedMatch[1].trim() : 'unknown';
+          const max = maxMatch ? maxMatch[1].trim() : 'unknown';
+          const policy = policyMatch ? policyMatch[1].trim() : 'unknown';
+          logger.info(`Redis memory: used=${used}, max=${max}, policy=${policy}`);
+          if (policy === 'noeviction') {
+            logger.warn('Redis eviction policy is noeviction; cache writes may fail at maxmemory. Consider allkeys-lfu or volatile-lru.');
+          }
+        }).catch((e) => {
+          logger.debug('Failed to read Redis memory info:', e.message);
+        });
+      } catch (e) {
+        logger.debug('Redis memory info check skipped:', e.message);
+      }
     });
 
     redisClient.on('error', (err) => {
