@@ -569,11 +569,13 @@ class MetadataEnhancerService {
           }
 
           // Fetch MAL data if needed for description location
+          // Prefer extracting from original meta.id (mal:/kitsu:) rather than contentId which may be imdb_id
           let malData = null;
           if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) &&
               (location === 'description' || location === 'both')) {
-            const malId = kitsuMappingService.extractMalId(contentId);
-            logger.debug(`Extracting MAL ID from contentId: ${contentId} -> ${malId}`);
+            const malSourceId = meta.id || contentId;
+            const malId = kitsuMappingService.extractMalId(malSourceId);
+            logger.debug(`Extracting MAL ID for main meta from: ${malSourceId} -> ${malId}`);
             if (malId) {
               malData = await malService.getMalDataByMalId(malId);
               if (malData) {
@@ -581,8 +583,10 @@ class MetadataEnhancerService {
               } else {
                 logger.warn(`✗ MAL data fetch failed for MAL ID: ${malId}`);
               }
+            } else if (meta.id) {
+              logger.warn(`✗ No MAL ID found in meta.id: ${meta.id}. MAL ratings require addon IDs like "mal:123" or "kitsu:123"`);
             } else {
-              logger.warn(`✗ No MAL ID found in contentId: ${contentId}. MAL ratings require addon IDs in format "mal:123" or "kitsu:123"`);
+              logger.debug(`No MAL ID available (meta.id absent); contentId=${contentId}`);
             }
           } else if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes)) {
             logger.debug(`MAL data not fetched: location=${location}, includeRating=${descriptionFormat.includeMalRating}, includeVotes=${descriptionFormat.includeMalVotes}`);
