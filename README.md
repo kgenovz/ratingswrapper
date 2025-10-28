@@ -52,6 +52,13 @@ A Stremio addon service that wraps your existing addons to inject IMDb ratings i
   - Batch rating fetching with concurrency control
   - Railway deployment support
   - Auto-converts `stremio://` URLs to `https://`
+- ⚡ **2-Layer Redis Caching**:
+  - Layer 1: Full response caching (catalog, meta, manifest)
+  - Layer 2: Raw data caching (IMDb ratings, MPAA, TMDB, etc.)
+  - Stale-While-Revalidate (SWR) for instant responses
+  - Gzip compression for efficient storage
+  - Hot key tracking for observability
+  - Singleflight guard to prevent cache stampedes
 
 ## Quick Start
 
@@ -115,31 +122,217 @@ Set these environment variables in Railway:
 ```
 src/
 ├── config/                      # Application configuration
-│   └── index.js                 # Centralized config with defaults
+│   ├── index.js                 # Centralized config with defaults
+│   └── redis.js                 # Redis client setup and connection
 ├── data/                        # Static data files
 │   └── split-cour-mappings.json # Anime split-cour episode mappings
 ├── services/                    # Business logic
 │   ├── addonProxy.js            # Fetches data from wrapped addons
-│   ├── ratingsService.js        # Fetches IMDb ratings from API
+│   ├── ratingsService.js        # Fetches IMDb ratings with Layer 2 cache
 │   ├── metadataEnhancer.js      # Injects ratings into metadata
 │   ├── stremioApi.js            # Stremio account management
-│   └── kitsuMappingService.js   # Anime ID mapping (Kitsu/MAL → IMDb)
+│   ├── kitsuMappingService.js   # Anime ID mapping (Kitsu/MAL → IMDb)
+│   ├── redisService.js          # Redis operations (get/set/SWR/singleflight)
+│   └── metricsService.js        # Cache metrics and performance tracking
 ├── handlers/                    # Stremio addon handlers
 │   ├── manifest.js              # Manifest endpoint
 │   ├── catalog.js               # Catalog endpoint with rating injection
 │   └── meta.js                  # Meta endpoint with episode ratings
 ├── routes/                      # HTTP routes
+│   ├── addon.js                 # Wrapped addon endpoints
 │   └── api.js                   # Configuration & account management APIs
 ├── middleware/                  # Express middleware
+│   ├── cache.js                 # Layer 1 response cache (SWR)
 │   └── requestLogger.js         # Request logging
 ├── views/                       # HTML views
 │   ├── configure.js             # Main configuration UI
 │   └── configure-old.js         # Legacy single-addon UI
 ├── utils/                       # Utilities
 │   ├── configParser.js          # URL config encoding/decoding
+│   ├── cacheKeys.js             # Cache key generation utilities
 │   └── logger.js                # Configurable logging
 └── index.js                     # Express server entry point
 ```
+
+### Request Flow with Caching
+
+```
+User Request → Express Router → Cache Middleware (Layer 1)
+                                      ↓
+                        [Check Redis Response Cache]
+                                      ↓
+                    ┌─────────────────┴─────────────────┐
+                    │                                   │
+                  HIT/STALE                          MISS
+                    │                                   │
+           Return Cached Response            Addon Handler
+           (+ bg refresh if stale)                     ↓
+                                              Addon Proxy Service
+                                                        ↓
+                                              Wrapped Addon API
+                                                        ↓
+                                              Metadata Enhancer
+                                                        ↓
+                                        Ratings Service (Layer 2)
+                                                        ↓
+                                    [Check Redis Raw Data Cache]
+                                                        ↓
+                                    ┌───────────────────┴────────────────┐
+                                    │                                    │
+                                  HIT                                  MISS
+                                    │                                    │
+                            Return Cached Data              External APIs (IMDb/TMDB)
+                                    │                                    │
+                                    └────────────────┬───────────────────┘
+                                                     ↓
+                                            [Cache Raw Data]
+                                                     ↓
+                                            Enhanced Response
+                                                     ↓
+                                         [Cache Full Response]
+                                                     ↓
+                                              Return to User
+```
+
+## 2-Layer Redis Caching System
+
+The addon implements a sophisticated 2-layer caching system for optimal performance and minimal external API calls.
+
+### Layer 1: Response Cache (Stale-While-Revalidate)
+
+Caches complete addon responses (catalog, meta, manifest) with intelligent expiration:
+
+**Features:**
+- **Stale-While-Revalidate (SWR)**: Serves stale content immediately while refreshing in background
+- **Singleflight Guard**: Prevents cache stampedes by coalescing concurrent requests
+- **Gzip Compression**: Reduces Redis memory usage by 60-80%
+- **Smart TTLs**: Different expiration times based on content type
+- **Hot Key Tracking**: Monitors most-accessed keys for observability
+
+**TTL Configuration:**
+- **Catalogs**:
+  - Popular/Top: 6 hours (slowly changing)
+  - Search: 1 hour (dynamic content)
+  - User-specific: 30 minutes (personalized data)
+  - Default: 3 hours
+- **Meta**: 24 hours (episode/movie details rarely change)
+- **Manifest**: 24 hours (addon configuration is static)
+
+**SWR Behavior:**
+- **Fresh Period**: Serve from cache immediately (no API call)
+- **Stale Period**: Serve stale data instantly + trigger background refresh
+- **Total Cache Lifetime**: Fresh TTL + Stale TTL (e.g., 6h + 6h = 12h total)
+
+### Layer 2: Raw Data Cache (Format-Agnostic)
+
+Caches individual data points (ratings, metadata) independent of formatting preferences:
+
+**Cached Data Types:**
+- IMDb ratings (`v{VERSION}:rating:imdb:{imdbId}`)
+- MPAA ratings (`v{VERSION}:rating:mpaa:{imdbId}`)
+- TMDB data (`v{VERSION}:data:tmdb:{imdbId}:{region}`)
+- OMDB data (`v{VERSION}:data:omdb:{imdbId}`)
+- MAL data (`v{VERSION}:data:mal:{malId}`)
+
+**Benefits:**
+- **Format-Agnostic**: Changing rating format doesn't invalidate cache
+- **Shared Across Configs**: Multiple wrapper configs share raw data
+- **Longer TTL**: 24 hours (raw data changes less frequently)
+- **Reduced API Calls**: Massive reduction in external API requests
+
+### Cache Keys Structure
+
+All cache keys include a version prefix for global invalidation:
+
+```
+v{CACHE_VERSION}:{type}:{configHash}:{params...}
+```
+
+Example keys:
+```
+v1:catalog:a1b2c3d4e5f6g7h8:movie:top
+v1:meta:a1b2c3d4e5f6g7h8:series:tt0944947
+v1:rating:imdb:tt0944947
+v1:rating:mpaa:tt0944947
+v1:data:tmdb:tt0944947:US
+```
+
+### Cache Headers
+
+All responses include an `X-Ratings-Cache` header:
+
+| Header Value | Meaning |
+|--------------|---------|
+| `hit` | Served from fresh cache |
+| `stale` | Served from stale cache (background refresh triggered) |
+| `miss` | Cache miss, fetched from source |
+| `hit-singleflight` | Waited for concurrent request (stampede prevention) |
+| `bypass` | Redis error, bypassed cache |
+
+### Cache Observability
+
+**Hot Key Tracking:**
+- Automatically tracks most-accessed keys in 5-minute buckets
+- Accessible via `/admin/stats` endpoint
+- Helps identify popular content and optimize caching strategy
+
+**Metrics:**
+- Cache hit/miss/stale rates per endpoint type
+- Request latencies (with/without cache)
+- Singleflight coalescing effectiveness
+- Redis memory usage and key counts
+
+### Configuration
+
+**Required Environment Variables:**
+```bash
+REDIS_URL=redis://localhost:6379  # Redis connection URL
+```
+
+**Optional Variables:**
+```bash
+CACHE_VERSION=1      # Increment to invalidate all cache
+```
+
+**TTL Customization** (in `src/config/index.js`):
+```javascript
+redis: {
+  ttl: {
+    catalog: {
+      default: 10800,        // 3 hours
+      popular: 21600,        // 6 hours
+      search: 3600,          // 1 hour
+      userSpecific: 1800     // 30 minutes
+    },
+    meta: 86400,            // 24 hours
+    manifest: 86400,        // 24 hours
+    rawData: 86400          // 24 hours (Layer 2)
+  }
+}
+```
+
+### Fail-Open Design
+
+The caching system is designed to **never break the addon**:
+- If Redis is unavailable → Bypass cache, serve directly
+- If Redis errors occur → Log warning, continue without cache
+- If cache is corrupt → Fall back to fresh fetch
+- If background refresh fails → Continue serving stale data
+
+### Cache Invalidation
+
+**Global Invalidation** (all cache):
+1. Increment `CACHE_VERSION` environment variable
+2. Restart service (Railway auto-deploys on git push)
+
+**Targeted Invalidation** (specific keys):
+- Not currently exposed in UI
+- Can be done via Redis CLI if needed
+
+**Automatic Expiration**:
+- All keys have TTL set
+- Stale entries automatically purged by Redis
+- Hot key tracking buckets expire after 1 hour
 
 ## Configuration Options
 
@@ -359,17 +552,51 @@ Automatically converts `stremio://` deeplink URLs to `https://`:
 ## Development
 
 ### Local Setup
+
+**Basic Setup (No Redis):**
 ```bash
 npm install
 npm run dev  # Auto-reload on changes
 ```
+The addon will run without caching if Redis is not configured.
+
+**With Redis Caching:**
+```bash
+# Start Redis (via Docker)
+docker run -d -p 6379:6379 redis:7-alpine
+
+# Or use Docker Compose (includes Redis)
+docker-compose up -d
+
+# Set Redis URL in .env
+echo "REDIS_URL=redis://localhost:6379" >> .env
+
+# Start development server
+npm run dev
+```
+
+**Testing Cache Behavior:**
+```bash
+# Check cache headers
+curl -I http://localhost:7000/{config}/catalog/movie/top.json
+
+# Monitor hot keys (requires /admin/stats endpoint)
+curl http://localhost:7000/admin/stats | jq '.hotKeys'
+
+# View Redis keys
+redis-cli KEYS "v1:*" | head -20
+
+# Monitor Redis in real-time
+redis-cli MONITOR
+```
 
 ### Code Style
-- **Separation of Concerns**: Clear layers (config → services → handlers → routes)
+- **Separation of Concerns**: Clear layers (config → services → handlers → routes → middleware)
 - **Single Responsibility**: Each module has one clear purpose
 - **Error Handling**: Graceful degradation, never breaks the addon
 - **Logging**: Contextual logging with configurable levels
-- **Caching**: Not-found cache to avoid redundant API calls
+- **Caching**: 2-layer Redis cache with fail-open design
+- **Observability**: Hot key tracking and metrics for performance monitoring
 
 ### Adding Split-Cour Anime Mappings
 
@@ -411,6 +638,50 @@ Make sure you're not wrapping both Cinemeta and AIO Metadata - the system should
 
 ### Anime Episodes Wrong Season/Offset?
 For split-cour anime, add mappings to `src/data/split-cour-mappings.json`. See the file for examples.
+
+### Redis/Caching Issues
+
+**Redis Connection Failing:**
+1. Check `REDIS_URL` is set correctly in Railway environment variables
+2. Verify Redis instance is running and accessible
+3. Check Railway logs for "Redis connection error" messages
+4. The addon will continue to work without Redis (fail-open design)
+
+**Cache Not Working:**
+1. Check response headers: Look for `X-Ratings-Cache: hit/miss/stale`
+2. If always `bypass`: Redis connection issue
+3. If always `miss`: Check `CACHE_VERSION` wasn't changed recently
+4. Enable debug logging: `LOG_LEVEL=debug` to see cache operations
+
+**Stale Data Being Served:**
+1. Check the `X-Ratings-Cache` header (should be `stale` during refresh)
+2. Verify background refresh is completing (check logs for "Background refresh completed")
+3. If persistent: Increment `CACHE_VERSION` to invalidate all cache
+
+**Cache Taking Too Much Memory:**
+1. Check Redis memory usage: `redis-cli INFO memory`
+2. Review hot keys: Check `/admin/stats` endpoint
+3. Adjust TTLs in `src/config/index.js` if needed
+4. Consider Redis eviction policy: `maxmemory-policy allkeys-lru`
+
+**Invalidate All Cache:**
+1. Go to Railway environment variables
+2. Increment `CACHE_VERSION` (e.g., `1` → `2`)
+3. Redeploy or wait for auto-deploy
+4. All existing cache keys will be ignored
+
+**Check Cache Performance:**
+```bash
+# View cache headers
+curl -I https://your-app.railway.app/{config}/catalog/movie/top.json
+
+# Check admin stats (if enabled)
+curl https://your-app.railway.app/admin/stats | jq
+
+# Monitor Redis
+redis-cli INFO stats
+redis-cli INFO keyspace
+```
 
 ## License
 

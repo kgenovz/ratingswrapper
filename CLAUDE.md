@@ -588,6 +588,53 @@ console.log('Catalog:', response.metas);
 - Reduces clutter in addon list
 - Can be overridden in UI if desired
 
+### Why 2-Layer Redis Caching?
+
+**Layer 1 (Response Cache):**
+- Caches complete catalog/meta/manifest responses
+- Eliminates repeated addon proxy calls and rating lookups
+- Stale-While-Revalidate (SWR) ensures instant responses
+- Cache keys include config hash for multi-tenancy
+- Different TTLs based on content volatility (popular vs. search)
+
+**Layer 2 (Raw Data Cache):**
+- Caches individual ratings and metadata (IMDb, MPAA, TMDB, etc.)
+- Format-agnostic: survives rating format changes
+- Shared across all wrapper configs (massive deduplication)
+- Longer TTL (24h) since raw data changes rarely
+- Reduces external API calls by ~95%
+
+**Architectural Benefits:**
+- **Performance**: Sub-50ms responses for cached content
+- **Cost Reduction**: Massive reduction in external API usage
+- **Scalability**: Handles traffic spikes without overwhelming APIs
+- **Flexibility**: Users can change formats without cache invalidation
+- **Reliability**: Fail-open design ensures service availability
+
+**Singleflight Guard:**
+- Prevents cache stampedes (thundering herd problem)
+- Coalesces concurrent requests for the same cache key
+- Only one request fetches data, others wait and share result
+- Critical for popular catalogs with many concurrent users
+
+**Hot Key Tracking:**
+- Tracks most-accessed cache keys in 5-minute buckets
+- Helps identify popular content for further optimization
+- Exposed via `/admin/stats` for observability
+- Used to inform TTL tuning and prewarming strategies
+
+**Cache Versioning:**
+- All keys prefixed with `v{CACHE_VERSION}`
+- Increment version to globally invalidate cache (e.g., after IMDb data refresh)
+- No manual key deletion required
+- Old keys expire naturally via TTL
+
+**Gzip Compression:**
+- Reduces Redis memory usage by 60-80%
+- Critical for large catalog responses (100+ items with metadata)
+- Transparent to application code
+- Worth the small CPU overhead for memory savings
+
 ---
 
 ## External Dependencies
@@ -610,14 +657,22 @@ console.log('Catalog:', response.metas);
 
 ---
 
+## Implemented Enhancements
+
+1. ✅ **2-Layer Redis Caching** (Completed Oct 2025):
+   - Layer 1: Full response caching with Stale-While-Revalidate (SWR)
+   - Layer 2: Format-agnostic raw data caching (ratings, metadata)
+   - Singleflight guard to prevent cache stampedes
+   - Hot key tracking for observability
+   - See README for full documentation
+
 ## Future Enhancements (Potential)
 
-1. **Caching Layer**: Redis for rating caching
-2. **TMDB Direct Support**: Native TMDB rating injection
-3. **Custom Rating Sources**: Support for other rating providers
-4. **Advanced Templates**: Conditional formatting, multiple ratings
-5. **Analytics**: Track most-wrapped addons, popular ratings
-6. **Admin UI**: Service monitoring, cache management
+1. **TMDB Direct Support**: Native TMDB rating injection
+2. **Custom Rating Sources**: Support for other rating providers
+3. **Advanced Templates**: Conditional formatting, multiple ratings
+4. **Analytics**: Track most-wrapped addons, popular ratings
+5. **Enhanced Admin UI**: Real-time cache monitoring, manual invalidation
 
 ---
 

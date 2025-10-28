@@ -155,6 +155,25 @@ function initDatabase() {
             imdb_id TEXT
         ) WITHOUT ROWID`);
 
+        // Table for scraped RT/MC ratings for series (web scraping fallback)
+        db.exec(`CREATE TABLE IF NOT EXISTS series_scraped_ratings (
+            imdb_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+
+            rt_critics_score INTEGER,
+            rt_audience_score INTEGER,
+            rt_url TEXT,
+
+            mc_metascore INTEGER,
+            mc_user_score INTEGER,
+            mc_url TEXT,
+
+            scrape_attempted_at INTEGER NOT NULL,
+            scrape_succeeded_at INTEGER,
+            scrape_failed_count INTEGER DEFAULT 0,
+            cache_until INTEGER NOT NULL
+        ) WITHOUT ROWID`);
+
         // Optimized indexes
         db.exec(`CREATE INDEX IF NOT EXISTS idx_episodes_lookup ON episodes(series_id, season, episode)`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_episodes_id ON episodes(episode_id)`);
@@ -167,6 +186,7 @@ function initDatabase() {
         db.exec(`CREATE INDEX IF NOT EXISTS idx_mpaa_ratings_updated ON mpaa_ratings(updated_at)`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_mal_metadata_mal_id ON mal_metadata(mal_id)`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_mal_metadata_imdb_id ON mal_metadata(imdb_id)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_series_scraped_cache_until ON series_scraped_ratings(cache_until)`);
 
         console.log('✅ Database tables and indexes created');
 
