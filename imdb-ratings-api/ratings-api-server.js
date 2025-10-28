@@ -1569,6 +1569,13 @@ async function fetchOmdbDataByImdbId(imdbId) {
 
         const data = response.data;
 
+        console.info(`[OMDB-DIAG] Raw OMDB response for ${imdbId}: Type=${data.Type}, Title=${data.Title}, Response=${data.Response}`);
+        console.info(`[OMDB-DIAG] Ratings array length: ${data.Ratings ? data.Ratings.length : 0}`);
+        if (data.Ratings && Array.isArray(data.Ratings)) {
+            data.Ratings.forEach(r => console.info(`[OMDB-DIAG]   - ${r.Source}: ${r.Value}`));
+        }
+        console.info(`[OMDB-DIAG] Metascore field: ${data.Metascore}`);
+
         if (data.Response === 'False') {
             console.info(`[OMDB] No data found for ${imdbId}`);
             return null;
@@ -1582,6 +1589,9 @@ async function fetchOmdbDataByImdbId(imdbId) {
             const rtRating = data.Ratings.find(r => r.Source === 'Rotten Tomatoes');
             if (rtRating) {
                 rottenTomatoes = rtRating.Value; // e.g., "83%"
+                console.info(`[OMDB-DIAG] Found RT rating: ${rottenTomatoes}`);
+            } else {
+                console.info(`[OMDB-DIAG] No Rotten Tomatoes rating found in Ratings array`);
             }
 
             const mcRating = data.Ratings.find(r => r.Source === 'Metacritic');
@@ -1590,13 +1600,19 @@ async function fetchOmdbDataByImdbId(imdbId) {
                 const match = mcRating.Value.match(/^(\d+)/);
                 if (match) {
                     metacritic = parseInt(match[1]);
+                    console.info(`[OMDB-DIAG] Found MC rating: ${metacritic}`);
                 }
+            } else {
+                console.info(`[OMDB-DIAG] No Metacritic rating found in Ratings array`);
             }
+        } else {
+            console.info(`[OMDB-DIAG] No Ratings array in OMDB response`);
         }
 
         // Fallback to Metascore field if Metacritic not in Ratings array
         if (!metacritic && data.Metascore && data.Metascore !== 'N/A') {
             metacritic = parseInt(data.Metascore);
+            console.info(`[OMDB-DIAG] Using Metascore fallback: ${metacritic}`);
         }
 
         const omdbData = {
