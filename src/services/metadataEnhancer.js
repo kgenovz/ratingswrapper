@@ -547,11 +547,35 @@ class MetadataEnhancerService {
         const contentId = meta.imdb_id || meta.imdbId || meta.id;
         logger.debug(`Fetching rating for ${meta.type} "${meta.name}" using ID: ${contentId}`);
 
-        const mainRatingData = await ratingsService.getRating(contentId, meta.type);
+        // Derive a clean IMDb ID for metadata providers (TMDB/OMDB/MAL mapping)
+        let imdbId = meta.imdb_id || meta.imdbId || (contentId && contentId.startsWith('tt') ? contentId.split(':')[0] : null);
+
+        // If no IMDb ID present and the meta.id is from Kitsu/MAL, map to IMDb
+        if (!imdbId && meta.id) {
+          if (kitsuMappingService.isKitsuId(meta.id)) {
+            const kitsuId = kitsuMappingService.extractKitsuId(meta.id);
+            const mappedImdb = kitsuMappingService.getImdbId(kitsuId);
+            if (mappedImdb) {
+              imdbId = mappedImdb;
+              logger.info(`Mapped Kitsu main meta to IMDb: kitsuId=${kitsuId} -> ${imdbId}`);
+            }
+          } else if (kitsuMappingService.isMalId(meta.id)) {
+            const malId = kitsuMappingService.extractMalId(meta.id);
+            const mappedImdb = kitsuMappingService.getImdbIdFromMal(malId);
+            if (mappedImdb) {
+              imdbId = mappedImdb;
+              logger.info(`Mapped MAL main meta to IMDb: malId=${malId} -> ${imdbId}`);
+            }
+          }
+        }
+
+        // Prefer using the resolved IMDb ID for ratings if available
+        const lookupId = imdbId || contentId;
+
+        const mainRatingData = await ratingsService.getRating(lookupId, meta.type);
 
         if (mainRatingData) {
-          // Get IMDb ID for MPAA lookup
-          const imdbId = meta.imdb_id || meta.imdbId || (contentId && contentId.startsWith('tt') ? contentId.split(':')[0] : null);
+          // imdbId may still be null if not resolvable; keep using derived value
 
           // Fetch TMDB data if needed for description location
           let tmdbData = null;
@@ -563,9 +587,16 @@ class MetadataEnhancerService {
 
           // Fetch OMDB data if needed for description location
           let omdbData = null;
+          logger.debug(`[OMDB-DIAG] Checking OMDB fetch conditions for ${meta.type} "${meta.name}": imdbId=${imdbId}, contentId=${contentId}`);
+          logger.debug(`[OMDB-DIAG] Conditions: descriptionFormat=${!!descriptionFormat}, includeRT=${descriptionFormat?.includeRottenTomatoes}, includeMC=${descriptionFormat?.includeMetacritic}, location=${location}`);
+
           if (descriptionFormat && (descriptionFormat.includeRottenTomatoes || descriptionFormat.includeMetacritic) &&
               (location === 'description' || location === 'both') && imdbId) {
+            logger.info(`[OMDB-DIAG] ✓ Fetching OMDB data for ${meta.type} "${meta.name}" with IMDb ID: ${imdbId}`);
             omdbData = await omdbService.getOmdbDataByImdbId(imdbId);
+            logger.info(`[OMDB-DIAG] OMDB fetch result for ${imdbId}: RT=${omdbData?.rottenTomatoes || 'null'}, MC=${omdbData?.metacritic || 'null'}`);
+          } else {
+            logger.info(`[OMDB-DIAG] ✗ OMDB fetch SKIPPED for ${meta.type} "${meta.name}": ${!descriptionFormat ? 'no descriptionFormat' : !imdbId ? 'no imdbId' : !(location === 'description' || location === 'both') ? 'wrong location' : 'RT/MC not enabled'}`);
           }
 
           // Fetch MAL data if needed for description location

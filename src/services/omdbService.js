@@ -34,47 +34,55 @@ class OMDBService {
    * @returns {Promise<Object|null>} - OMDB data object or null
    */
   async getOmdbDataByImdbId(imdbId) {
+    logger.info(`[OMDB-DIAG] getOmdbDataByImdbId called with: ${imdbId}`);
+
     try {
       if (!this.isConfigured()) {
-        logger.debug('OMDB API key not configured, skipping OMDB data lookup');
+        logger.info('[OMDB-DIAG] OMDB API key not configured, skipping OMDB data lookup');
         return null;
       }
 
       if (!imdbId || !imdbId.startsWith('tt')) {
-        logger.debug(`Invalid IMDb ID for OMDB lookup: ${imdbId}`);
+        logger.info(`[OMDB-DIAG] Invalid IMDb ID for OMDB lookup: ${imdbId}`);
         return null;
       }
 
       // Check Redis cache if enabled
       const cacheEnabled = config.redis.enabled && config.redis.enableRawDataCache;
+      logger.debug(`[OMDB-DIAG] Cache enabled: ${cacheEnabled}`);
+
       if (cacheEnabled) {
         const cacheKey = cacheKeys.generateOmdbDataKey(imdbId);
         const cached = await redisService.get(cacheKey);
         if (cached) {
-          logger.debug(`OMDB data cache HIT: ${imdbId}`);
+          logger.info(`[OMDB-DIAG] Cache HIT for ${imdbId}: RT=${cached.rottenTomatoes || 'null'}, MC=${cached.metacritic || 'null'}`);
           // Track hot key usage for observability
           redisService.trackHotKey(cacheKey);
           return cached;
         }
-        logger.debug(`OMDB data cache MISS: ${imdbId}`);
+        logger.debug(`[OMDB-DIAG] Cache MISS for ${imdbId}`);
       }
 
       // Check ratings-api database endpoint (has built-in caching logic)
       const ratingsApiUrl = config.ratingsApiUrl || 'http://localhost:3001';
+      logger.debug(`[OMDB-DIAG] Fetching from ratings API: ${ratingsApiUrl}/api/omdb-data/${imdbId}`);
+
       const response = await axios.get(`${ratingsApiUrl}/api/omdb-data/${imdbId}`, {
         timeout: this.timeout,
         validateStatus: (status) => status < 500 // Accept 404 as valid response
       });
 
+      logger.debug(`[OMDB-DIAG] Ratings API response status: ${response.status}`);
+
       if (response.status === 200 && response.data) {
-        logger.debug(`OMDB data retrieved for ${imdbId}: RT=${response.data.rottenTomatoes || 'N/A'}, MC=${response.data.metacritic || 'N/A'}`);
+        logger.info(`[OMDB-DIAG] ✓ OMDB data retrieved for ${imdbId}: RT=${response.data.rottenTomatoes || 'N/A'}, MC=${response.data.metacritic || 'N/A'}, source=${response.data.source || 'unknown'}`);
 
         // Cache the successful result
         if (cacheEnabled) {
           const cacheKey = cacheKeys.generateOmdbDataKey(imdbId);
           const ttl = cacheKeys.getRawDataTTL();
           await redisService.set(cacheKey, response.data, ttl);
-          logger.debug(`Cached OMDB data: ${imdbId} (TTL: ${ttl}s)`);
+          logger.debug(`[OMDB-DIAG] Cached OMDB data: ${imdbId} (TTL: ${ttl}s)`);
           // Track hot key after write
           redisService.trackHotKey(cacheKey);
         }
@@ -83,18 +91,19 @@ class OMDBService {
       }
 
       if (response.status === 404) {
-        logger.debug(`No OMDB data found for ${imdbId}`);
+        logger.info(`[OMDB-DIAG] ✗ No OMDB data found for ${imdbId} (404 from ratings API)`);
         return null;
       }
 
+      logger.info(`[OMDB-DIAG] ✗ Unexpected response status ${response.status} for ${imdbId}`);
       return null;
 
     } catch (error) {
       // Handle connection errors gracefully
       if (error.code === 'ECONNREFUSED') {
-        logger.warn(`Could not connect to ratings API for OMDB data: ${error.message}`);
+        logger.error(`[OMDB-DIAG] ✗ Could not connect to ratings API for OMDB data: ${error.message}`);
       } else {
-        logger.warn(`Error fetching OMDB data for ${imdbId}: ${error.message}`);
+        logger.error(`[OMDB-DIAG] ✗ Error fetching OMDB data for ${imdbId}: ${error.message}`, error.response?.data);
       }
       return null;
     }
