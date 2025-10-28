@@ -8,6 +8,7 @@
  * Layer 3: Web scraping (slow, rate limited)
  */
 
+const axios = require('axios');
 const logger = require('../utils/logger');
 const redisService = require('./redisService');
 const cacheKeys = require('../utils/cacheKeys');
@@ -101,7 +102,6 @@ class SeriesRatingsService {
      */
     async getFromDatabase(imdbId) {
         try {
-            const axios = require('axios');
             const response = await axios.get(`${this.ratingsApiUrl}/api/series-ratings/${imdbId}`, {
                 timeout: 5000,
                 validateStatus: (status) => status === 200 || status === 404
@@ -211,8 +211,6 @@ class SeriesRatingsService {
      */
     async saveToDatabase(imdbId, title, data) {
         try {
-            const axios = require('axios');
-
             // Calculate cache_until based on success/failure
             let cacheDuration;
             if (data.scrapeSucceededAt) {
@@ -281,7 +279,6 @@ class SeriesRatingsService {
 
         // Clear SQLite (by setting cache_until to 0)
         try {
-            const axios = require('axios');
             await axios.delete(`${this.ratingsApiUrl}/api/series-ratings/${imdbId}`, {
                 timeout: 5000
             });
@@ -296,7 +293,6 @@ class SeriesRatingsService {
      */
     async getStats() {
         try {
-            const axios = require('axios');
             const response = await axios.get(`${this.ratingsApiUrl}/api/series-ratings/stats`, {
                 timeout: 5000
             });
