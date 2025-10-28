@@ -28,15 +28,25 @@ class OMDBService {
 
   /**
    * Get OMDB data (Rotten Tomatoes + Metacritic) by IMDb ID
-   * Uses ratings-api database-first caching with 1-week TTL
+   * Routes to web scraping for TV series, uses OMDB API for movies
    *
    * @param {string} imdbId - IMDb ID (e.g., "tt0111161")
+   * @param {string} type - Content type ('movie' or 'series')
+   * @param {string} title - Content title (required for series scraping)
+   * @param {string} year - Release year (optional, improves scraping accuracy)
    * @returns {Promise<Object|null>} - OMDB data object or null
    */
-  async getOmdbDataByImdbId(imdbId) {
-    logger.info(`[OMDB-DIAG] getOmdbDataByImdbId called with: ${imdbId}`);
+  async getOmdbDataByImdbId(imdbId, type = 'movie', title = null, year = null) {
+    logger.info(`[OMDB-DIAG] getOmdbDataByImdbId called with: ${imdbId}, type=${type}, title="${title}"`);
 
     try {
+      // Route series to web scraping service
+      if (type === 'series' && title) {
+        logger.info(`[OMDB-DIAG] Routing to series scraping service for ${imdbId}`);
+        return await this._getSeriesDataViaScraping(imdbId, title, year);
+      }
+
+      // Movies use OMDB API as before
       if (!this.isConfigured()) {
         logger.info('[OMDB-DIAG] OMDB API key not configured, skipping OMDB data lookup');
         return null;
@@ -105,6 +115,64 @@ class OMDBService {
       } else {
         logger.error(`[OMDB-DIAG] ✗ Error fetching OMDB data for ${imdbId}: ${error.message}`, error.response?.data);
       }
+      return null;
+    }
+  }
+
+  /**
+   * Get series RT/MC data via web scraping
+   * Transforms scraped data to match OMDB format for compatibility
+   *
+   * @param {string} imdbId - IMDb ID
+   * @param {string} title - Series title
+   * @param {string} year - Release year
+   * @returns {Promise<Object|null>} - Data in OMDB format or null
+   * @private
+   */
+  async _getSeriesDataViaScraping(imdbId, title, year) {
+    try {
+      // Lazy load to avoid circular dependency
+      const seriesRatingsService = require('./seriesRatingsService');
+
+      const scraped = await seriesRatingsService.getSeriesRatings(imdbId, title, year);
+
+      if (!scraped) {
+        return null;
+      }
+
+      // Transform to OMDB-compatible format
+      // RT critics score: "85%" format
+      // MC metascore: integer (0-100)
+      const result = {};
+
+      if (scraped.rtCriticsScore !== null && scraped.rtCriticsScore !== undefined) {
+        result.rottenTomatoes = `${scraped.rtCriticsScore}%`;
+      }
+
+      if (scraped.mcMetascore !== null && scraped.mcMetascore !== undefined) {
+        result.metacritic = scraped.mcMetascore;
+      }
+
+      // Add additional scraped scores (not in standard OMDB format, but useful)
+      if (scraped.rtAudienceScore !== null && scraped.rtAudienceScore !== undefined) {
+        result.rottenTomatoesAudience = `${scraped.rtAudienceScore}%`;
+      }
+
+      if (scraped.mcUserScore !== null && scraped.mcUserScore !== undefined) {
+        result.metacriticUser = (scraped.mcUserScore / 10).toFixed(1); // Convert 0-100 to 0-10
+      }
+
+      // If we got any data, return it
+      if (Object.keys(result).length > 0) {
+        logger.info(`[OMDB-DIAG] ✓ Series scraping returned data for ${imdbId}: RT=${result.rottenTomatoes || 'N/A'}, MC=${result.metacritic || 'N/A'}`);
+        return result;
+      }
+
+      logger.info(`[OMDB-DIAG] Series scraping returned no data for ${imdbId}`);
+      return null;
+
+    } catch (error) {
+      logger.error(`[OMDB-DIAG] Error in series scraping for ${imdbId}: ${error.message}`);
       return null;
     }
   }

@@ -593,7 +593,11 @@ class MetadataEnhancerService {
           if (descriptionFormat && (descriptionFormat.includeRottenTomatoes || descriptionFormat.includeMetacritic) &&
               (location === 'description' || location === 'both') && imdbId) {
             logger.info(`[OMDB-DIAG] ✓ Fetching OMDB data for ${meta.type} "${meta.name}" with IMDb ID: ${imdbId}`);
-            omdbData = await omdbService.getOmdbDataByImdbId(imdbId);
+
+            // Extract year from meta for better scraping accuracy
+            const year = meta.year || (meta.releaseInfo && meta.releaseInfo.split('-')[0]) || null;
+
+            omdbData = await omdbService.getOmdbDataByImdbId(imdbId, meta.type, meta.name, year);
             logger.info(`[OMDB-DIAG] OMDB fetch result for ${imdbId}: RT=${omdbData?.rottenTomatoes || 'null'}, MC=${omdbData?.metacritic || 'null'}`);
           } else {
             logger.info(`[OMDB-DIAG] ✗ OMDB fetch SKIPPED for ${meta.type} "${meta.name}": ${!descriptionFormat ? 'no descriptionFormat' : !imdbId ? 'no imdbId' : !(location === 'description' || location === 'both') ? 'wrong location' : 'RT/MC not enabled'}`);
@@ -958,7 +962,9 @@ class MetadataEnhancerService {
           if (descriptionFormat && (descriptionFormat.includeRottenTomatoes || descriptionFormat.includeMetacritic) &&
               (episodeLocation === 'description' || episodeLocation === 'both') && mpaaLookupId) {
             // Only fetch if the episode location uses description
-            episodeOmdbData = await omdbService.getOmdbDataByImdbId(mpaaLookupId);
+            // For episodes, pass 'series' type and parent meta name/year
+            const episodeYear = meta.year || null;
+            episodeOmdbData = await omdbService.getOmdbDataByImdbId(mpaaLookupId, 'series', meta.name, episodeYear);
           }
 
           // Fetch MAL data if needed for description location

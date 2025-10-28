@@ -1798,6 +1798,155 @@ app.post('/api/omdb-data', (req, res) => {
     }
 });
 
+// *** SERIES SCRAPED RATINGS ENDPOINTS ***
+
+// GET /api/series-ratings/:imdbId - Get scraped series ratings from database
+app.get('/api/series-ratings/:imdbId', (req, res) => {
+    try {
+        const { imdbId } = req.params;
+
+        if (!imdbId || !imdbId.startsWith('tt')) {
+            return res.status(400).json({ error: 'Invalid IMDb ID' });
+        }
+
+        const result = db.prepare(`
+            SELECT * FROM series_scraped_ratings WHERE imdb_id = ?
+        `).get(imdbId);
+
+        if (!result) {
+            return res.status(404).json({ error: 'Series ratings not found' });
+        }
+
+        // Convert column names to camelCase
+        res.json({
+            imdbId: result.imdb_id,
+            title: result.title,
+            rtCriticsScore: result.rt_critics_score,
+            rtAudienceScore: result.rt_audience_score,
+            rtUrl: result.rt_url,
+            mcMetascore: result.mc_metascore,
+            mcUserScore: result.mc_user_score,
+            mcUrl: result.mc_url,
+            scrapeAttemptedAt: result.scrape_attempted_at,
+            scrapeSucceededAt: result.scrape_succeeded_at,
+            scrapeFailedCount: result.scrape_failed_count,
+            cache_until: result.cache_until
+        });
+
+    } catch (error) {
+        console.error(`[SERIES-RATINGS] Error fetching ${req.params.imdbId}:`, error);
+        res.status(500).json({ error: 'Database error' });
+    }
+});
+
+// POST /api/series-ratings - Store scraped series ratings
+app.post('/api/series-ratings', (req, res) => {
+    try {
+        const {
+            imdbId, title,
+            rtCriticsScore, rtAudienceScore, rtUrl,
+            mcMetascore, mcUserScore, mcUrl,
+            scrapeAttemptedAt, scrapeSucceededAt, scrapeFailedCount,
+            cacheUntil
+        } = req.body;
+
+        if (!imdbId || !title) {
+            return res.status(400).json({ error: 'Missing imdbId or title' });
+        }
+
+        const stmt = db.prepare(`
+            INSERT OR REPLACE INTO series_scraped_ratings
+            (imdb_id, title, rt_critics_score, rt_audience_score, rt_url,
+             mc_metascore, mc_user_score, mc_url,
+             scrape_attempted_at, scrape_succeeded_at, scrape_failed_count, cache_until)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        stmt.run(
+            imdbId, title,
+            rtCriticsScore || null, rtAudienceScore || null, rtUrl || null,
+            mcMetascore || null, mcUserScore || null, mcUrl || null,
+            scrapeAttemptedAt, scrapeSucceededAt || null, scrapeFailedCount || 0,
+            cacheUntil
+        );
+
+        console.info(`[SERIES-RATINGS] Stored ratings for ${imdbId}: RT=${rtCriticsScore}/${rtAudienceScore}, MC=${mcMetascore}/${mcUserScore}`);
+
+        res.json({ success: true, imdbId });
+
+    } catch (error) {
+        console.error('[SERIES-RATINGS] Database write error:', error);
+        res.status(500).json({ error: 'Database write failed' });
+    }
+});
+
+// DELETE /api/series-ratings/:imdbId - Clear cache (set cache_until to 0)
+app.delete('/api/series-ratings/:imdbId', (req, res) => {
+    try {
+        const { imdbId } = req.params;
+
+        if (!imdbId || !imdbId.startsWith('tt')) {
+            return res.status(400).json({ error: 'Invalid IMDb ID' });
+        }
+
+        const stmt = db.prepare(`
+            UPDATE series_scraped_ratings
+            SET cache_until = 0
+            WHERE imdb_id = ?
+        `);
+
+        const result = stmt.run(imdbId);
+
+        if (result.changes > 0) {
+            console.info(`[SERIES-RATINGS] Cache cleared for ${imdbId}`);
+            res.json({ success: true, imdbId });
+        } else {
+            res.status(404).json({ error: 'Series ratings not found' });
+        }
+
+    } catch (error) {
+        console.error(`[SERIES-RATINGS] Error clearing cache for ${req.params.imdbId}:`, error);
+        res.status(500).json({ error: 'Database error' });
+    }
+});
+
+// GET /api/series-ratings/stats - Get series ratings statistics
+app.get('/api/series-ratings/stats', (req, res) => {
+    try {
+        const now = Date.now();
+
+        const stats = db.prepare(`
+            SELECT
+                COUNT(*) as total_entries,
+                COUNT(CASE WHEN rt_critics_score IS NOT NULL THEN 1 END) as with_rt_critics,
+                COUNT(CASE WHEN rt_audience_score IS NOT NULL THEN 1 END) as with_rt_audience,
+                COUNT(CASE WHEN mc_metascore IS NOT NULL THEN 1 END) as with_mc_metascore,
+                COUNT(CASE WHEN mc_user_score IS NOT NULL THEN 1 END) as with_mc_userscore,
+                COUNT(CASE WHEN cache_until > ? THEN 1 END) as cached_valid,
+                COUNT(CASE WHEN cache_until <= ? THEN 1 END) as cached_expired,
+                COUNT(CASE WHEN scrape_failed_count > 0 THEN 1 END) as with_failures,
+                AVG(scrape_failed_count) as avg_failed_count
+            FROM series_scraped_ratings
+        `).get(now, now);
+
+        res.json({
+            totalEntries: parseInt(stats.total_entries),
+            withRtCritics: parseInt(stats.with_rt_critics),
+            withRtAudience: parseInt(stats.with_rt_audience),
+            withMcMetascore: parseInt(stats.with_mc_metascore),
+            withMcUserscore: parseInt(stats.with_mc_userscore),
+            cachedValid: parseInt(stats.cached_valid),
+            cachedExpired: parseInt(stats.cached_expired),
+            withFailures: parseInt(stats.with_failures),
+            avgFailedCount: parseFloat(stats.avg_failed_count || 0).toFixed(2)
+        });
+
+    } catch (error) {
+        console.error('[SERIES-RATINGS] Error fetching stats:', error);
+        res.status(500).json({ error: 'Database error' });
+    }
+});
+
 // *** NEW: STATS AND MAINTENANCE ENDPOINTS ***
 
 // GET /api/stats/cache - Cache and mapping statistics
