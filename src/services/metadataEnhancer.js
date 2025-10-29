@@ -834,6 +834,20 @@ class MetadataEnhancerService {
           episodeLocation = 'description';
         }
 
+        // ⚡ OPTIMIZATION: Fetch series-level OMDB data ONCE for all episodes (RT/MC are per-series, not per-episode)
+        let seriesOmdbData = null;
+        if (descriptionFormat && (descriptionFormat.includeRottenTomatoes || descriptionFormat.includeMetacritic) &&
+            (episodeLocation === 'description' || episodeLocation === 'both')) {
+          const seriesImdbId = imdbId || meta.imdb_id;
+          if (seriesImdbId) {
+            const seriesYear = meta.year || null;
+            seriesOmdbData = await omdbService.getOmdbDataByImdbId(seriesImdbId, 'series', meta.name, seriesYear);
+            if (seriesOmdbData) {
+              logger.debug(`[ENHANCE] Fetched series OMDB data once for all episodes: ${seriesImdbId}`);
+            }
+          }
+        }
+
         // Enhance each episode title (now using async)
         enhancedMeta.videos = await Promise.all(meta.videos.map(async video => {
           if (!video.id) return video;
@@ -957,15 +971,9 @@ class MetadataEnhancerService {
             episodeTmdbData = await tmdbService.getTmdbDataByImdbId(mpaaLookupId);
           }
 
-          // Fetch OMDB data if needed for description location
-          let episodeOmdbData = null;
-          if (descriptionFormat && (descriptionFormat.includeRottenTomatoes || descriptionFormat.includeMetacritic) &&
-              (episodeLocation === 'description' || episodeLocation === 'both') && mpaaLookupId) {
-            // Only fetch if the episode location uses description
-            // For episodes, pass 'series' type and parent meta name/year
-            const episodeYear = meta.year || null;
-            episodeOmdbData = await omdbService.getOmdbDataByImdbId(mpaaLookupId, 'series', meta.name, episodeYear);
-          }
+          // ⚡ OPTIMIZATION: Reuse series-level OMDB data (already fetched once above)
+          // RT/MC ratings are per-series, not per-episode, so no need to fetch again
+          const episodeOmdbData = seriesOmdbData;
 
           // Fetch MAL data if needed for description location
           let episodeMalData = null;
