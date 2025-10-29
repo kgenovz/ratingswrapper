@@ -836,11 +836,32 @@ class MetadataEnhancerService {
 
         // ⚡ OPTIMIZATION: Fetch series-level data ONCE for all episodes (these are per-series, not per-episode)
 
+        // Extract series IMDb ID (needed for TMDB/OMDB lookups)
+        let seriesImdbId = meta.imdb_id || meta.imdbId || (meta.id && meta.id.startsWith('tt') ? meta.id.split(':')[0] : null);
+
+        // If no IMDb ID present and the meta.id is from Kitsu/MAL, map to IMDb
+        if (!seriesImdbId && meta.id) {
+          if (kitsuMappingService.isKitsuId(meta.id)) {
+            const kitsuId = kitsuMappingService.extractKitsuId(meta.id);
+            const mappedImdb = kitsuMappingService.getImdbId(kitsuId);
+            if (mappedImdb) {
+              seriesImdbId = mappedImdb;
+              logger.debug(`[ENHANCE] Mapped Kitsu series to IMDb for episodes: kitsuId=${kitsuId} -> ${seriesImdbId}`);
+            }
+          } else if (kitsuMappingService.isMalId(meta.id)) {
+            const malId = kitsuMappingService.extractMalId(meta.id);
+            const mappedImdb = kitsuMappingService.getImdbIdFromMal(malId);
+            if (mappedImdb) {
+              seriesImdbId = mappedImdb;
+              logger.debug(`[ENHANCE] Mapped MAL series to IMDb for episodes: malId=${malId} -> ${seriesImdbId}`);
+            }
+          }
+        }
+
         // Fetch OMDB data (RT/MC) once
         let seriesOmdbData = null;
         if (descriptionFormat && (descriptionFormat.includeRottenTomatoes || descriptionFormat.includeMetacritic) &&
             (episodeLocation === 'description' || episodeLocation === 'both')) {
-          const seriesImdbId = imdbId || meta.imdb_id;
           if (seriesImdbId) {
             const seriesYear = meta.year || null;
             seriesOmdbData = await omdbService.getOmdbDataByImdbId(seriesImdbId, 'series', meta.name, seriesYear);
@@ -854,7 +875,6 @@ class MetadataEnhancerService {
         let seriesTmdbData = null;
         if (descriptionFormat && (descriptionFormat.includeTmdbRating || descriptionFormat.includeReleaseDate) &&
             (episodeLocation === 'description' || episodeLocation === 'both')) {
-          const seriesImdbId = imdbId || meta.imdb_id;
           if (seriesImdbId) {
             const streamingRegion = descriptionFormat.streamingRegion || 'US';
             seriesTmdbData = await tmdbService.getTmdbDataByImdbId(seriesImdbId, streamingRegion);
