@@ -240,7 +240,7 @@ class SeriesRatingsService {
                 timeout: 5000
             });
 
-            logger.debug(`[SERIES-RATINGS] Saved to database: ${imdbId} (cache until: ${new Date(payload.cacheUntil).toISOString()})`);
+            logger.info(`[SERIES-RATINGS] ✓ Saved to SQLite database: ${imdbId} (cache until: ${new Date(payload.cacheUntil).toISOString()})`);
 
         } catch (error) {
             logger.error(`[SERIES-RATINGS] Error saving to database: ${error.message}`);
@@ -257,7 +257,7 @@ class SeriesRatingsService {
         try {
             const cacheKey = `series-ratings:${imdbId}`;
             await redisService.set(cacheKey, data, CACHE_TTL.REDIS);
-            logger.debug(`[SERIES-RATINGS] Cached in Redis: ${imdbId} (TTL: ${CACHE_TTL.REDIS}s)`);
+            logger.info(`[SERIES-RATINGS] ✓ Cached in Redis: ${imdbId} (TTL: ${CACHE_TTL.REDIS}s)`);
         } catch (error) {
             logger.warn(`[SERIES-RATINGS] Redis cache write failed: ${error.message}`);
         }
