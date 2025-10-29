@@ -834,7 +834,9 @@ class MetadataEnhancerService {
           episodeLocation = 'description';
         }
 
-        // ⚡ OPTIMIZATION: Fetch series-level OMDB data ONCE for all episodes (RT/MC are per-series, not per-episode)
+        // ⚡ OPTIMIZATION: Fetch series-level data ONCE for all episodes (these are per-series, not per-episode)
+
+        // Fetch OMDB data (RT/MC) once
         let seriesOmdbData = null;
         if (descriptionFormat && (descriptionFormat.includeRottenTomatoes || descriptionFormat.includeMetacritic) &&
             (episodeLocation === 'description' || episodeLocation === 'both')) {
@@ -844,6 +846,34 @@ class MetadataEnhancerService {
             seriesOmdbData = await omdbService.getOmdbDataByImdbId(seriesImdbId, 'series', meta.name, seriesYear);
             if (seriesOmdbData) {
               logger.debug(`[ENHANCE] Fetched series OMDB data once for all episodes: ${seriesImdbId}`);
+            }
+          }
+        }
+
+        // Fetch TMDB data once
+        let seriesTmdbData = null;
+        if (descriptionFormat && (descriptionFormat.includeTmdbRating || descriptionFormat.includeReleaseDate) &&
+            (episodeLocation === 'description' || episodeLocation === 'both')) {
+          const seriesImdbId = imdbId || meta.imdb_id;
+          if (seriesImdbId) {
+            const streamingRegion = descriptionFormat.streamingRegion || 'US';
+            seriesTmdbData = await tmdbService.getTmdbDataByImdbId(seriesImdbId, streamingRegion);
+            if (seriesTmdbData) {
+              logger.debug(`[ENHANCE] Fetched series TMDB data once for all episodes: ${seriesImdbId}`);
+            }
+          }
+        }
+
+        // Fetch MAL data once (for anime)
+        let seriesMalData = null;
+        if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) &&
+            (episodeLocation === 'description' || episodeLocation === 'both')) {
+          // Extract MAL ID from the series meta ID
+          const seriesMalId = kitsuMappingService.extractMalId(meta.id);
+          if (seriesMalId) {
+            seriesMalData = await malService.getMalDataByMalId(seriesMalId);
+            if (seriesMalData) {
+              logger.debug(`[ENHANCE] Fetched series MAL data once for all episodes: ${seriesMalId}`);
             }
           }
         }
@@ -962,28 +992,11 @@ class MetadataEnhancerService {
           // Get IMDb ID for MPAA lookup (use different variable name to avoid conflict)
           const mpaaLookupId = video.imdb_id || video.imdbId || (lookupId.startsWith('tt') ? lookupId.split(':')[0] : null);
 
-          // Fetch TMDB data if needed for description location
-          // Note: For episodes, we don't typically have TMDB data, but we include the hook for completeness
-          let episodeTmdbData = null;
-          if (descriptionFormat && (descriptionFormat.includeTmdbRating || descriptionFormat.includeReleaseDate) &&
-              (episodeLocation === 'description' || episodeLocation === 'both') && mpaaLookupId) {
-            // Only fetch if the episode location uses description
-            episodeTmdbData = await tmdbService.getTmdbDataByImdbId(mpaaLookupId);
-          }
-
-          // ⚡ OPTIMIZATION: Reuse series-level OMDB data (already fetched once above)
-          // RT/MC ratings are per-series, not per-episode, so no need to fetch again
+          // ⚡ OPTIMIZATION: Reuse series-level data (already fetched once above)
+          // TMDB, OMDB, and MAL ratings are all per-series, not per-episode
+          const episodeTmdbData = seriesTmdbData;
           const episodeOmdbData = seriesOmdbData;
-
-          // Fetch MAL data if needed for description location
-          let episodeMalData = null;
-          if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) &&
-              (episodeLocation === 'description' || episodeLocation === 'both')) {
-            const malId = kitsuMappingService.extractMalId(video.id || lookupId);
-            if (malId) {
-              episodeMalData = await malService.getMalDataByMalId(malId);
-            }
-          }
+          const episodeMalData = seriesMalData;
 
           // Create a temporary meta-like object to use the enhancer
           // Different addons use different fields: Cinemeta uses 'name', others may use 'title'
