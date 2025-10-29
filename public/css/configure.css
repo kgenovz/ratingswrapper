@@ -44,6 +44,7 @@ input[type="text"], input[type="url"], input[type="email"], input[type="password
 .addon-info { flex: 1; min-width: 0; }
 .addon-name { font-weight: 600; font-size: 14px; color: #111827; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .addon-status { font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 4px; }
+.addon-card.not-wrappable .addon-status { color: #dc2626; font-weight: 500; }
 .status-icon { font-size: 14px; }
 .status-icon.wrappable { color: #10b981; }
 .status-icon.not-wrappable { color: #ef4444; }

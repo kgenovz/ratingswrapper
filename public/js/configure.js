@@ -283,6 +283,11 @@ function renderInstalledAddons(addons) {
       reasonText.textContent = 'Re-wrap with new settings';
     } else {
       reasonText.textContent = addon.reason;
+      // Add tooltip for non-wrappable addons to explain why
+      if (!addon.wrappable) {
+        reasonText.title = addon.reason;
+        card.title = addon.reason;
+      }
     }
 
     status.appendChild(icon);
