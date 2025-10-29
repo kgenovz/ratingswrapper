@@ -247,7 +247,12 @@ async function catalogCacheMiddleware(req, res, next) {
     res.status = function(code) {
       if (code >= 400) {
         // Reject the in-flight promise on error
-        rejectInflight(new Error(`Request failed with status ${code}`));
+        // Safely reject inflight promise (prevent unhandled rejection crashes)
+        try {
+          rejectInflight(new Error(`Request failed with status ${code}`));
+        } catch (err) {
+          // Ignore - promise might already be settled or rejection unhandled
+        }
         inflightCacheMisses.delete(cacheKey);
       }
       return originalStatus(code);
@@ -382,7 +387,12 @@ async function metaCacheMiddleware(req, res, next) {
     const originalStatus = res.status.bind(res);
     res.status = function(code) {
       if (code >= 400) {
-        rejectInflight(new Error(`Request failed with status ${code}`));
+        // Safely reject inflight promise (prevent unhandled rejection crashes)
+        try {
+          rejectInflight(new Error(`Request failed with status ${code}`));
+        } catch (err) {
+          // Ignore - promise might already be settled or rejection unhandled
+        }
         inflightCacheMisses.delete(cacheKey);
       }
       return originalStatus(code);
@@ -515,7 +525,12 @@ async function manifestCacheMiddleware(req, res, next) {
     const originalStatus = res.status.bind(res);
     res.status = function(code) {
       if (code >= 400) {
-        rejectInflight(new Error(`Request failed with status ${code}`));
+        // Safely reject inflight promise (prevent unhandled rejection crashes)
+        try {
+          rejectInflight(new Error(`Request failed with status ${code}`));
+        } catch (err) {
+          // Ignore - promise might already be settled or rejection unhandled
+        }
         inflightCacheMisses.delete(cacheKey);
       }
       return originalStatus(code);
