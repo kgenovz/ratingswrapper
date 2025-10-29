@@ -488,26 +488,18 @@ router.post('/get-wrappable-addons', async (req, res) => {
         return addonInfo;
       }
 
-      // Blocklist: Stream-only addons that should not be wrapped
-      const STREAM_ADDON_BLOCKLIST = [
-        'mediafusion.elfhosted.com',
-        'torrentio.strem.fun',
-        'torbox.app',
-        'sootio.elfhosted.com',
-        'nuviostreams.hayd.uk',
-        'jackettio.elfhosted.com',
-        'comet.elfhosted.com'
+      // Allowlist: Addons that should be wrappable even if they have stream resources
+      // Use this for edge cases where a stream addon should be wrapped despite the default exclusion
+      // Format: addon manifest IDs or domain patterns
+      const WRAPPER_ALLOWLIST = [
+        // Example: 'some-addon-id'
+        // Example: 'special-addon.domain.com'
       ];
 
-      // Check if addon URL contains any blocklisted domain
-      const isBlocklisted = STREAM_ADDON_BLOCKLIST.some(domain =>
-        manifestUrl.toLowerCase().includes(domain.toLowerCase())
+      // Check if addon is in allowlist (by manifest URL pattern)
+      const isAllowlisted = WRAPPER_ALLOWLIST.some(pattern =>
+        manifestUrl.toLowerCase().includes(pattern.toLowerCase())
       );
-
-      if (isBlocklisted) {
-        addonInfo.reason = 'Stream-only addon (not wrappable)';
-        return addonInfo;
-      }
 
       // Helper to extract original URL from wrapped addon
       const extractOriginalUrl = (wrappedUrl) => {
@@ -598,12 +590,26 @@ router.post('/get-wrappable-addons', async (req, res) => {
 
         const hasCatalog = resourceNames.includes('catalog');
         const hasMeta = resourceNames.includes('meta');
+        const hasStream = resourceNames.includes('stream');
 
-        if (hasCatalog || hasMeta) {
+        // Allowlist takes precedence - allow wrapping even if it has streams
+        if (isAllowlisted && (hasCatalog || hasMeta)) {
+          addonInfo.wrappable = true;
+          const present = resourceNames.filter(r => r === 'catalog' || r === 'meta');
+          addonInfo.reason = `Has ${present.join(' and ')} (allowlisted)`;
+        }
+        // Exclude addons with stream resources (wrapping would break streaming)
+        else if (hasStream) {
+          addonInfo.reason = 'Has stream resource (not wrappable - would break streaming)';
+        }
+        // Allow addons with catalog or meta resources
+        else if (hasCatalog || hasMeta) {
           addonInfo.wrappable = true;
           const present = resourceNames.filter(r => r === 'catalog' || r === 'meta');
           addonInfo.reason = `Has ${present.join(' and ')}`;
-        } else {
+        }
+        // Missing required resources
+        else {
           addonInfo.reason = `Missing catalog/meta (has: ${resourceNames.join(', ') || 'none'})`;
         }
 
