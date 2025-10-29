@@ -42,7 +42,10 @@ function createMetaHandler(config) {
           return { meta: enhancedMeta };
         }
       } catch (error) {
-        logger.warn(`Wrapped addon doesn't support meta endpoint: ${error.message}`);
+        // Expected failures (404, 500) when addon doesn't support the ID format - log at debug level
+        const isExpectedFailure = error.message.includes('404') || error.message.includes('500');
+        const logLevel = isExpectedFailure ? 'debug' : 'warn';
+        logger[logLevel](`Wrapped addon doesn't support meta ${type}/${id}: ${error.message}`);
 
         // ONLY fallback to Cinemeta if:
         // 1. We're wrapping Cinemeta itself, OR

@@ -456,8 +456,6 @@ class MetadataEnhancerService {
         if (uniqueMalIds.length > 0) {
           logger.info(`Batch fetching MAL data for ${uniqueMalIds.length} unique titles: ${uniqueMalIds.join(', ')}`);
           malMap = await malService.getMalDataBatch(uniqueMalIds);
-        } else if (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes) {
-          logger.warn(`MAL ratings enabled but no MAL IDs found in ${metas.length} catalog items. IDs should be in format "mal:123" or "mal-123"`);
         }
       }
 
@@ -626,10 +624,9 @@ class MetadataEnhancerService {
               } else {
                 logger.warn(`✗ MAL data fetch failed for MAL ID: ${malId}`);
               }
-            } else if (meta.id) {
-              logger.warn(`✗ No MAL ID found in meta.id: ${meta.id}. MAL ratings require addon IDs like "mal:123" or "kitsu:123"`);
             } else {
-              logger.debug(`No MAL ID available (meta.id absent); contentId=${contentId}`);
+              // No MAL ID found - this is expected for non-anime content, so only log at debug level
+              logger.debug(`No MAL ID found (meta.id: ${meta.id || 'absent'}, contentId: ${contentId})`);
             }
           } else if (descriptionFormat && (descriptionFormat.includeMalRating || descriptionFormat.includeMalVotes)) {
             logger.debug(`MAL data not fetched: location=${location}, includeRating=${descriptionFormat.includeMalRating}, includeVotes=${descriptionFormat.includeMalVotes}`);

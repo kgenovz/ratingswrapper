@@ -36,8 +36,13 @@ class AddonProxyService {
       return response.data;
 
     } catch (error) {
-      if (attempt < this.retries) {
-        logger.warn(`Retry ${attempt} failed for ${url}:`, error.message);
+      const statusCode = error.response?.status;
+
+      // Don't retry 4xx errors (client errors like 404, 400, etc.) - they won't succeed on retry
+      const isClientError = statusCode >= 400 && statusCode < 500;
+
+      if (!isClientError && attempt < this.retries) {
+        logger.debug(`Retry ${attempt} failed for ${url}: ${error.message}`);
         // Exponential backoff
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         return this._fetchWithRetry(url, attempt + 1);
@@ -152,10 +157,16 @@ class AddonProxyService {
       logger.debug(`Catalog response keys: ${Object.keys(catalogResponse).join(', ')}`);
       logger.debug(`Full response: ${JSON.stringify(catalogResponse).substring(0, 500)}`);
 
+      // Normalize catalog response - support both 'metas' and 'metasDetailed' formats
+      if (catalogResponse.metasDetailed && Array.isArray(catalogResponse.metasDetailed)) {
+        logger.debug(`Normalizing metasDetailed to metas format (${catalogResponse.metasDetailed.length} items)`);
+        catalogResponse.metas = catalogResponse.metasDetailed;
+      }
+
       // Validate response has metas array
       if (!catalogResponse.metas || !Array.isArray(catalogResponse.metas)) {
-        logger.error(`Invalid catalog response structure. Keys: ${Object.keys(catalogResponse).join(', ')}`);
-        throw new Error('Invalid catalog response: missing metas array');
+        logger.warn(`Catalog ${type}/${id} returned unexpected format. Keys: ${Object.keys(catalogResponse).join(', ')}. Returning empty catalog.`);
+        catalogResponse.metas = [];
       }
 
       logger.debug(`Catalog fetched: ${catalogResponse.metas.length} items`);
@@ -181,7 +192,9 @@ class AddonProxyService {
       return catalogResponse;
 
     } catch (error) {
-      logger.error(`Failed to fetch catalog ${type}/${id}:`, error.message);
+      const statusCode = error.response?.status;
+      const logLevel = (statusCode === 404 || statusCode === 500) ? 'debug' : 'error';
+      logger[logLevel](`Failed to fetch catalog ${type}/${id}: ${error.message}`);
       throw new Error(`Unable to fetch catalog: ${error.message}`);
     }
   }
@@ -209,7 +222,10 @@ class AddonProxyService {
       return metaResponse;
 
     } catch (error) {
-      logger.error(`Failed to fetch meta ${type}/${id}:`, error.message);
+      const statusCode = error.response?.status;
+      // 404 and 500 are expected when addon doesn't support the ID format (e.g., tmdb:123 on anime addon)
+      const logLevel = (statusCode === 404 || statusCode === 500) ? 'debug' : 'error';
+      logger[logLevel](`Failed to fetch meta ${type}/${id}: ${error.message}`);
       throw new Error(`Unable to fetch meta: ${error.message}`);
     }
   }
@@ -237,7 +253,9 @@ class AddonProxyService {
       return metaResponse;
 
     } catch (error) {
-      logger.error(`Failed to fetch meta from Cinemeta ${type}/${id}:`, error.message);
+      const statusCode = error.response?.status;
+      const logLevel = (statusCode === 404 || statusCode === 500) ? 'debug' : 'error';
+      logger[logLevel](`Failed to fetch meta from Cinemeta ${type}/${id}: ${error.message}`);
       throw new Error(`Unable to fetch meta from Cinemeta: ${error.message}`);
     }
   }
