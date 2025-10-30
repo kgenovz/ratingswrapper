@@ -42,8 +42,10 @@ function createMetaHandler(config) {
           return { meta: enhancedMeta };
         }
       } catch (error) {
-        // Expected failures (404, 500) when addon doesn't support the ID format - log at debug level
-        const isExpectedFailure = error.message.includes('404') || error.message.includes('500');
+        // Expected failures (404, 500, invalid response) when addon doesn't support the ID format
+        const isExpectedFailure = error.message.includes('404') ||
+                                  error.message.includes('500') ||
+                                  (error.message.includes('Invalid') && error.message.includes('response'));
         const logLevel = isExpectedFailure ? 'debug' : 'warn';
         logger[logLevel](`Wrapped addon doesn't support meta ${type}/${id}: ${error.message}`);
 

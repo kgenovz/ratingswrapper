@@ -216,6 +216,8 @@ class AddonProxyService {
       const metaResponse = await this._fetchWithRetry(metaUrl);
 
       if (!metaResponse.meta) {
+        // Addon returned 200 but with invalid response - doesn't support this ID format
+        logger.debug(`Meta ${type}/${id} returned invalid response (missing meta object) - addon likely doesn't support this ID format`);
         throw new Error('Invalid meta response: missing meta object');
       }
 
@@ -223,8 +225,9 @@ class AddonProxyService {
 
     } catch (error) {
       const statusCode = error.response?.status;
-      // 404 and 500 are expected when addon doesn't support the ID format (e.g., tmdb:123 on anime addon)
-      const logLevel = (statusCode === 404 || statusCode === 500) ? 'debug' : 'error';
+      const isInvalidResponse = error.message.includes('Invalid meta response');
+      // Expected failures: 404, 500, or invalid response structure (addon doesn't support ID format)
+      const logLevel = (statusCode === 404 || statusCode === 500 || isInvalidResponse) ? 'debug' : 'error';
       logger[logLevel](`Failed to fetch meta ${type}/${id}: ${error.message}`);
       throw new Error(`Unable to fetch meta: ${error.message}`);
     }
@@ -246,6 +249,7 @@ class AddonProxyService {
       const metaResponse = await this._fetchWithRetry(metaUrl);
 
       if (!metaResponse.meta) {
+        logger.debug(`Cinemeta ${type}/${id} returned invalid response (missing meta object)`);
         throw new Error('Invalid Cinemeta response: missing meta object');
       }
 
@@ -254,7 +258,8 @@ class AddonProxyService {
 
     } catch (error) {
       const statusCode = error.response?.status;
-      const logLevel = (statusCode === 404 || statusCode === 500) ? 'debug' : 'error';
+      const isInvalidResponse = error.message.includes('Invalid') && error.message.includes('response');
+      const logLevel = (statusCode === 404 || statusCode === 500 || isInvalidResponse) ? 'debug' : 'error';
       logger[logLevel](`Failed to fetch meta from Cinemeta ${type}/${id}: ${error.message}`);
       throw new Error(`Unable to fetch meta from Cinemeta: ${error.message}`);
     }
