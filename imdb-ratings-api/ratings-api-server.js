@@ -2108,16 +2108,56 @@ app.get('/', (req, res) => {
 
             // Stats and maintenance
             cacheStats: '/api/stats/cache',
-            cacheCleanup: 'DELETE /api/cache/cleanup'
+            cacheCleanup: 'DELETE /api/cache/cleanup',
+
+            // Admin endpoints
+            rebuildDatabase: 'POST /api/admin/rebuild-database'
         },
         examples: {
             movie: '/api/rating/tt0111161',
             episode: '/api/episode/tt0903747/1/1',
             episodeById: '/api/episode/id/tt0959621',
             kitsuMapping: '/api/kitsu-mapping/7936',
-            cacheStats: '/api/stats/cache'
+            cacheStats: '/api/stats/cache',
+            rebuildDatabase: 'POST /api/admin/rebuild-database'
         }
     });
+});
+
+// *** ADMIN ENDPOINTS ***
+
+/**
+ * POST /api/admin/rebuild-database
+ * Manually trigger IMDb database rebuild (same as cron job)
+ * Downloads latest IMDb datasets and rebuilds ratings + episodes tables
+ */
+app.post('/api/admin/rebuild-database', async (req, res) => {
+    console.log('Manual database rebuild triggered via API');
+
+    // Return immediately so request doesn't timeout
+    res.json({
+        status: 'started',
+        message: 'Database rebuild started. This will take 15-20 minutes. Check server logs for progress.',
+        note: 'The API will remain available during rebuild (reads from current data until complete)'
+    });
+
+    // Run rebuild in background
+    setTimeout(async () => {
+        try {
+            console.log('='.repeat(80));
+            console.log('MANUAL DATABASE REBUILD STARTED');
+            console.log('='.repeat(80));
+            await downloadAndProcessAllData();
+            console.log('='.repeat(80));
+            console.log('MANUAL DATABASE REBUILD COMPLETED SUCCESSFULLY');
+            console.log('='.repeat(80));
+        } catch (error) {
+            console.error('='.repeat(80));
+            console.error('MANUAL DATABASE REBUILD FAILED');
+            console.error('Error:', error.message);
+            console.error('='.repeat(80));
+        }
+    }, 100);
 });
 
 // *** SCHEDULED MAINTENANCE ***
