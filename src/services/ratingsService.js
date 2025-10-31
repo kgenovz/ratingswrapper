@@ -57,10 +57,86 @@ class RatingsService {
     this.ratingsApiUrl = process.env.RATINGS_API_URL || `http://127.0.0.1:${port}/ratings`;
 
     // Cache for failed lookups to avoid retrying non-existent episodes
+    // Format: Map<id, { timestamp, isEpisode }>
     this.notFoundCache = new Map();
     this.cacheMaxSize = 1000;
 
+    // TTL for not-found cache entries (in milliseconds)
+    this.notFoundTTL = {
+      episode: 30 * 60 * 1000, // 30 minutes for episodes (might be added later)
+      default: 24 * 60 * 60 * 1000 // 24 hours for movies/series (unlikely to change)
+    };
+
+    // Start periodic cleanup (every 5 minutes)
+    this._startCleanupInterval();
+
     logger.info(`Ratings API configured: ${this.ratingsApiUrl}`);
+  }
+
+  /**
+   * Start periodic cleanup of expired not-found cache entries
+   * @private
+   */
+  _startCleanupInterval() {
+    // Run cleanup every 5 minutes
+    this.cleanupInterval = setInterval(() => {
+      this._cleanupExpiredNotFoundEntries();
+    }, 5 * 60 * 1000);
+
+    // Don't keep the process alive for this interval
+    if (this.cleanupInterval.unref) {
+      this.cleanupInterval.unref();
+    }
+  }
+
+  /**
+   * Clean up expired not-found cache entries
+   * @private
+   */
+  _cleanupExpiredNotFoundEntries() {
+    const now = Date.now();
+    let removedCount = 0;
+
+    for (const [id, entry] of this.notFoundCache.entries()) {
+      const ttl = entry.isEpisode ? this.notFoundTTL.episode : this.notFoundTTL.default;
+      const age = now - entry.timestamp;
+
+      if (age > ttl) {
+        this.notFoundCache.delete(id);
+        removedCount++;
+      }
+    }
+
+    if (removedCount > 0) {
+      logger.debug(`Cleaned up ${removedCount} expired not-found cache entries (${this.notFoundCache.size} remaining)`);
+    }
+  }
+
+  /**
+   * Check if an ID is in the not-found cache and still valid (not expired)
+   * @param {string} id - ID to check
+   * @returns {boolean} True if cached and not expired
+   * @private
+   */
+  _isInNotFoundCache(id) {
+    const entry = this.notFoundCache.get(id);
+    if (!entry) {
+      return false;
+    }
+
+    // Check if entry has expired
+    const now = Date.now();
+    const ttl = entry.isEpisode ? this.notFoundTTL.episode : this.notFoundTTL.default;
+    const age = now - entry.timestamp;
+
+    if (age > ttl) {
+      // Entry expired, remove it
+      this.notFoundCache.delete(id);
+      logger.debug(`Not-found cache entry expired for ${id} (age: ${Math.floor(age / 1000 / 60)}m)`);
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -110,8 +186,8 @@ class RatingsService {
         return null;
       }
 
-      // Check cache for known not-found items
-      if (this.notFoundCache.has(id)) {
+      // Check cache for known not-found items (with TTL expiry)
+      if (this._isInNotFoundCache(id)) {
         logger.debug(`Skipping cached not-found item: ${id}`);
         return null;
       }
@@ -124,23 +200,38 @@ class RatingsService {
 
           // For episodes, we don't cache (too many unique IDs)
           // Use the episode endpoint to get the actual episode IMDb ID
-          logger.debug(`Fetching episode rating: ${seriesId} S${season}E${episode}`);
-          const response = await this._fetchFromApi(`/api/episode/${seriesId}/${season}/${episode}`);
+          logger.debug(`Fetching episode rating: ${seriesId} S${season}E${episode} (ID: ${id})`);
 
-          if (response && response.rating) {
-            const ratingData = {
-              rating: parseFloat(response.rating),
-              votes: response.votes ? parseInt(response.votes) : null,
-              voteCount: response.votes ? parseInt(response.votes) : null
-            };
-            logger.debug(`Episode rating for ${id}: ${ratingData.rating} (${ratingData.votes} votes, episode ID: ${response.episodeId})`);
-            return ratingData;
+          try {
+            const response = await this._fetchFromApi(`/api/episode/${seriesId}/${season}/${episode}`);
+
+            if (response && response.rating) {
+              const ratingData = {
+                rating: parseFloat(response.rating),
+                votes: response.votes ? parseInt(response.votes) : null,
+                voteCount: response.votes ? parseInt(response.votes) : null
+              };
+              logger.debug(`✓ Episode rating found for ${id}: ${ratingData.rating} (${ratingData.votes} votes, episode IMDb: ${response.episodeId || 'N/A'})`);
+              return ratingData;
+            }
+
+            // Response was null or no rating field
+            logger.info(`✗ Episode rating not found for ${id} (${seriesId} S${season}E${episode}) - API returned ${response ? 'empty response' : 'null'}`);
+            this._addToNotFoundCache(id, true);
+            return null;
+          } catch (episodeError) {
+            // Enhanced error logging for episodes
+            if (episodeError.message.includes('404')) {
+              logger.info(`✗ Episode not in database: ${id} (${seriesId} S${season}E${episode}) - 404 Not Found`);
+            } else if (episodeError.message.includes('502')) {
+              logger.info(`✗ Episode API unavailable: ${id} (${seriesId} S${season}E${episode}) - 502 Bad Gateway (not caching)`);
+              return null; // Don't cache 502 errors
+            } else {
+              logger.warn(`✗ Episode lookup failed for ${id} (${seriesId} S${season}E${episode}): ${episodeError.message}`);
+            }
+            this._addToNotFoundCache(id, true);
+            return null;
           }
-
-          // Cache the not-found result
-          this._addToNotFoundCache(id);
-          logger.debug(`No episode rating found for ${id}`);
-          return null;
         }
       }
 
@@ -152,18 +243,20 @@ class RatingsService {
         return null;
       }
 
+      logger.debug(`Fetching ${type || 'content'} rating for IMDb ID: ${imdbId}`);
+
       // Check Redis cache if enabled
       const cacheEnabled = appConfig.redis.enabled && appConfig.redis.enableRawDataCache;
       if (cacheEnabled) {
         const cacheKey = cacheKeys.generateImdbRatingKey(imdbId);
         const cached = await redisService.get(cacheKey);
         if (cached) {
-          logger.debug(`IMDb rating cache HIT: ${imdbId}`);
+          logger.debug(`✓ IMDb rating cache HIT: ${imdbId} - ${cached.rating}`);
           // Track hot key usage for observability
           redisService.trackHotKey(cacheKey);
           return cached;
         }
-        logger.debug(`IMDb rating cache MISS: ${imdbId}`);
+        logger.debug(`✗ IMDb rating cache MISS: ${imdbId}`);
       }
 
       // Call the IMDb Ratings API
@@ -175,14 +268,14 @@ class RatingsService {
           votes: response.votes ? parseInt(response.votes) : null,
           voteCount: response.votes ? parseInt(response.votes) : null
         };
-        logger.debug(`Rating for ${imdbId}: ${ratingData.rating} (${ratingData.votes} votes)`);
+        logger.debug(`✓ Rating found for ${imdbId}: ${ratingData.rating}/10 (${ratingData.votes?.toLocaleString() || 'N/A'} votes)`);
 
         // Cache the successful result
         if (cacheEnabled) {
           const cacheKey = cacheKeys.generateImdbRatingKey(imdbId);
           const ttl = cacheKeys.getRawDataTTL();
           await redisService.set(cacheKey, ratingData, ttl);
-          logger.debug(`Cached IMDb rating: ${imdbId} (TTL: ${ttl}s)`);
+          logger.debug(`Cached IMDb rating: ${imdbId} (TTL: ${Math.floor(ttl / 3600)}h)`);
           // Track hot key after write
           redisService.trackHotKey(cacheKey);
         }
@@ -190,16 +283,17 @@ class RatingsService {
         return ratingData;
       }
 
-      // Cache the not-found result
-      this._addToNotFoundCache(id);
-      logger.debug(`No rating found for ${imdbId}`);
+      // Cache the not-found result (movie/series)
+      logger.info(`✗ Rating not found for ${imdbId} (${type || 'content'}) - API returned ${response ? 'empty response' : 'null'}`);
+      this._addToNotFoundCache(id, false);
       return null;
 
     } catch (error) {
       // Handle different error types appropriately
       if (error.message.includes('404')) {
         // Cache 404 errors (episode doesn't exist in IMDb)
-        this._addToNotFoundCache(id);
+        const isEpisode = id.includes(':') && id.startsWith('tt');
+        this._addToNotFoundCache(id, isEpisode);
         logger.debug(`Rating not found for ${id} (404 - cached)`);
       } else if (error.message.includes('502')) {
         // 502 errors usually mean episode not released yet or temporary API issue
@@ -216,16 +310,26 @@ class RatingsService {
   /**
    * Add an ID to the not-found cache with size limit
    * @param {string} id - ID to cache
+   * @param {boolean} isEpisode - Whether this is an episode ID (affects TTL)
    * @private
    */
-  _addToNotFoundCache(id) {
+  _addToNotFoundCache(id, isEpisode = false) {
     // Implement simple LRU-style cache
     if (this.notFoundCache.size >= this.cacheMaxSize) {
       // Remove oldest entry (first item in map)
       const firstKey = this.notFoundCache.keys().next().value;
       this.notFoundCache.delete(firstKey);
     }
-    this.notFoundCache.set(id, Date.now());
+
+    const entry = {
+      timestamp: Date.now(),
+      isEpisode
+    };
+
+    this.notFoundCache.set(id, entry);
+
+    const ttl = isEpisode ? this.notFoundTTL.episode : this.notFoundTTL.default;
+    logger.debug(`Added ${id} to not-found cache (isEpisode: ${isEpisode}, TTL: ${Math.floor(ttl / 1000 / 60)}m)`);
   }
 
   /**
@@ -238,8 +342,8 @@ class RatingsService {
     try {
       const ratingsMap = new Map();
 
-      // Filter out items already in not-found cache
-      const itemsToFetch = items.filter(item => !this.notFoundCache.has(item.id));
+      // Filter out items already in not-found cache (respecting TTL)
+      const itemsToFetch = items.filter(item => !this._isInNotFoundCache(item.id));
       const skippedCount = items.length - itemsToFetch.length;
 
       if (skippedCount > 0) {

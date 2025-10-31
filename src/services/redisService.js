@@ -7,6 +7,7 @@
 const zlib = require('zlib');
 const { promisify } = require('util');
 const { getRedisClient, isRedisAvailable } = require('../config/redis');
+const config = require('../config');
 const logger = require('../utils/logger');
 
 const gzip = promisify(zlib.gzip);
@@ -315,11 +316,12 @@ async function trackHotKey(cacheKey) {
   try {
     const client = getRedisClient();
 
-    // Create time window key (5-minute buckets): hotkeys:2025-10-24T18:45
+    // Create time window key (5-minute buckets): v{version}:hotkeys:2025-10-24T18:45
     const now = new Date();
     const minutes = Math.floor(now.getMinutes() / 5) * 5; // Round to 5-minute buckets
     const timeWindow = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-    const hotkeysKey = `hotkeys:${timeWindow}`;
+    const version = config.cacheVersion;
+    const hotkeysKey = `v${version}:hotkeys:${timeWindow}`;
 
     // Increment count for this cache key in the sorted set
     await client.zincrby(hotkeysKey, 1, cacheKey);
@@ -350,6 +352,7 @@ async function getHotKeys(windowMinutes = 15, limit = 20) {
   try {
     const client = getRedisClient();
     const now = new Date();
+    const version = config.cacheVersion;
 
     // Calculate which 5-minute buckets to query
     const buckets = [];
@@ -357,7 +360,7 @@ async function getHotKeys(windowMinutes = 15, limit = 20) {
       const bucketTime = new Date(now.getTime() - (i * 5 * 60 * 1000));
       const minutes = Math.floor(bucketTime.getMinutes() / 5) * 5;
       const timeWindow = `${bucketTime.getFullYear()}-${String(bucketTime.getMonth() + 1).padStart(2, '0')}-${String(bucketTime.getDate()).padStart(2, '0')}T${String(bucketTime.getHours()).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-      buckets.push(`hotkeys:${timeWindow}`);
+      buckets.push(`v${version}:hotkeys:${timeWindow}`);
     }
 
     // Aggregate counts from all buckets
