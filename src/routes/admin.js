@@ -322,6 +322,39 @@ router.get('/admin/cache-version', async (req, res) => {
 });
 
 /**
+ * POST /admin/flush-cache
+ * Flushes entire Redis cache database (nuclear option)
+ * Use this to immediately clear all cached data including old unversioned keys
+ */
+router.post('/admin/flush-cache', async (req, res) => {
+  try {
+    logger.warn('FLUSH CACHE requested - deleting all Redis keys');
+
+    const success = await redisService.flushAll();
+
+    if (success) {
+      logger.info('✓ Redis cache flushed successfully');
+      res.json({
+        success: true,
+        message: 'All Redis cache cleared. Cache will rebuild on next requests.'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Redis unavailable or flush failed'
+      });
+    }
+  } catch (error) {
+    logger.error('Flush cache error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to flush cache',
+      message: error.message
+    });
+  }
+});
+
+/**
  * POST /admin/bump-cache-version
  * Increments the cache version and updates the .env file
  */
