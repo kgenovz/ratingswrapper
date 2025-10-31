@@ -234,6 +234,12 @@ function generateObservabilityHTML(wrapperUrl, grafanaUrl = null) {
             gap: 12px;
             margin-bottom: 16px;
           }
+          #rebuildBtn {
+            background: #f59e0b;
+          }
+          #rebuildBtn:hover {
+            background: #d97706;
+          }
           .cache-version-section {
             background: white;
             border-radius: 12px;
@@ -435,6 +441,11 @@ function generateObservabilityHTML(wrapperUrl, grafanaUrl = null) {
                 <i class="fa-solid fa-trash"></i> Flush All Cache
               </button>
             </div>
+            <div class="btn-group" style="margin-top: 12px;">
+              <button class="btn" style="background: #f59e0b;" id="rebuildBtn" onclick="rebuildDatabase()">
+                <i class="fa-solid fa-database"></i> Rebuild IMDb Database
+              </button>
+            </div>
             <div class="warning-box" style="display:none;" id="bumpWarning">
               <strong><i class="fa-solid fa-triangle-exclamation"></i> Warning:</strong>
               Bumping the cache version will invalidate all cached data. This is useful after IMDb database refreshes
@@ -444,6 +455,11 @@ function generateObservabilityHTML(wrapperUrl, grafanaUrl = null) {
               <strong><i class="fa-solid fa-triangle-exclamation"></i> Danger:</strong>
               Flushing cache will IMMEDIATELY DELETE all Redis keys including old unversioned keys. Use this to clear
               stuck cache entries or after fixing cache key bugs. Cache will rebuild from scratch.
+            </div>
+            <div class="warning-box" style="display:none; background: #fef3c7; border-color: #f59e0b;" id="rebuildWarning">
+              <strong><i class="fa-solid fa-triangle-exclamation"></i> Important:</strong>
+              Rebuilding the database will download the latest IMDb datasets (~300MB) and rebuild the ratings and episodes tables.
+              This takes 15-20 minutes. The API remains available during rebuild. Use this to fix missing episode ratings.
             </div>
           </div>
 
@@ -675,6 +691,35 @@ function generateObservabilityHTML(wrapperUrl, grafanaUrl = null) {
             } finally {
               btn.disabled = false;
               btn.innerHTML = '<i class="fa-solid fa-trash"></i> Flush All Cache';
+            }
+          }
+
+          // Rebuild IMDb database
+          async function rebuildDatabase() {
+            if (!confirm('⚠️ IMPORTANT: This will rebuild the entire IMDb database!\\n\\nThis process will:\\n- Download latest IMDb datasets (~300MB)\\n- Rebuild ratings and episodes tables\\n- Take 15-20 minutes to complete\\n- API remains available during rebuild\\n\\nProceed?')) {
+              return;
+            }
+
+            const btn = document.getElementById('rebuildBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rebuilding...';
+
+            try {
+              const response = await fetch('/ratings/api/admin/rebuild-database', {
+                method: 'POST'
+              });
+
+              if (!response.ok) throw new Error('Failed to start database rebuild');
+              const data = await response.json();
+
+              alert('✅ Database rebuild started!\\n\\nThis will take 15-20 minutes.\\n\\nCheck Railway logs for progress:\\n- Downloading datasets\\n- Processing ratings\\n- Processing episodes\\n\\nThe API remains available during rebuild.');
+
+            } catch (error) {
+              console.error('Error starting database rebuild:', error);
+              alert('Error: ' + error.message);
+            } finally {
+              btn.disabled = false;
+              btn.innerHTML = '<i class="fa-solid fa-database"></i> Rebuild IMDb Database';
             }
           }
 
