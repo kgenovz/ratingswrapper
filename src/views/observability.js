@@ -219,6 +219,21 @@ function generateObservabilityHTML(wrapperUrl, grafanaUrl = null) {
             background: #d1d5db;
             cursor: not-allowed;
           }
+          .btn-danger {
+            background: #dc2626;
+          }
+          .btn-danger:hover {
+            background: #b91c1c;
+          }
+          .btn-danger:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+          }
+          .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+          }
           .cache-version-section {
             background: white;
             border-radius: 12px;
@@ -412,13 +427,23 @@ function generateObservabilityHTML(wrapperUrl, grafanaUrl = null) {
               </span>
               <span class="last-bump" id="lastBump"></span>
             </div>
-            <button class="btn" id="bumpBtn" onclick="bumpCacheVersion()">
-              <i class="fa-solid fa-arrow-rotate-right"></i> Bump Cache Version
-            </button>
+            <div class="btn-group">
+              <button class="btn" id="bumpBtn" onclick="bumpCacheVersion()">
+                <i class="fa-solid fa-arrow-rotate-right"></i> Bump Cache Version
+              </button>
+              <button class="btn btn-danger" id="flushBtn" onclick="flushCache()">
+                <i class="fa-solid fa-trash"></i> Flush All Cache
+              </button>
+            </div>
             <div class="warning-box" style="display:none;" id="bumpWarning">
               <strong><i class="fa-solid fa-triangle-exclamation"></i> Warning:</strong>
               Bumping the cache version will invalidate all cached data. This is useful after IMDb database refreshes
               or when you need to force-refresh all catalogs. Current cache will be discarded and rebuilt on demand.
+            </div>
+            <div class="warning-box" style="display:none; background: #fee2e2; border-color: #dc2626;" id="flushWarning">
+              <strong><i class="fa-solid fa-triangle-exclamation"></i> Danger:</strong>
+              Flushing cache will IMMEDIATELY DELETE all Redis keys including old unversioned keys. Use this to clear
+              stuck cache entries or after fixing cache key bugs. Cache will rebuild from scratch.
             </div>
           </div>
 
@@ -618,6 +643,38 @@ function generateObservabilityHTML(wrapperUrl, grafanaUrl = null) {
             } finally {
               btn.disabled = false;
               btn.innerHTML = '<i class="fa-solid fa-arrow-rotate-right"></i> Bump Cache Version';
+            }
+          }
+
+          // Flush entire cache
+          async function flushCache() {
+            if (!confirm('⚠️ DANGER: This will DELETE ALL Redis keys immediately!\\n\\nThis includes:\\n- All cached catalogs and metadata\\n- All IMDb ratings\\n- All old unversioned keys\\n\\nCache will rebuild from scratch.\\n\\nAre you absolutely sure?')) {
+              return;
+            }
+
+            const btn = document.getElementById('flushBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Flushing...';
+
+            try {
+              const response = await fetch('/admin/flush-cache', {
+                method: 'POST'
+              });
+
+              if (!response.ok) throw new Error('Failed to flush cache');
+              const data = await response.json();
+
+              alert('✅ Cache flushed successfully!\\n\\nAll Redis keys have been deleted.\\nCache will rebuild on next requests.');
+
+              // Refresh stats to show 0 keys
+              await fetchRedisStats();
+
+            } catch (error) {
+              console.error('Error flushing cache:', error);
+              alert('Error: ' + error.message);
+            } finally {
+              btn.disabled = false;
+              btn.innerHTML = '<i class="fa-solid fa-trash"></i> Flush All Cache';
             }
           }
 

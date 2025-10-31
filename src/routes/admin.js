@@ -322,6 +322,161 @@ router.get('/admin/cache-version', async (req, res) => {
 });
 
 /**
+ * GET /admin/flush-cache
+ * Shows confirmation page with button to flush cache
+ */
+router.get('/admin/flush-cache', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Flush Cache - Ratings Wrapper</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+          .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 600px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          }
+          h1 {
+            color: #dc2626;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+          h1 i { font-size: 32px; }
+          .warning {
+            background: #fee2e2;
+            border-left: 4px solid #dc2626;
+            padding: 16px;
+            margin-bottom: 24px;
+            border-radius: 4px;
+          }
+          .warning strong { color: #991b1b; display: block; margin-bottom: 8px; }
+          .warning ul { margin-left: 20px; color: #7f1d1d; }
+          .warning li { margin: 4px 0; }
+          .btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-right: 12px;
+          }
+          .btn:hover { background: #b91c1c; transform: translateY(-2px); }
+          .btn:disabled { background: #d1d5db; cursor: not-allowed; }
+          .btn-secondary {
+            background: #6b7280;
+          }
+          .btn-secondary:hover { background: #4b5563; }
+          .result {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+          }
+          .result.success { background: #d1fae5; color: #065f46; border-left: 4px solid #059669; }
+          .result.error { background: #fee2e2; color: #991b1b; border-left: 4px solid #dc2626; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1><i class="fa-solid fa-triangle-exclamation"></i> Flush Redis Cache</h1>
+
+          <div class="warning">
+            <strong>⚠️ WARNING: This is a destructive action!</strong>
+            <p>Flushing the cache will immediately delete ALL Redis keys:</p>
+            <ul>
+              <li>All cached catalogs and metadata</li>
+              <li>All IMDb ratings and MPAA data</li>
+              <li>All series ratings (RT/MC)</li>
+              <li>All rate limiting counters</li>
+              <li>Old unversioned keys (series-ratings:*, ratelimit:v1:*)</li>
+            </ul>
+            <p style="margin-top: 12px;">The cache will rebuild from scratch on the next requests. Use this to clear stuck cache entries or after fixing cache key bugs.</p>
+          </div>
+
+          <button class="btn" id="flushBtn" onclick="flushCache()">
+            <i class="fa-solid fa-trash"></i> Yes, Flush All Cache
+          </button>
+          <button class="btn btn-secondary" onclick="window.location.href='/admin/observability'">
+            <i class="fa-solid fa-arrow-left"></i> Cancel
+          </button>
+
+          <div class="result" id="result"></div>
+        </div>
+
+        <script>
+          async function flushCache() {
+            if (!confirm('Are you ABSOLUTELY SURE you want to delete all Redis keys?\\n\\nThis cannot be undone!')) {
+              return;
+            }
+
+            const btn = document.getElementById('flushBtn');
+            const result = document.getElementById('result');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Flushing...';
+            result.style.display = 'none';
+
+            try {
+              const response = await fetch('/admin/flush-cache', {
+                method: 'POST'
+              });
+
+              const data = await response.json();
+
+              if (response.ok && data.success) {
+                result.className = 'result success';
+                result.innerHTML = '<strong><i class="fa-solid fa-check-circle"></i> Success!</strong><p>' + data.message + '</p>';
+                result.style.display = 'block';
+
+                setTimeout(() => {
+                  window.location.href = '/admin/observability';
+                }, 2000);
+              } else {
+                throw new Error(data.error || 'Failed to flush cache');
+              }
+
+            } catch (error) {
+              console.error('Error flushing cache:', error);
+              result.className = 'result error';
+              result.innerHTML = '<strong><i class="fa-solid fa-times-circle"></i> Error!</strong><p>' + error.message + '</p>';
+              result.style.display = 'block';
+              btn.disabled = false;
+              btn.innerHTML = '<i class="fa-solid fa-trash"></i> Yes, Flush All Cache';
+            }
+          }
+        </script>
+      </body>
+    </html>
+  `);
+});
+
+/**
  * POST /admin/flush-cache
  * Flushes entire Redis cache database (nuclear option)
  * Use this to immediately clear all cached data including old unversioned keys
