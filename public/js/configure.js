@@ -637,6 +637,17 @@ function detectAndRecommendCinemeta() {
       const [fullMetadataAddon] = state.items.splice(fullMetadataIndex, 1);
       state.items.unshift(fullMetadataAddon);
     }
+  } else {
+    // If no full metadata addon, move Cinemeta to position 0 if it exists
+    const cinemataIndex = state.items.findIndex(item => {
+      return item.url === CINEMETA_URL || item.url.toLowerCase().includes('cinemeta');
+    });
+
+    if (cinemataIndex > 0) {
+      // Remove from current position and add to beginning
+      const [cinemataAddon] = state.items.splice(cinemataIndex, 1);
+      state.items.unshift(cinemataAddon);
+    }
   }
 }
 
