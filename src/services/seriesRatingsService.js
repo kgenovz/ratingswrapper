@@ -49,7 +49,8 @@ class SeriesRatingsService {
 
         // Layer 1: Check Redis cache (unless forcing refresh)
         if (!forceRefresh && config.redis.enabled) {
-            const cacheKey = `series-ratings:${imdbId}`;
+            const version = config.redis.cacheVersion || '1';
+            const cacheKey = `v${version}:series-ratings:${imdbId}`;
             const cached = await redisService.get(cacheKey);
 
             if (cached) {
@@ -255,7 +256,8 @@ class SeriesRatingsService {
      */
     async cacheInRedis(imdbId, data) {
         try {
-            const cacheKey = `series-ratings:${imdbId}`;
+            const version = config.redis.cacheVersion || '1';
+            const cacheKey = `v${version}:series-ratings:${imdbId}`;
             await redisService.set(cacheKey, data, CACHE_TTL.REDIS);
             logger.info(`[SERIES-RATINGS] ✓ Cached in Redis: ${imdbId} (TTL: ${CACHE_TTL.REDIS}s)`);
         } catch (error) {
@@ -273,7 +275,8 @@ class SeriesRatingsService {
 
         // Clear Redis
         if (config.redis.enabled) {
-            const cacheKey = `series-ratings:${imdbId}`;
+            const version = config.redis.cacheVersion || '1';
+            const cacheKey = `v${version}:series-ratings:${imdbId}`;
             await redisService.del(cacheKey);
         }
 

@@ -4,6 +4,7 @@
  */
 
 const { getRedisClient, isRedisAvailable } = require('../config/redis');
+const config = require('../config');
 const logger = require('../utils/logger');
 
 /**
@@ -33,8 +34,9 @@ async function checkRateLimit(identifier, tier, limit) {
     const windowMs = limit.windowSeconds * 1000;
     const windowStart = now - windowMs;
 
-    // Key format: ratelimit:v1:{tier}:{identifier}
-    const key = `ratelimit:v1:${tier}:${identifier}`;
+    // Key format: ratelimit:v{version}:{tier}:{identifier}
+    const version = config.redis.cacheVersion || '1';
+    const key = `ratelimit:v${version}:${tier}:${identifier}`;
 
     // Use Redis sorted set to track requests in a sliding window
     // Score = timestamp, Member = unique request ID
@@ -116,7 +118,8 @@ async function getRateLimitStatus(identifier, tier, limit) {
     const windowMs = limit.windowSeconds * 1000;
     const windowStart = now - windowMs;
 
-    const key = `ratelimit:v1:${tier}:${identifier}`;
+    const version = config.redis.cacheVersion || '1';
+    const key = `ratelimit:v${version}:${tier}:${identifier}`;
 
     // Remove old requests
     await client.zremrangebyscore(key, 0, windowStart);
@@ -161,7 +164,8 @@ async function resetRateLimit(identifier, tier) {
 
   try {
     const client = getRedisClient();
-    const key = `ratelimit:v1:${tier}:${identifier}`;
+    const version = config.redis.cacheVersion || '1';
+    const key = `ratelimit:v${version}:${tier}:${identifier}`;
     await client.del(key);
     logger.info(`Rate limit reset for ${tier}:${identifier}`);
     return true;
@@ -185,7 +189,8 @@ async function getRateLimitStats() {
     const client = getRedisClient();
 
     // Scan for all rate limit keys
-    const keys = await client.keys('ratelimit:v1:*');
+    const version = config.redis.cacheVersion || '1';
+    const keys = await client.keys(`ratelimit:v${version}:*`);
 
     const stats = {
       totalKeys: keys.length,
