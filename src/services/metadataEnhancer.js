@@ -833,8 +833,8 @@ class MetadataEnhancerService {
             return { id: video.id, type: 'series' };
           });
 
-        // Fetch all episode ratings in batch
-        const episodeRatingsMap = await ratingsService.getRatingsBatch(episodeItems);
+        // Fetch all episode ratings in batch (reduced concurrency to avoid overwhelming SQLite)
+        const episodeRatingsMap = await ratingsService.getRatingsBatch(episodeItems, 3);
 
         // Build location string for episodes
         let episodeLocation = 'title';
