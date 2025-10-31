@@ -350,6 +350,8 @@ class MetadataEnhancerService {
         // Extract unique IMDb IDs from metas that have ratings
         const imdbIds = metas
           .map((meta, index) => {
+            if (!meta) return null; // Guard against null metas
+
             const item = items.find(i => i.originalIndex === index);
             if (!item || !ratingsMap.has(item.id)) return null;
 
@@ -378,6 +380,8 @@ class MetadataEnhancerService {
         // Extract unique IMDb IDs from metas that have ratings
         const imdbIds = metas
           .map((meta, index) => {
+            if (!meta) return null; // Guard against null metas
+
             const item = items.find(i => i.originalIndex === index);
             if (!item || !ratingsMap.has(item.id)) return null;
 
@@ -407,6 +411,8 @@ class MetadataEnhancerService {
         // Extract unique IMDb IDs from metas that have ratings
         const imdbIds = metas
           .map((meta, index) => {
+            if (!meta) return null; // Guard against null metas
+
             const item = items.find(i => i.originalIndex === index);
             if (!item || !ratingsMap.has(item.id)) return null;
 
@@ -435,6 +441,8 @@ class MetadataEnhancerService {
         // Extract MAL IDs from metas
         const malIds = metas
           .map((meta, index) => {
+            if (!meta) return null; // Guard against null metas
+
             const item = items.find(i => i.originalIndex === index);
             if (!item || !ratingsMap.has(item.id)) return null;
 
@@ -470,6 +478,11 @@ class MetadataEnhancerService {
       // Enhance each meta with its rating (now using async)
       // We need to map back using the same ID we used for fetching
       const enhancedMetas = await Promise.all(metas.map(async (meta, index) => {
+        // Guard against null metas
+        if (!meta) {
+          return meta;
+        }
+
         // Find the item we used for this meta
         const item = items.find(item => item.originalIndex === index);
         if (!item) {
@@ -498,7 +511,7 @@ class MetadataEnhancerService {
       }));
 
       const enhancedCount = enhancedMetas.filter((meta, idx) =>
-        meta.name !== metas[idx].name
+        meta && metas[idx] && meta.name !== metas[idx].name
       ).length;
 
       logger.info(`✓ Enhanced ${enhancedCount}/${metas.length} catalog items with ratings`);
