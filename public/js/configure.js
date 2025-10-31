@@ -305,8 +305,8 @@ function renderInstalledAddons(addons) {
     // Enable checkbox for wrappable addons, already-wrapped addons, and Cinemeta
     checkbox.disabled = !addon.wrappable && !isAlreadyWrapped && !isCinemeta;
 
-    // Auto-select already-wrapped addons and add to state.items (not Cinemeta, that's handled earlier)
-    if (isAlreadyWrapped && !isCinemeta) {
+    // Auto-select already-wrapped addons and add to state.items (including wrapped Cinemeta)
+    if (isAlreadyWrapped) {
       state.selectedAddons.add(sanitizedUrl);
       card.classList.add('selected');
 
@@ -322,8 +322,8 @@ function renderInstalledAddons(addons) {
       }
     }
 
-    // Auto-add Cinemeta to state.items if it's selected
-    if (isCinemeta && state.selectedAddons.has(sanitizedUrl) && !state.items.find(it => it.url === sanitizedUrl)) {
+    // Auto-add original (non-wrapped) Cinemeta to state.items if it's selected
+    if (isCinemeta && !isAlreadyWrapped && state.selectedAddons.has(sanitizedUrl) && !state.items.find(it => it.url === sanitizedUrl)) {
       state.items.push({
         url: CINEMETA_URL,
         name: 'Cinemeta with Ratings',
