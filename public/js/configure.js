@@ -1361,7 +1361,14 @@ async function autoReplaceAll() {
   const btn = document.getElementById('replaceAllBtn');
   if (!authToken) { alert('Enter your auth token'); return; }
   if (!state.items.length) { alert('Add at least one addon'); return; }
-  const items = state.items.map(it => ({ removePattern: it.required ? 'cinemeta' : it.url, wrappedAddonUrl: it.wrappedUrl }));
+  const items = state.items.map(it => {
+    // Detect if this is Cinemeta and use 'cinemeta' as removePattern for proper backend positioning
+    const isCinemeta = it.url === CINEMETA_URL || it.url.toLowerCase().includes('cinemeta');
+    return {
+      removePattern: isCinemeta ? 'cinemeta' : it.url,
+      wrappedAddonUrl: it.wrappedUrl
+    };
+  });
   btn.disabled = true; btn.textContent = 'Replacing...';
   statusDiv.style.display = 'block'; statusDiv.style.background = '#fff7ed'; statusDiv.style.border = '1px solid #fdba74'; statusDiv.innerHTML = 'Replacing addons in your account...';
   try {
