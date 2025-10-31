@@ -22,11 +22,11 @@ function generateConfigureHTML(protocol, host) {
               <h1>Stremio Ratings Wrapper</h1>
               <span class="tag">IMDb Ratings</span>
             </div>
-            <h2>Wrap Cinemeta and multiple addons</h2>
-            <p class="subtitle">Discover your installed addons and wrap them with IMDb ratings automatically. Cinemeta is required and stays first for best results.</p>
+            <h2>Wrap your installed addons with IMDb ratings</h2>
+            <p class="subtitle">Discover your installed addons and enhance them with IMDb ratings. Cinemeta is recommended for complete metadata coverage.</p>
             <ol class="steps">
               <li><strong>Login to Stremio</strong> to see which of your installed addons can be wrapped.</li>
-              <li><strong>Select addons</strong> from your account or manually add addon URLs (Cinemeta added automatically).</li>
+              <li><strong>Select addons</strong> from your account or manually add addon URLs. Cinemeta is recommended if available.</li>
               <li><strong>Customize ratings display</strong> - adjust format, position, and which content gets ratings.</li>
               <li><strong>Generate & Deploy</strong> - Get install URLs or use Auto-Replace to update your account instantly.</li>
             </ol>
@@ -102,11 +102,11 @@ function generateConfigureHTML(protocol, host) {
 
             <div class="form-group">
               <label>Addons To Wrap</label>
-              <div id="addonList" class="url-display" style="white-space: normal;"><em>None yet. Cinemeta will be added automatically.</em></div>
-              <div class="help-text">Cinemeta will be wrapped and placed first automatically unless you're using a full metadata addon like AIO Metadata.</div>
+              <div id="addonList" class="url-display" style="white-space: normal;"><em>Add addons from your account or paste URLs below.</em></div>
+              <div class="help-text">Cinemeta is recommended for complete metadata coverage unless you're using a full metadata addon like AIO Metadata.</div>
               <div id="cinemataNotice" style="display:none; background: #dbeafe; border: 1px solid #3b82f6; border-radius: 6px; padding: 10px; margin-top: 8px; font-size: 13px; color: #1e40af;">
                 <i class="fa-solid fa-info-circle" style="margin-right: 6px;"></i>
-                <strong>AIO Metadata Detected:</strong> Cinemeta has been automatically removed from your configuration since AIO Metadata provides complete metadata coverage. Adding both would cause duplicate requests.
+                <strong>Full Metadata Addon Detected:</strong> You have AIO Metadata (or similar) which provides complete metadata coverage. You may want to remove Cinemeta to avoid duplicate requests, though both can coexist if desired.
               </div>
             </div>
 
@@ -374,7 +374,7 @@ function generateConfigureHTML(protocol, host) {
 
             <div class="result-section" id="resultSection" style="display:none;">
               <h3 style="margin-bottom: 10px;">Auto-Replace In Your Account</h3>
-              <p style="font-size: 13px; color:#374151; margin-bottom: 12px;">We remove existing versions and install wrapped versions in-place. Missing ones are appended. Cinemeta is first.</p>
+              <p style="font-size: 13px; color:#374151; margin-bottom: 12px;">We remove existing versions and install wrapped versions in-place. Missing ones are appended.</p>
 
               <div style="margin-bottom: 15px;">
                 <button type="button" onclick="toggleAuthMethod()" id="authMethodToggle" style="background: none; border: none; color: #4f46e5; cursor: pointer; font-size: 14px; font-weight: 600; padding: 0;">
@@ -436,8 +436,8 @@ function generateConfigureHTML(protocol, host) {
                     <strong>⚠️ Not Recommended:</strong> Use <strong>Auto Install</strong> above to avoid duplicates and ordering issues. If you prefer manual install, please ensure:
                     <ul style="margin:6px 0 0 18px;">
                       <li>Only one version of each addon exists in your library — keep the <strong>wrapped</strong> one.</li>
-                      <li>Install a <strong>wrapped Cinemeta</strong> and hide/remove the original Cinemeta.</li>
-                      <li>If you wrap a metadata addon (e.g., TMDB or AIO Metadata), remove the non‑wrapped Cinemeta.</li>
+                      <li>If you wrap Cinemeta, remove the original Cinemeta to avoid duplicates.</li>
+                      <li>If you wrap a full metadata addon (e.g., AIO Metadata), you may want to skip Cinemeta entirely.</li>
                     </ul>
                   </div>
                   <div id="manualList"></div>

@@ -239,11 +239,13 @@ function renderInstalledAddons(addons) {
 
     card.dataset.addonUrl = sanitizedUrl;
     card.dataset.addonName = addon.name;
-    if (isCinemeta) {
-      // Ensure Cinemeta is visually selected and can't be deselected
+
+    // Auto-select Cinemeta (recommended) but allow user to uncheck
+    if (isCinemeta && !state.selectedAddons.has(sanitizedUrl)) {
       state.selectedAddons.add(CINEMETA_URL);
-      card.classList.add('selected');
-    } else if (state.selectedAddons.has(sanitizedUrl)) {
+    }
+
+    if (state.selectedAddons.has(sanitizedUrl)) {
       card.classList.add('selected');
     }
 
@@ -278,7 +280,7 @@ function renderInstalledAddons(addons) {
 
     const reasonText = document.createElement('span');
     if (isCinemeta) {
-      reasonText.textContent = 'Cinemeta (always enabled)';
+      reasonText.textContent = 'Cinemeta (recommended)';
     } else if (isAlreadyWrapped) {
       reasonText.textContent = 'Re-wrap with new settings';
     } else {
@@ -300,33 +302,92 @@ function renderInstalledAddons(addons) {
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.className = 'addon-checkbox';
-    // Enable checkbox for wrappable addons AND already-wrapped addons (except Cinemeta)
-    checkbox.disabled = isCinemeta || (!addon.wrappable && !isAlreadyWrapped);
+    // Enable checkbox for wrappable addons, already-wrapped addons, and Cinemeta
+    checkbox.disabled = !addon.wrappable && !isAlreadyWrapped && !isCinemeta;
 
-    // Auto-select already-wrapped addons
+    // Auto-select already-wrapped addons and add to state.items (not Cinemeta, that's handled earlier)
     if (isAlreadyWrapped && !isCinemeta) {
       state.selectedAddons.add(sanitizedUrl);
       card.classList.add('selected');
+
+      // Also add to state.items automatically
+      const extracted = extractOriginalUrl(sanitizedUrl);
+      if (extracted && !state.items.find(it => it.url === extracted)) {
+        const baseName = addon.name.replace(/ with Ratings$/i, '');
+        state.items.push({
+          url: extracted,
+          name: baseName + ' with Ratings',
+          wasWrapped: true
+        });
+      }
     }
 
-    checkbox.checked = isCinemeta || state.selectedAddons.has(sanitizedUrl);
+    // Auto-add Cinemeta to state.items if it's selected
+    if (isCinemeta && state.selectedAddons.has(sanitizedUrl) && !state.items.find(it => it.url === sanitizedUrl)) {
+      state.items.push({
+        url: CINEMETA_URL,
+        name: 'Cinemeta with Ratings',
+        wasWrapped: false
+      });
+    }
+
+    checkbox.checked = state.selectedAddons.has(sanitizedUrl);
     if (isCinemeta) {
-      checkbox.title = 'Cinemeta is always enabled';
+      checkbox.title = 'Recommended for complete metadata coverage';
     } else if (isAlreadyWrapped) {
       checkbox.title = 'Click to re-wrap with new settings';
     }
 
-    // Enable toggle for both wrappable and already-wrapped addons
-    if (!isCinemeta && (addon.wrappable || isAlreadyWrapped)) {
+    // Enable toggle for wrappable, already-wrapped addons, and Cinemeta
+    if (addon.wrappable || isAlreadyWrapped || isCinemeta) {
       const toggleSelection = () => {
         if (state.selectedAddons.has(sanitizedUrl)) {
+          // Uncheck: remove from selection and state.items
           state.selectedAddons.delete(sanitizedUrl);
           card.classList.remove('selected');
           checkbox.checked = false;
+
+          // Remove from state.items
+          let urlToRemove = sanitizedUrl;
+          if (isAlreadyWrapped) {
+            const extracted = extractOriginalUrl(sanitizedUrl);
+            if (extracted) urlToRemove = extracted;
+          }
+          const itemIndex = state.items.findIndex(it => it.url === urlToRemove);
+          if (itemIndex !== -1) {
+            state.items.splice(itemIndex, 1);
+            detectAndRecommendCinemeta();
+            renderAddonList();
+          }
         } else {
+          // Check: add to selection and state.items
           state.selectedAddons.add(sanitizedUrl);
           card.classList.add('selected');
           checkbox.checked = true;
+
+          // Add to state.items
+          let originalUrl = sanitizedUrl;
+          if (isAlreadyWrapped) {
+            const extracted = extractOriginalUrl(sanitizedUrl);
+            if (extracted) {
+              originalUrl = extracted;
+            } else {
+              console.warn('Could not extract original URL from wrapped addon:', sanitizedUrl);
+              return;
+            }
+          }
+
+          // Check if already added
+          if (!state.items.find(it => it.url === originalUrl)) {
+            const baseName = addon.name.replace(/ with Ratings$/i, '');
+            state.items.push({
+              url: originalUrl,
+              name: baseName + ' with Ratings',
+              wasWrapped: isAlreadyWrapped
+            });
+            detectAndRecommendCinemeta();
+            renderAddonList();
+          }
         }
       };
 
@@ -345,17 +406,9 @@ function renderInstalledAddons(addons) {
     container.appendChild(card);
   });
 
-  // Add "Add Selected" button if not exists
-  let addSelectedBtn = document.getElementById('addSelectedAddonsBtn');
-  if (!addSelectedBtn) {
-    addSelectedBtn = document.createElement('button');
-    addSelectedBtn.id = 'addSelectedAddonsBtn';
-    addSelectedBtn.className = 'btn';
-    addSelectedBtn.style.marginTop = '12px';
-    addSelectedBtn.innerHTML = '<i class="fa-solid fa-plus" style="margin-right:6px"></i>Add Selected Addons';
-    addSelectedBtn.onclick = addSelectedAddons;
-    document.getElementById('installedAddonsSection').appendChild(addSelectedBtn);
-  }
+  // Update the addons list UI after auto-selecting
+  detectAndRecommendCinemeta();
+  renderAddonList();
 }
 
 function updateAutoReplaceSection() {
@@ -394,7 +447,7 @@ async function addSelectedAddons() {
     return;
   }
 
-  ensureCinemeta();
+  detectAndRecommendCinemeta();
 
   // Get the addon details from the displayed list (wrappable OR already-wrapped)
   const addonCards = document.querySelectorAll('.addon-card.selected:not(.not-wrappable)');
@@ -561,16 +614,18 @@ function hasFullMetadataAddon() {
   });
 }
 
-function ensureCinemeta() {
-  // Skip Cinemeta if user has a full metadata addon like AIO Metadata
-  if (hasFullMetadataAddon()) {
-    // Remove Cinemeta if it exists
-    const cinemataIndex = state.items.findIndex(i => i.required || i.url === CINEMETA_URL);
-    if (cinemataIndex !== -1) {
-      state.items.splice(cinemataIndex, 1);
-    }
+function detectAndRecommendCinemeta() {
+  // Check if user has a full metadata addon (for informational notice)
+  const hasFullMetadata = hasFullMetadataAddon();
 
-    // Move the full metadata addon to position 0
+  // Show/hide informational notice about AIO Metadata
+  const notice = document.getElementById('cinemataNotice');
+  if (notice) {
+    notice.style.display = hasFullMetadata ? 'block' : 'none';
+  }
+
+  // Move full metadata addon to position 0 if it exists and isn't already first
+  if (hasFullMetadata) {
     const fullMetadataIndex = state.items.findIndex(item => {
       const url = item.url.toLowerCase();
       return url.includes('aiometadata') || url.includes('aio-metadata') ||
@@ -582,23 +637,6 @@ function ensureCinemeta() {
       const [fullMetadataAddon] = state.items.splice(fullMetadataIndex, 1);
       state.items.unshift(fullMetadataAddon);
     }
-
-    // Show notification
-    const notice = document.getElementById('cinemataNotice');
-    if (notice) {
-      notice.style.display = 'block';
-    }
-    return;
-  }
-
-  // Add Cinemeta if not present and no full metadata addon
-  if (!state.items.find(i => i.required)) {
-    state.items.unshift({ url: CINEMETA_URL, name: 'Cinemeta with Ratings', required: true });
-    // Hide notification
-    const notice = document.getElementById('cinemataNotice');
-    if (notice) {
-      notice.style.display = 'none';
-    }
   }
 }
 
@@ -606,7 +644,7 @@ function renderAddonList() {
   const list = document.getElementById('addonList');
   list.innerHTML = '';
   if (!state.items.length) {
-    list.innerHTML = '<em>None yet. Cinemeta will be added automatically.</em>';
+    list.innerHTML = '<em>Add addons from your account or paste URLs below.</em>';
     return;
   }
   state.items.forEach(function(it, idx){
@@ -621,12 +659,6 @@ async function addAddon() {
 
   // Sanitize URL: convert stremio:// to https://
   const url = sanitizeAddonUrl(rawUrl);
-
-  // Prevent adding Cinemeta manually; it's enforced automatically
-  if (url === CINEMETA_URL) {
-    alert('Cinemeta is already included by default and cannot be added twice.');
-    return;
-  }
 
   // Blocklist: Stream-only addons that should not be wrapped
   const STREAM_ADDON_BLOCKLIST = [
@@ -649,7 +681,7 @@ async function addAddon() {
     return;
   }
 
-  ensureCinemeta();
+  detectAndRecommendCinemeta();
 
   // Try to fetch manifest name (best-effort)
   let resolvedName = nameInput || undefined;
@@ -676,8 +708,6 @@ async function addAddon() {
 }
 
 function removeAddon(idx) {
-  const it = state.items[idx];
-  if (it.required) return;
   state.items.splice(idx, 1);
   renderAddonList();
 }
@@ -965,7 +995,7 @@ function updateRatingPreview() {
 }
 
 async function generateAll() {
-  ensureCinemeta();
+  detectAndRecommendCinemeta();
 
   // Get location checkboxes
   const enableTitleLocation = document.getElementById('ratingLocationTitle')?.checked || false;
@@ -1346,6 +1376,5 @@ async function emergencyRestore() {
   } catch (e) { statusDiv.style.background = '#fee2e2'; statusDiv.style.border = '1px solid #ef4444'; statusDiv.innerHTML = '✖ Error: ' + e.message; }
 }
 
-// Initialize list with Cinemeta entry (required)
-ensureCinemeta();
+// Initialize page
 renderAddonList();
