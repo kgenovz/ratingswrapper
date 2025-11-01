@@ -437,9 +437,9 @@ class MetadataEnhancerService {
         const region = descriptionFormat?.streamingRegion || 'US';
         ratingsMap = await consolidatedRatingService.getConsolidatedRatingsBatch(items, 10, { region });
 
-        // Also fetch traditional IMDb ratings for vote counts
-        if (descriptionFormat && descriptionFormat.includeVotes) {
-          logger.info('Fetching IMDb vote counts for consolidated ratings');
+        // Also fetch traditional IMDb ratings for vote counts or IMDb rating display
+        if (descriptionFormat && (descriptionFormat.includeVotes || descriptionFormat.includeImdbRating)) {
+          logger.info('Fetching IMDb data for vote counts and/or IMDb rating display');
           imdbVotesMap = await ratingsService.getRatingsBatch(items, 10);
         }
       } else {
@@ -601,12 +601,16 @@ class MetadataEnhancerService {
           return meta;
         }
 
-        // If using consolidated ratings, merge in vote count from IMDb
+        // If using consolidated ratings, merge in vote count and rating from IMDb
         let enhancedRatingData = ratingData;
         if (useConsolidated && imdbVotesMap.size > 0) {
           const imdbData = imdbVotesMap.get(item.id);
-          if (imdbData && imdbData.votes) {
-            enhancedRatingData = { ...ratingData, votes: imdbData.votes };
+          if (imdbData) {
+            enhancedRatingData = {
+              ...ratingData,
+              ...(imdbData.votes && { votes: imdbData.votes }),
+              ...(imdbData.rating && { rating: imdbData.rating })
+            };
           }
         }
 
@@ -705,11 +709,15 @@ class MetadataEnhancerService {
           : await ratingsService.getRating(lookupId, meta.type);
 
         if (mainRatingData) {
-          // If using consolidated ratings, fetch IMDb vote count
-          if (useConsolidated && descriptionFormat && descriptionFormat.includeVotes) {
+          // If using consolidated ratings, fetch IMDb data for vote count and/or IMDb rating display
+          if (useConsolidated && descriptionFormat && (descriptionFormat.includeVotes || descriptionFormat.includeImdbRating)) {
             const imdbData = await ratingsService.getRating(lookupId, meta.type);
-            if (imdbData && imdbData.votes) {
-              mainRatingData = { ...mainRatingData, votes: imdbData.votes };
+            if (imdbData) {
+              mainRatingData = {
+                ...mainRatingData,
+                ...(imdbData.votes && { votes: imdbData.votes }),
+                ...(imdbData.rating && { rating: imdbData.rating })
+              };
             }
           }
 
