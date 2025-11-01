@@ -256,14 +256,13 @@ function generateConfigureHTML(protocol, host) {
                   <select id="descriptionPosition"><option value="prefix">Prefix (at start)</option><option value="suffix">Suffix (at end)</option></select>
                 </div>
 
-                <!-- Hidden fields for backwards compatibility -->
+                <!-- Hidden template field for backwards compatibility -->
                 <input type="hidden" id="descriptionTemplate" value="★ {rating}" />
-                <input type="hidden" id="descriptionSeparator" value="\n" />
 
-                <!-- Separator between metadata and description -->
+                <!-- Separator between description and metadata line -->
                 <div class="form-group">
-                  <label for="metadataSeparator">Separator (between description and metadata)</label>
-                  <select id="metadataSeparator">
+                  <label for="descriptionSeparator">Separator (between description and metadata)</label>
+                  <select id="descriptionSeparator">
                     <option value="\n" selected>New line (LF)</option>
                     <option value=" - ">Dash ( - )</option>
                     <option value=" | ">Pipe ( | )</option>
@@ -276,6 +275,24 @@ function generateConfigureHTML(protocol, host) {
                     <option value=" ">Space</option>
                   </select>
                   <div class="help-text">Separator between the original description and metadata line. New line works on Android Mobile/TV; Desktop/Web may collapse it.</div>
+                </div>
+
+                <!-- Separator between metadata items -->
+                <div class="form-group">
+                  <label for="metadataSeparator">Separator (between metadata items)</label>
+                  <select id="metadataSeparator">
+                    <option value=" • " selected>Bullet ( • )</option>
+                    <option value=" | ">Pipe ( | )</option>
+                    <option value=" - ">Dash ( - )</option>
+                    <option value=", ">Comma + space ( , )</option>
+                    <option value=" . ">Dot ( . )</option>
+                    <option value=" ★ ">Star ( ★ )</option>
+                    <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
+                    <option value=" ✨ ">Sparkles ( ✨ )</option>
+                    <option value=" / ">Slash ( / )</option>
+                    <option value=" ">Space</option>
+                  </select>
+                  <div class="help-text">Separator between individual metadata items (rating, votes, MPAA, etc.). Example: "8.5 IMDb • 1.2M votes • PG-13"</div>
                 </div>
 
                 <div class="form-group">
