@@ -296,7 +296,7 @@ function generateConfigureHTML(protocol, host) {
                     <span style="margin-left: 8px;">Include IMDb Rating</span>
                   </label>
                   <div class="help-text" style="margin-left: 26px; margin-bottom: 10px;">
-                    Example: "★ 8.5 • 1.2M votes • PG-13 • 2023"
+                    Example: "8.5 IMDb • 1.2M votes • PG-13 • 2023"
                   </div>
 
                   <!-- IMDb Vote Count -->

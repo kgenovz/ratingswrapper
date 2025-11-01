@@ -988,7 +988,7 @@ function updateRatingPreview() {
 
     // IMDb rating as separate toggleable metadata item
     if (includeImdbRating) {
-      partTexts.imdbRating = '★ 8.5';
+      partTexts.imdbRating = '8.5 IMDb';
     }
 
     if (includeVotes) {

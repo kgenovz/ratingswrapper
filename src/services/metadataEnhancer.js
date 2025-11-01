@@ -211,7 +211,7 @@ class MetadataEnhancerService {
 
     // IMDb rating as separate metadata item (can show alongside consolidated)
     if (formatConfig.includeImdbRating && ratingData.rating) {
-      partTexts.imdbRating = `★ ${ratingData.rating.toFixed(1)}`;
+      partTexts.imdbRating = `${ratingData.rating.toFixed(1)} IMDb`;
     }
 
     // Vote count
