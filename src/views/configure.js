@@ -20,10 +20,10 @@ function generateConfigureHTML(protocol, host) {
             <div class="brand">
               <i class="fa-solid fa-star icon"></i>
               <h1>Stremio Ratings Wrapper</h1>
-              <span class="tag">IMDb Ratings</span>
+              <span class="tag">Ratings</span>
             </div>
-            <h2>Wrap your installed addons with IMDb ratings</h2>
-            <p class="subtitle">Discover your installed addons and enhance them with IMDb ratings. Cinemeta is recommended for complete metadata coverage.</p>
+            <h2>Wrap your installed addons with ratings and extended metadata from multiple sources.</h2>
+            <p class="subtitle">Discover your installed addons and enhance them. Cinemeta is recommended for complete metadata coverage.</p>
             <ol class="steps">
               <li><strong>Login to Stremio</strong> to see which of your installed addons can be wrapped.</li>
               <li><strong>Select addons</strong> from your account or manually add addon URLs. Cinemeta is recommended if available.</li>
@@ -36,7 +36,7 @@ function generateConfigureHTML(protocol, host) {
             <div class="login-section">
               <h2 style="margin-bottom: 8px; color: #111827;">Log In to Stremio</h2>
               <p style="font-size: 14px; color: #374151; margin-bottom: 12px;">
-                Log in to see which of your installed addons can be wrapped with ratings. You can then select them to automatically add to your configuration.
+                Log in to see which of your installed addons can be wrapped. You can then select them to automatically add to your configuration.
               </p>
 
               <div style="margin-bottom: 15px;">
@@ -85,7 +85,7 @@ function generateConfigureHTML(protocol, host) {
               </div>
             </div>
 
-            <h2 style="margin-bottom: 10px; color: #111827;">Add Addons</h2>
+            <h2 style="margin-bottom: 10px; color: #111827;">Addon Configuration</h2>
             <div class="row form-group">
               <div>
                 <label for="addonInputUrl">Configured Addon URL</label>
