@@ -333,6 +333,18 @@ function generateMalDataKey(malId) {
 }
 
 /**
+ * Generate cache key for consolidated rating data
+ * Format: v{CACHE_VERSION}:rating:consolidated:{imdbId}
+ *
+ * @param {string} imdbId - IMDb ID (e.g., "tt1234567")
+ * @returns {string} - Cache key
+ */
+function generateConsolidatedRatingKey(imdbId) {
+  const version = config.redis.cacheVersion;
+  return `v${version}:rating:consolidated:${imdbId}`;
+}
+
+/**
  * Get TTL for raw data caches (individual ratings and metadata)
  * These are format-agnostic and can be cached longer
  * @returns {number} - TTL in seconds (24 hours)
@@ -353,6 +365,7 @@ module.exports = {
   generateTmdbDataKey,
   generateOmdbDataKey,
   generateMalDataKey,
+  generateConsolidatedRatingKey,
   isUserSpecificAddon,
   getCatalogTTL,
   getMetaTTL,

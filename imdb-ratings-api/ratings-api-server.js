@@ -174,6 +174,29 @@ function initDatabase() {
             cache_until INTEGER NOT NULL
         ) WITHOUT ROWID`);
 
+        // Table for consolidated ratings (multi-source averages)
+        db.exec(`CREATE TABLE IF NOT EXISTS consolidated_ratings (
+            imdb_id TEXT PRIMARY KEY,
+
+            -- Individual source ratings (nullable)
+            imdb_rating REAL,
+            tmdb_rating REAL,
+            rotten_tomatoes INTEGER,
+            metacritic INTEGER,
+
+            -- Computed values
+            consolidated_rating REAL NOT NULL,
+            source_count INTEGER NOT NULL,
+            color_indicator TEXT NOT NULL,
+
+            -- Metadata
+            updated_at INTEGER NOT NULL,
+            ratings_cached_at INTEGER NOT NULL,
+
+            -- Cache TTL
+            cache_until INTEGER NOT NULL
+        ) WITHOUT ROWID`);
+
         // Optimized indexes
         db.exec(`CREATE INDEX IF NOT EXISTS idx_episodes_lookup ON episodes(series_id, season, episode)`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_episodes_id ON episodes(episode_id)`);
@@ -187,6 +210,8 @@ function initDatabase() {
         db.exec(`CREATE INDEX IF NOT EXISTS idx_mal_metadata_mal_id ON mal_metadata(mal_id)`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_mal_metadata_imdb_id ON mal_metadata(imdb_id)`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_series_scraped_cache_until ON series_scraped_ratings(cache_until)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_consolidated_updated ON consolidated_ratings(updated_at)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_consolidated_cache_until ON consolidated_ratings(cache_until)`);
 
         console.log('✅ Database tables and indexes created');
 
@@ -331,7 +356,55 @@ function runMigrations() {
             db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(3, Date.now());
         }
 
-        console.log(`✅ Database schema version: ${Math.max(version, 3)}`);
+        // Migration 4: Add consolidated_ratings table
+        if (version < 4) {
+            console.log('Running migration 4: Creating consolidated_ratings table...');
+
+            // Check if consolidated_ratings table exists
+            const tableExists = db.prepare(`
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='consolidated_ratings'
+            `).get();
+
+            if (!tableExists) {
+                console.log('  Creating consolidated_ratings table...');
+
+                db.exec(`CREATE TABLE consolidated_ratings (
+                    imdb_id TEXT PRIMARY KEY,
+
+                    -- Individual source ratings (nullable)
+                    imdb_rating REAL,
+                    tmdb_rating REAL,
+                    rotten_tomatoes INTEGER,
+                    metacritic INTEGER,
+
+                    -- Computed values
+                    consolidated_rating REAL NOT NULL,
+                    source_count INTEGER NOT NULL,
+                    color_indicator TEXT NOT NULL,
+
+                    -- Metadata
+                    updated_at INTEGER NOT NULL,
+                    ratings_cached_at INTEGER NOT NULL,
+
+                    -- Cache TTL
+                    cache_until INTEGER NOT NULL
+                ) WITHOUT ROWID`);
+
+                // Create indexes
+                db.exec('CREATE INDEX IF NOT EXISTS idx_consolidated_updated ON consolidated_ratings(updated_at)');
+                db.exec('CREATE INDEX IF NOT EXISTS idx_consolidated_cache_until ON consolidated_ratings(cache_until)');
+
+                console.log('  Migration 4 completed successfully');
+            } else {
+                console.log('  consolidated_ratings table already exists, skipping...');
+            }
+
+            // Mark migration as applied
+            db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(4, Date.now());
+        }
+
+        console.log(`✅ Database schema version: ${Math.max(version, 4)}`);
     } catch (err) {
         console.error('Migration error:', err);
         // Don't fail startup on migration errors
