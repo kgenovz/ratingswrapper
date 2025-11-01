@@ -65,10 +65,16 @@ class OMDBService {
         const cacheKey = cacheKeys.generateOmdbDataKey(imdbId);
         const cached = await redisService.get(cacheKey);
         if (cached) {
-          logger.info(`[OMDB-DIAG] Cache HIT for ${imdbId}: RT=${cached.rottenTomatoes || 'null'}, MC=${cached.metacritic || 'null'}`);
-          // Track hot key usage for observability
-          redisService.trackHotKey(cacheKey);
-          return cached;
+          // Only use cached data if it has actual RT/MC values (not null)
+          // This allows us to re-check the database if previous cache had no data
+          if (cached.rottenTomatoes || cached.metacritic) {
+            logger.info(`[OMDB-DIAG] Cache HIT for ${imdbId}: RT=${cached.rottenTomatoes || 'null'}, MC=${cached.metacritic || 'null'}`);
+            // Track hot key usage for observability
+            redisService.trackHotKey(cacheKey);
+            return cached;
+          } else {
+            logger.info(`[OMDB-DIAG] Cache HIT but values are null for ${imdbId}, re-checking database`);
+          }
         }
         logger.debug(`[OMDB-DIAG] Cache MISS for ${imdbId}`);
       }
