@@ -978,14 +978,17 @@ function updateRatingPreview() {
 
     // Check if including consolidated rating in description
     var includeConsolidatedRating = document.getElementById('includeConsolidatedRating')?.checked || false;
+    var includeImdbRating = document.getElementById('includeImdbRating')?.checked || false;
 
     if (useConsolidatedRating && includeConsolidatedRating) {
       var useColorEmoji = document.getElementById('useColorEmoji')?.checked || false;
       var sampleEmoji = useColorEmoji ? '🟢' : '';
       partTexts.consolidatedRating = (sampleEmoji + ' 8.2 (4 sources)').trim();
-    } else {
-      // IMDb rating is always included (when not using consolidated)
-      partTexts.imdbRating = ratingText;
+    }
+
+    // IMDb rating as separate toggleable metadata item
+    if (includeImdbRating) {
+      partTexts.imdbRating = '★ 8.5';
     }
 
     if (includeVotes) {
@@ -1100,6 +1103,7 @@ async function generateAll() {
   const emojiSet = document.getElementById('emojiSet')?.value || 'circle';
   const consolidatedTemplate = document.getElementById('consolidatedTemplate')?.value || '{emoji} {rating}';
   const includeConsolidatedRating = document.getElementById('includeConsolidatedRating')?.checked || false;
+  const includeImdbRating = document.getElementById('includeImdbRating')?.checked || false;
 
   // Global enable toggles removed; per-location settings control behavior
   if (!enableTitleLocation && !enableDescLocation) {
@@ -1132,6 +1136,7 @@ async function generateAll() {
         template: descriptionTemplate,
         separator: descriptionSeparator,
         includeConsolidatedRating: includeConsolidatedRating,
+        includeImdbRating: includeImdbRating,
         useColorEmoji: useColorEmoji,
         emojiSet: emojiSet,
         includeVotes: includeVotes,
@@ -1239,6 +1244,7 @@ async function generateAll() {
   var emojiSet = document.getElementById('emojiSet');
   var consolidatedTemplate = document.getElementById('consolidatedTemplate');
   var includeConsolidatedRating = document.getElementById('includeConsolidatedRating');
+  var includeImdbRating = document.getElementById('includeImdbRating');
 
   if (useConsolidatedRating) {
     useConsolidatedRating.addEventListener('change', function() {
@@ -1251,6 +1257,7 @@ async function generateAll() {
   if (emojiSet) emojiSet.addEventListener('change', updateRatingPreview);
   if (consolidatedTemplate) consolidatedTemplate.addEventListener('input', updateRatingPreview);
   if (includeConsolidatedRating) includeConsolidatedRating.addEventListener('change', updateRatingPreview);
+  if (includeImdbRating) includeImdbRating.addEventListener('change', updateRatingPreview);
 
   // Initial update
   updateRatingPreview();

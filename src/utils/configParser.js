@@ -123,6 +123,7 @@ function validateConfig(userConfig) {
       template: descriptionFormat?.template || userConfig.ratingFormat?.template || appConfig.defaults.ratingFormat.template,
       separator: descriptionFormat?.separator || userConfig.ratingFormat?.separator || appConfig.defaults.ratingFormat.separator,
       // Extended metadata options (only for description)
+      includeImdbRating: descriptionFormat?.includeImdbRating || false,
       includeVotes: descriptionFormat?.includeVotes || false,
       includeMpaa: descriptionFormat?.includeMpaa || false,
       includeYear: descriptionFormat?.includeYear || false,

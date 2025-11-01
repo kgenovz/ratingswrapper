@@ -255,29 +255,29 @@ function generateConfigureHTML(protocol, host) {
                   <label>Position</label>
                   <select id="descriptionPosition"><option value="prefix">Prefix (at start)</option><option value="suffix">Suffix (at end)</option></select>
                 </div>
-                <div class="row-2">
-                  <div class="form-group">
-                    <label for="descriptionTemplate">Template</label>
-                    <input type="text" id="descriptionTemplate" value="{rating}/10 IMDb" />
-                    <div class="help-text">Use {rating} as placeholder</div>
-                  </div>
-                  <div class="form-group">
-                    <label for="descriptionSeparator">Separator</label>
-                    <select id="descriptionSeparator">
-                      <option value="\n" selected>New line (LF)</option>
-                      <option value=" - ">Dash ( - )</option>
-                      <option value=" | ">Pipe ( | )</option>
-                      <option value=", ">Comma + space ( , )</option>
-                      <option value=" . ">Dot ( . )</option>
-                      <option value=" • ">Bullet ( • )</option>
-                      <option value=" ★ ">Star ( ★ )</option>
-                      <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
-                      <option value=" ✨ ">Sparkles ( ✨ )</option>
-                      <option value=" ">Space</option>
-                    </select>
-                    <div class="help-text">New line works on Android Mobile/TV; Desktop/Web may collapse it. If you use Desktop/Web primarily, pick Bullet/Star/Pipe.</div>
-                  </div>
+
+                <!-- Hidden fields for backwards compatibility -->
+                <input type="hidden" id="descriptionTemplate" value="★ {rating}" />
+                <input type="hidden" id="descriptionSeparator" value="\n" />
+
+                <!-- Separator between metadata and description -->
+                <div class="form-group">
+                  <label for="metadataSeparator">Separator (between description and metadata)</label>
+                  <select id="metadataSeparator">
+                    <option value="\n" selected>New line (LF)</option>
+                    <option value=" - ">Dash ( - )</option>
+                    <option value=" | ">Pipe ( | )</option>
+                    <option value=", ">Comma + space ( , )</option>
+                    <option value=" . ">Dot ( . )</option>
+                    <option value=" • ">Bullet ( • )</option>
+                    <option value=" ★ ">Star ( ★ )</option>
+                    <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
+                    <option value=" ✨ ">Sparkles ( ✨ )</option>
+                    <option value=" ">Space</option>
+                  </select>
+                  <div class="help-text">Separator between the original description and metadata line. New line works on Android Mobile/TV; Desktop/Web may collapse it.</div>
                 </div>
+
                 <div class="form-group">
                   <div style="font-weight: 600; margin-bottom: 8px;">Extended Metadata</div>
 
@@ -288,6 +288,15 @@ function generateConfigureHTML(protocol, host) {
                   </label>
                   <div class="help-text" style="margin-left: 26px; margin-bottom: 10px;">
                     Example: "🟢 8.2 (4 sources) • 1.2M votes • PG-13 • 2023"
+                  </div>
+
+                  <!-- IMDb Rating -->
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeImdbRating" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include IMDb Rating</span>
+                  </label>
+                  <div class="help-text" style="margin-left: 26px; margin-bottom: 10px;">
+                    Example: "★ 8.5 • 1.2M votes • PG-13 • 2023"
                   </div>
 
                   <!-- IMDb Vote Count -->

@@ -207,10 +207,11 @@ class MetadataEnhancerService {
 
       const ratingText = `${emoji} ${consolidatedRating.toFixed(1)} (${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'})`.trim();
       partTexts.consolidatedRating = ratingText;
-    } else if (ratingData.rating) {
-      // Traditional IMDb rating handling
-      let template = formatConfig.template.replace('{rating}', ratingData.rating.toFixed(1));
-      partTexts.imdbRating = template;
+    }
+
+    // IMDb rating as separate metadata item (can show alongside consolidated)
+    if (formatConfig.includeImdbRating && ratingData.rating) {
+      partTexts.imdbRating = `★ ${ratingData.rating.toFixed(1)}`;
     }
 
     // Vote count
