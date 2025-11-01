@@ -783,13 +783,13 @@ function renderMetadataOrderList() {
   // Always show the order section (IMDb rating is always included)
   section.style.display = 'block';
 
-  // Read checkbox states (IMDb rating is always true since it's the main feature)
+  // Read checkbox states for all metadata options
   var useConsolidatedRating = document.getElementById('useConsolidatedRating')?.checked || false;
   var includeConsolidatedRating = document.getElementById('includeConsolidatedRating')?.checked || false;
 
   var includes = {
     consolidatedRating: useConsolidatedRating && includeConsolidatedRating,
-    imdbRating: !useConsolidatedRating || !includeConsolidatedRating, // Show IMDb if not using consolidated
+    imdbRating: document.getElementById('includeImdbRating')?.checked || false,
     votes: document.getElementById('includeVotes')?.checked || false,
     mpaa: document.getElementById('includeMpaa')?.checked || false,
     tmdb: document.getElementById('includeTmdbRating')?.checked || false,
