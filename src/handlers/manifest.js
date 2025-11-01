@@ -41,8 +41,8 @@ function createManifestHandler(config) {
         id: `${wrappedManifest.id}.ratings-wrapper`,
         name: config.addonName || `${wrappedManifest.name} (with Ratings)`,
         description: wrappedManifest.description
-          ? `${wrappedManifest.description}\n\nEnhanced with IMDb ratings by Ratings Wrapper.`
-          : 'Catalog addon enhanced with IMDb ratings.',
+          ? `${wrappedManifest.description}\n\nEnhanced metadata by Ratings Wrapper.`
+          : 'Catalog addon with enhanced metadata.',
         version: appConfig.defaults.version,
         resources: supportedResources,
         types: wrappedManifest.types || ['movie', 'series'],
@@ -65,7 +65,7 @@ function createManifestHandler(config) {
         ...wrappedManifest.behaviorHints,
         p2p: false,
         // This tells Stremio to prefer our addon over others for the same content
-        configurable: false,
+        configurable: true,
         configurationRequired: false
       };
 
