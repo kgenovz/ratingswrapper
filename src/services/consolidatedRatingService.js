@@ -250,6 +250,11 @@ class ConsolidatedRatingService {
         sources.tmdb = parseFloat(tmdbData.tmdbRating);
       }
 
+      // Debug OMDB data structure
+      if (omdbData) {
+        logger.debug(`OMDB data for ${imdbId}:`, JSON.stringify(omdbData));
+      }
+
       if (omdbData?.rottenTomatoes) {
         // Parse percentage string (e.g., "85%" → 85)
         const rtValue = typeof omdbData.rottenTomatoes === 'string'
@@ -257,7 +262,12 @@ class ConsolidatedRatingService {
           : parseInt(omdbData.rottenTomatoes);
         if (!isNaN(rtValue)) {
           sources.rottenTomatoes = rtValue;
+          logger.debug(`Extracted RT rating: ${rtValue} from ${omdbData.rottenTomatoes}`);
+        } else {
+          logger.warn(`Failed to parse RT rating from: ${omdbData.rottenTomatoes}`);
         }
+      } else {
+        logger.debug(`No RT rating in OMDB data for ${imdbId}`);
       }
 
       if (omdbData?.metacritic) {
@@ -266,7 +276,12 @@ class ConsolidatedRatingService {
           : parseInt(omdbData.metacritic);
         if (!isNaN(mcValue)) {
           sources.metacritic = mcValue;
+          logger.debug(`Extracted MC rating: ${mcValue} from ${omdbData.metacritic}`);
+        } else {
+          logger.warn(`Failed to parse MC rating from: ${omdbData.metacritic}`);
         }
+      } else {
+        logger.debug(`No MC rating in OMDB data for ${imdbId}`);
       }
 
       // Compute consolidated rating
