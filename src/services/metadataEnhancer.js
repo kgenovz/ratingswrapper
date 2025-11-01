@@ -760,6 +760,12 @@ class MetadataEnhancerService {
               ...(imdbData.votes && { votes: imdbData.votes }),
               ...(imdbData.rating && { rating: imdbData.rating })
             };
+
+            // Keep mainRatingData in sync when titles use consolidated ratings
+            // so description can access IMDb rating/votes via ratingData
+            if (useConsolidatedInTitle) {
+              mainRatingData = consolidatedData;
+            }
           }
         }
 
