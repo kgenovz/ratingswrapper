@@ -784,11 +784,10 @@ function renderMetadataOrderList() {
   section.style.display = 'block';
 
   // Read checkbox states for all metadata options
-  var useConsolidatedRating = document.getElementById('useConsolidatedRating')?.checked || false;
   var includeConsolidatedRating = document.getElementById('includeConsolidatedRating')?.checked || false;
 
   var includes = {
-    consolidatedRating: useConsolidatedRating && includeConsolidatedRating,
+    consolidatedRating: includeConsolidatedRating,
     imdbRating: document.getElementById('includeImdbRating')?.checked || false,
     votes: document.getElementById('includeVotes')?.checked || false,
     mpaa: document.getElementById('includeMpaa')?.checked || false,
