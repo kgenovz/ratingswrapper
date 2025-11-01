@@ -428,12 +428,19 @@ class MetadataEnhancerService {
 
       // Fetch all ratings in batch (either consolidated or IMDb-only)
       let ratingsMap;
+      let imdbVotesMap = new Map(); // For vote counts when using consolidated
       const useConsolidated = config.useConsolidatedRating === true;
 
       if (useConsolidated) {
         logger.info('Using consolidated ratings (multi-source averaging)');
         const region = descriptionFormat?.streamingRegion || 'US';
         ratingsMap = await consolidatedRatingService.getConsolidatedRatingsBatch(items, 10, { region });
+
+        // Also fetch traditional IMDb ratings for vote counts
+        if (descriptionFormat && descriptionFormat.includeVotes) {
+          logger.info('Fetching IMDb vote counts for consolidated ratings');
+          imdbVotesMap = await ratingsService.getRatingsBatch(items, 10);
+        }
       } else {
         logger.info('Using traditional IMDb-only ratings');
         ratingsMap = await ratingsService.getRatingsBatch(items, 10);
@@ -593,6 +600,15 @@ class MetadataEnhancerService {
           return meta;
         }
 
+        // If using consolidated ratings, merge in vote count from IMDb
+        let enhancedRatingData = ratingData;
+        if (useConsolidated && imdbVotesMap.size > 0) {
+          const imdbData = imdbVotesMap.get(item.id);
+          if (imdbData && imdbData.votes) {
+            enhancedRatingData = { ...ratingData, votes: imdbData.votes };
+          }
+        }
+
         // Get IMDb ID and MPAA rating (if pre-fetched)
         const imdbId = meta.imdb_id || meta.imdbId || (item.id.startsWith('tt') ? item.id.split(':')[0] : null);
         const mpaaRating = imdbId ? mpaaMap.get(imdbId) : null;
@@ -605,7 +621,7 @@ class MetadataEnhancerService {
         const malData = malId ? malMap.get(malId) : null;
 
         // Pass catalogLocation to override the config location for catalog items
-        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating, tmdbData, omdbData, malData, catalogLocation, useConsolidated);
+        return await this._enhanceMetaWithRating(meta, enhancedRatingData, config, imdbId, mpaaRating, tmdbData, omdbData, malData, catalogLocation, useConsolidated);
       }));
 
       const enhancedCount = enhancedMetas.filter((meta, idx) =>
@@ -683,11 +699,19 @@ class MetadataEnhancerService {
 
         // Fetch rating (consolidated or traditional)
         const useConsolidated = config.useConsolidatedRating === true;
-        const mainRatingData = useConsolidated
+        let mainRatingData = useConsolidated
           ? await consolidatedRatingService.getConsolidatedRating(lookupId, meta.type, { region: descriptionFormat?.streamingRegion || 'US' })
           : await ratingsService.getRating(lookupId, meta.type);
 
         if (mainRatingData) {
+          // If using consolidated ratings, fetch IMDb vote count
+          if (useConsolidated && descriptionFormat && descriptionFormat.includeVotes) {
+            const imdbData = await ratingsService.getRating(lookupId, meta.type);
+            if (imdbData && imdbData.votes) {
+              mainRatingData = { ...mainRatingData, votes: imdbData.votes };
+            }
+          }
+
           // imdbId may still be null if not resolvable; keep using derived value
 
           // Fetch TMDB data if needed for description location
