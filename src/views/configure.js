@@ -150,6 +150,58 @@ function generateConfigureHTML(protocol, host) {
                   </label>
                 </div>
 
+                <!-- Consolidated Rating Option -->
+                <div class="form-group" style="background: #fff; border: 1px solid #93c5fd; border-radius: 6px; padding: 10px; margin-bottom: 12px;">
+                  <label style="display: flex; align-items: center; margin-bottom: 8px; cursor: pointer;">
+                    <input type="checkbox" id="useConsolidatedRating" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px; font-weight: 600;">Use Consolidated Rating (Multi-Source Average)</span>
+                  </label>
+                  <div class="help-text" style="margin-left: 26px; margin-top: -4px; margin-bottom: 10px;">
+                    Computes an average rating from IMDb, TMDB, Rotten Tomatoes, and Metacritic (normalized to 0-10 scale).
+                    <br><strong>Note:</strong> Episodes always use IMDb ratings (only source with episode-level data).
+                  </div>
+
+                  <!-- Emoji Settings (conditional visibility) -->
+                  <div id="emojiSettings" style="display: none; margin-left: 26px; margin-top: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px;">
+                    <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                      <input type="checkbox" id="useColorEmoji" style="width: 18px; height: 18px;" />
+                      <span style="margin-left: 8px; font-weight: 600;">Show Color Indicator Emoji</span>
+                    </label>
+                    <div class="help-text" style="margin-left: 26px; margin-top: -4px; margin-bottom: 12px;">
+                      6-tier color grading system:<br>
+                      <span style="font-family: monospace; font-size: 13px;">
+                      🟢 <strong>Excellent</strong> (9.0-10.0 / 90%+) |
+                      🟩 <strong>Great</strong> (8.0-8.9 / 80-89%) |
+                      🟨 <strong>Good</strong> (7.0-7.9 / 70-79%)<br>
+                      🟧 <strong>Okay</strong> (6.0-6.9 / 60-69%) |
+                      🟥 <strong>Mediocre</strong> (5.0-5.9 / 50-59%) |
+                      🔴 <strong>Poor</strong> (<5.0 / <50%)
+                      </span>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="emojiSet" style="display: block; font-weight: 600; margin-bottom: 6px;">Emoji Style</label>
+                      <select id="emojiSet" style="margin-bottom: 6px;">
+                        <option value="circle" selected>Circles/Squares (🟢🟩🟨🟧🟥🔴)</option>
+                        <option value="square">Squares (🟩🟩🟨🟧🟥🟥)</option>
+                        <option value="star">Stars (⭐🌟✨💫🌠☄️)</option>
+                        <option value="heart">Hearts (💚💛🧡🩷❤️🖤)</option>
+                        <option value="diamond">Diamonds (💎🔷🔶🔸🔺🔻)</option>
+                      </select>
+                      <div class="help-text">Choose your preferred emoji style for the color indicator</div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="consolidatedTemplate" style="display: block; font-weight: 600; margin-bottom: 6px;">Rating Template</label>
+                      <input type="text" id="consolidatedTemplate" value="{emoji} {rating}" placeholder="{emoji} {rating}" style="font-family: monospace;" />
+                      <div class="help-text">
+                        Use <code>{emoji}</code> for color indicator, <code>{rating}</code> for average score.<br>
+                        Example: "<code>{emoji} {rating}</code>" → "🟢 8.2"
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="form-group">
                   <label>Position</label>
                   <select id="titlePosition"><option value="prefix">Prefix (* 8.5 at start)</option><option value="suffix">Suffix (* 8.5 at end)</option></select>
@@ -203,31 +255,84 @@ function generateConfigureHTML(protocol, host) {
                   <label>Position</label>
                   <select id="descriptionPosition"><option value="prefix">Prefix (at start)</option><option value="suffix">Suffix (at end)</option></select>
                 </div>
-                <div class="row-2">
-                  <div class="form-group">
-                    <label for="descriptionTemplate">Template</label>
-                    <input type="text" id="descriptionTemplate" value="{rating}/10 IMDb" />
-                    <div class="help-text">Use {rating} as placeholder</div>
-                  </div>
-                  <div class="form-group">
-                    <label for="descriptionSeparator">Separator</label>
-                    <select id="descriptionSeparator">
-                      <option value="\n" selected>New line (LF)</option>
-                      <option value=" - ">Dash ( - )</option>
-                      <option value=" | ">Pipe ( | )</option>
-                      <option value=", ">Comma + space ( , )</option>
-                      <option value=" . ">Dot ( . )</option>
-                      <option value=" • ">Bullet ( • )</option>
-                      <option value=" ★ ">Star ( ★ )</option>
-                      <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
-                      <option value=" ✨ ">Sparkles ( ✨ )</option>
-                      <option value=" ">Space</option>
-                    </select>
-                    <div class="help-text">New line works on Android Mobile/TV; Desktop/Web may collapse it. If you use Desktop/Web primarily, pick Bullet/Star/Pipe.</div>
-                  </div>
+
+                <!-- Hidden template field for backwards compatibility -->
+                <input type="hidden" id="descriptionTemplate" value="★ {rating}" />
+
+                <!-- Separator between description and metadata line -->
+                <div class="form-group">
+                  <label for="descriptionSeparator">Separator (between description and metadata)</label>
+                  <select id="descriptionSeparator">
+                    <option value="\n" selected>New line (LF)</option>
+                    <option value=" - ">Dash ( - )</option>
+                    <option value=" | ">Pipe ( | )</option>
+                    <option value=", ">Comma + space ( , )</option>
+                    <option value=" . ">Dot ( . )</option>
+                    <option value=" • ">Bullet ( • )</option>
+                    <option value=" ★ ">Star ( ★ )</option>
+                    <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
+                    <option value=" ✨ ">Sparkles ( ✨ )</option>
+                    <option value=" ">Space</option>
+                  </select>
+                  <div class="help-text">Separator between the original description and metadata line. New line works on Android Mobile/TV; Desktop/Web may collapse it.</div>
                 </div>
+
+                <!-- Separator between metadata items -->
+                <div class="form-group">
+                  <label for="metadataSeparator">Separator (between metadata items)</label>
+                  <select id="metadataSeparator">
+                    <option value=" • " selected>Bullet ( • )</option>
+                    <option value=" | ">Pipe ( | )</option>
+                    <option value=" - ">Dash ( - )</option>
+                    <option value=", ">Comma + space ( , )</option>
+                    <option value=" . ">Dot ( . )</option>
+                    <option value=" ★ ">Star ( ★ )</option>
+                    <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
+                    <option value=" ✨ ">Sparkles ( ✨ )</option>
+                    <option value=" / ">Slash ( / )</option>
+                    <option value=" ">Space</option>
+                  </select>
+                  <div class="help-text">Separator between individual metadata items (rating, votes, MPAA, etc.). Example: "8.5 IMDb • 1.2M votes • PG-13"</div>
+                </div>
+
                 <div class="form-group">
                   <div style="font-weight: 600; margin-bottom: 8px;">Extended Metadata</div>
+
+                  <!-- Consolidated Rating -->
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeConsolidatedRating" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include Consolidated Rating (Multi-Source)</span>
+                  </label>
+
+                  <!-- Description Emoji Settings (conditional) -->
+                  <div id="descriptionEmojiSettings" style="display: none; margin-left: 26px; margin-bottom: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px;">
+                    <div class="form-group" style="margin-bottom: 8px;">
+                      <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="descriptionUseColorEmoji" style="width: 16px; height: 16px;" />
+                        <span style="margin-left: 8px; font-weight: 600;">Show Color Indicator Emoji</span>
+                      </label>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                      <label for="descriptionEmojiSet" style="display: block; font-weight: 600; margin-bottom: 6px;">Emoji Style</label>
+                      <select id="descriptionEmojiSet" style="margin-bottom: 6px;">
+                        <option value="circle" selected>Circles/Squares (🟢🟩🟨🟧🟥🔴)</option>
+                        <option value="square">Squares (🟩🟩🟨🟧🟥🟥)</option>
+                        <option value="star">Stars (⭐🌟✨💫🌠☄️)</option>
+                        <option value="heart">Hearts (💚💛🧡🩷❤️🖤)</option>
+                        <option value="diamond">Diamonds (💎🔷🔶🔸🔺🔻)</option>
+                      </select>
+                      <div class="help-text" style="margin-top: 5px;">
+                        6-tier color grading: Excellent (90%+), Great (80-89%), Good (70-79%), Okay (60-69%), Mediocre (50-59%), Poor (<50%)
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- IMDb Rating -->
+                  <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                    <input type="checkbox" id="includeImdbRating" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include IMDb Rating</span>
+                  </label>
 
                   <!-- IMDb Vote Count -->
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
@@ -346,21 +451,6 @@ function generateConfigureHTML(protocol, host) {
                     <label style="display: block; font-weight: 600; margin-bottom: 6px;">Metadata Order</label>
                     <ul id="metadataOrderList" style="list-style: none; padding: 0; margin: 0;"></ul>
                     <div class="help-text" style="margin-top: 5px;">Use arrows to arrange the order of all metadata elements. IMDb rating can now be moved anywhere in the list.</div>
-                  </div>
-                  <div style="margin-top: 10px;">
-                    <label for="metadataSeparator" style="display: block; font-weight: 600; margin-bottom: 6px;">Metadata Separator</label>
-                    <select id="metadataSeparator">
-                      <option value=" • " selected>Bullet ( • )</option>
-                      <option value=" | ">Pipe ( | )</option>
-                      <option value=" - ">Dash ( - )</option>
-                      <option value=", ">Comma + space ( , )</option>
-                      <option value=" . ">Dot ( . )</option>
-                      <option value=" ★ ">Star ( ★ )</option>
-                      <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
-                      <option value=" ✨ ">Sparkles ( ✨ )</option>
-                      <option value=" ">Space</option>
-                    </select>
-                    <div class="help-text" style="margin-top: 5px;">Separator between rating, vote count, MPAA rating, TMDB rating, release date, streaming services, Rotten Tomatoes, and Metacritic</div>
                   </div>
                 </div>
                 <div class="form-group">

@@ -783,9 +783,12 @@ function renderMetadataOrderList() {
   // Always show the order section (IMDb rating is always included)
   section.style.display = 'block';
 
-  // Read checkbox states (IMDb rating is always true since it's the main feature)
+  // Read checkbox states for all metadata options
+  var includeConsolidatedRating = document.getElementById('includeConsolidatedRating')?.checked || false;
+
   var includes = {
-    imdbRating: true, // Always included
+    consolidatedRating: includeConsolidatedRating,
+    imdbRating: document.getElementById('includeImdbRating')?.checked || false,
     votes: document.getElementById('includeVotes')?.checked || false,
     mpaa: document.getElementById('includeMpaa')?.checked || false,
     tmdb: document.getElementById('includeTmdbRating')?.checked || false,
@@ -797,6 +800,7 @@ function renderMetadataOrderList() {
     malVotes: document.getElementById('includeMalVotes')?.checked || false
   };
   var labels = {
+    consolidatedRating: 'Consolidated Rating',
     imdbRating: 'IMDb rating',
     votes: 'Vote count',
     mpaa: 'MPAA rating',
@@ -808,7 +812,7 @@ function renderMetadataOrderList() {
     malRating: 'MAL rating',
     malVotes: 'MAL votes'
   };
-  var defaultOrder = ['imdbRating','votes','mpaa','tmdb','malRating','malVotes','releaseDate','streamingServices','rottenTomatoes','metacritic'];
+  var defaultOrder = ['consolidatedRating','imdbRating','votes','mpaa','tmdb','malRating','malVotes','releaseDate','streamingServices','rottenTomatoes','metacritic'];
   var selected = defaultOrder.filter(function(k){ return includes[k]; });
 
   // Keep existing order where possible
@@ -905,12 +909,28 @@ function updateRatingPreview() {
   // Update title preview
   if (enableTitleLocation) {
     var titlePos = document.getElementById('titlePosition')?.value || 'prefix';
-    var titleTpl = document.getElementById('titleTemplate')?.value || '★ {rating}';
-    var titleSep = document.getElementById('titleSeparator')?.value || ' | ';
-    var sampleRating = '8.5';
-    var ratingText = titleTpl.replace('{rating}', sampleRating);
     var sampleTitle = 'Example Movie Title';
+    var ratingText;
 
+    // Check if using consolidated rating
+    var useConsolidatedRating = document.getElementById('useConsolidatedRating')?.checked || false;
+
+    if (useConsolidatedRating) {
+      var useColorEmoji = document.getElementById('useColorEmoji')?.checked || false;
+      var consolidatedTemplate = document.getElementById('consolidatedTemplate')?.value || '{emoji} {rating}';
+      var sampleRating = '8.2';
+      var sampleEmoji = useColorEmoji ? '🟩' : '';
+      ratingText = consolidatedTemplate
+        .replace('{emoji}', sampleEmoji)
+        .replace('{rating}', sampleRating)
+        .trim();
+    } else {
+      var titleTpl = document.getElementById('titleTemplate')?.value || '★ {rating}';
+      var sampleRating = '8.5';
+      ratingText = titleTpl.replace('{rating}', sampleRating);
+    }
+
+    var titleSep = document.getElementById('titleSeparator')?.value || ' | ';
     var titleResult = titlePos === 'prefix'
       ? ratingText + titleSep + sampleTitle
       : sampleTitle + titleSep + ratingText;
@@ -953,9 +973,24 @@ function updateRatingPreview() {
     // Build metadata parts with configurable order
     var order = getMetadataOrder();
     var partTexts = {};
+    var useConsolidatedRating = document.getElementById('useConsolidatedRating')?.checked || false;
 
-    // IMDb rating is always included
-    partTexts.imdbRating = ratingText;
+    // Check if including consolidated rating in description
+    var includeConsolidatedRating = document.getElementById('includeConsolidatedRating')?.checked || false;
+    var includeImdbRating = document.getElementById('includeImdbRating')?.checked || false;
+
+    // Show consolidated rating in preview if checkbox is enabled (for preview purposes only)
+    if (includeConsolidatedRating) {
+      var descriptionUseColorEmoji = document.getElementById('descriptionUseColorEmoji')?.checked || false;
+      var descriptionEmojiSet = document.getElementById('descriptionEmojiSet')?.value || 'circle';
+      var sampleEmoji = descriptionUseColorEmoji ? '🟢' : '';
+      partTexts.consolidatedRating = (sampleEmoji + ' 8.2 (4 sources)').trim();
+    }
+
+    // IMDb rating as separate toggleable metadata item
+    if (includeImdbRating) {
+      partTexts.imdbRating = '8.5 IMDb';
+    }
 
     if (includeVotes) {
       var voteText = '';
@@ -991,7 +1026,7 @@ function updateRatingPreview() {
 
     // Build final metadata array in the specified order
     var metadataParts = [];
-    var allowed = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic','malRating','malVotes'];
+    var allowed = ['consolidatedRating','imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic','malRating','malVotes'];
     order.forEach(function(k){ if (allowed.indexOf(k) !== -1 && partTexts[k]) metadataParts.push(partTexts[k]); });
     // Append any parts not in the order list
     allowed.forEach(function(k){ if (order.indexOf(k) === -1 && partTexts[k]) metadataParts.push(partTexts[k]); });
@@ -1063,6 +1098,18 @@ async function generateAll() {
   const malVoteFormat = document.getElementById('malVoteFormat')?.value || 'short';
   const metadataOrder = getMetadataOrder();
 
+  // Consolidated rating settings (title)
+  const useConsolidatedRating = document.getElementById('useConsolidatedRating')?.checked || false;
+  const useColorEmoji = document.getElementById('useColorEmoji')?.checked || false;
+  const emojiSet = document.getElementById('emojiSet')?.value || 'circle';
+  const consolidatedTemplate = document.getElementById('consolidatedTemplate')?.value || '{emoji} {rating}';
+
+  // Consolidated rating settings (description)
+  const includeConsolidatedRating = document.getElementById('includeConsolidatedRating')?.checked || false;
+  const descriptionUseColorEmoji = document.getElementById('descriptionUseColorEmoji')?.checked || false;
+  const descriptionEmojiSet = document.getElementById('descriptionEmojiSet')?.value || 'circle';
+  const includeImdbRating = document.getElementById('includeImdbRating')?.checked || false;
+
   // Global enable toggles removed; per-location settings control behavior
   if (!enableTitleLocation && !enableDescLocation) {
     alert('Warning: Neither title nor description location is selected. Please select at least one location.');
@@ -1074,6 +1121,7 @@ async function generateAll() {
       wrappedAddonUrl: it.url,
       enableRatings: true, // Inferred from granular settings; keep global flag for compatibility
       ratingLocation: ratingLocation,
+      useConsolidatedRating: useConsolidatedRating,
       // User ID for authenticated rate limiting (Phase 4)
       ...(userId && { userId }),
       // Separate formats for title and description
@@ -1081,6 +1129,9 @@ async function generateAll() {
         position: titlePosition,
         template: titleTemplate,
         separator: titleSeparator,
+        consolidatedTemplate: consolidatedTemplate,
+        useColorEmoji: useColorEmoji,
+        emojiSet: emojiSet,
         // Granular control: catalog items and episodes for title
         enableCatalogItems: document.getElementById('titleEnableCatalogItems')?.checked !== false,
         enableEpisodes: document.getElementById('titleEnableEpisodes')?.checked !== false
@@ -1089,6 +1140,10 @@ async function generateAll() {
         position: descriptionPosition,
         template: descriptionTemplate,
         separator: descriptionSeparator,
+        includeConsolidatedRating: includeConsolidatedRating,
+        includeImdbRating: includeImdbRating,
+        useColorEmoji: descriptionUseColorEmoji,
+        emojiSet: descriptionEmojiSet,
         includeVotes: includeVotes,
         includeMpaa: includeMpaa,
         includeTmdbRating: includeTmdbRating,
@@ -1187,6 +1242,42 @@ async function generateAll() {
   if (tmdbRatingFormat) tmdbRatingFormat.addEventListener('change', updateRatingPreview);
   if (releaseDateFormat) releaseDateFormat.addEventListener('change', updateRatingPreview);
   if (metacriticFormat) metacriticFormat.addEventListener('change', updateRatingPreview);
+
+  // Consolidated rating fields
+  var useConsolidatedRating = document.getElementById('useConsolidatedRating');
+  var useColorEmoji = document.getElementById('useColorEmoji');
+  var emojiSet = document.getElementById('emojiSet');
+  var consolidatedTemplate = document.getElementById('consolidatedTemplate');
+  var includeConsolidatedRating = document.getElementById('includeConsolidatedRating');
+  var includeImdbRating = document.getElementById('includeImdbRating');
+
+  if (useConsolidatedRating) {
+    useConsolidatedRating.addEventListener('change', function() {
+      var emojiSettings = document.getElementById('emojiSettings');
+      emojiSettings.style.display = this.checked ? 'block' : 'none';
+      updateRatingPreview();
+    });
+  }
+  if (useColorEmoji) useColorEmoji.addEventListener('change', updateRatingPreview);
+  if (emojiSet) emojiSet.addEventListener('change', updateRatingPreview);
+  if (consolidatedTemplate) consolidatedTemplate.addEventListener('input', updateRatingPreview);
+
+  // Description consolidated rating with emoji settings toggle
+  if (includeConsolidatedRating) {
+    includeConsolidatedRating.addEventListener('change', function() {
+      var descriptionEmojiSettings = document.getElementById('descriptionEmojiSettings');
+      descriptionEmojiSettings.style.display = this.checked ? 'block' : 'none';
+      updateRatingPreview();
+    });
+  }
+
+  // Description emoji settings
+  var descriptionUseColorEmoji = document.getElementById('descriptionUseColorEmoji');
+  var descriptionEmojiSet = document.getElementById('descriptionEmojiSet');
+  if (descriptionUseColorEmoji) descriptionUseColorEmoji.addEventListener('change', updateRatingPreview);
+  if (descriptionEmojiSet) descriptionEmojiSet.addEventListener('change', updateRatingPreview);
+
+  if (includeImdbRating) includeImdbRating.addEventListener('change', updateRatingPreview);
 
   // Initial update
   updateRatingPreview();

@@ -5,6 +5,7 @@
 
 const logger = require('../utils/logger');
 const ratingsService = require('./ratingsService');
+const consolidatedRatingService = require('./consolidatedRatingService');
 const kitsuMappingService = require('./kitsuMappingService');
 const tmdbService = require('./tmdbService');
 const omdbService = require('./omdbService');
@@ -36,6 +37,59 @@ function formatReleaseDate(dateString, format = 'year') {
     logger.warn(`Error formatting date ${dateString}:`, error.message);
     return '';
   }
+}
+
+/**
+ * Get color indicator emoji based on rating color and emoji set
+ * @param {string} color - Color indicator ('excellent', 'great', 'good', 'okay', 'mediocre', 'poor')
+ * @param {string} emojiSet - Emoji set ('circle', 'square', 'star', 'heart', 'diamond')
+ * @returns {string} Emoji character or empty string
+ */
+function getColorEmoji(color, emojiSet = 'circle') {
+  const emojiMap = {
+    circle: {
+      excellent: '🟢',  // Dark green circle
+      great: '🟩',      // Light green square (closest to light green circle)
+      good: '🟨',       // Yellow square
+      okay: '🟧',       // Orange square
+      mediocre: '🟥',   // Light red square
+      poor: '🔴'        // Dark red circle
+    },
+    square: {
+      excellent: '🟩',  // Green square
+      great: '🟩',      // Green square (no lighter variant available)
+      good: '🟨',       // Yellow square
+      okay: '🟧',       // Orange square
+      mediocre: '🟥',   // Red square
+      poor: '🟥'        // Red square (darker variant not available)
+    },
+    star: {
+      excellent: '⭐',  // Star
+      great: '🌟',      // Glowing star
+      good: '✨',       // Sparkles
+      okay: '💫',       // Dizzy
+      mediocre: '🌠',   // Shooting star
+      poor: '☄️'        // Comet (declining)
+    },
+    heart: {
+      excellent: '💚',  // Green heart
+      great: '💛',      // Yellow heart
+      good: '🧡',       // Orange heart
+      okay: '🩷',       // Pink heart
+      mediocre: '❤️',   // Red heart
+      poor: '🖤'        // Black heart
+    },
+    diamond: {
+      excellent: '💎',  // Gem (highest quality)
+      great: '🔷',      // Blue diamond
+      good: '🔶',       // Orange diamond
+      okay: '🔸',       // Orange small diamond
+      mediocre: '🔺',   // Red triangle up
+      poor: '🔻'        // Red triangle down
+    }
+  };
+
+  return emojiMap[emojiSet]?.[color] || '';
 }
 
 class MetadataEnhancerService {
@@ -77,16 +131,38 @@ class MetadataEnhancerService {
   /**
    * Formats rating for title injection (simple template replacement)
    * @param {string} title - Original title
-   * @param {Object} ratingData - Rating data object {rating, votes}
+   * @param {Object} ratingData - Rating data object {rating, votes} or consolidated rating object
    * @param {Object} formatConfig - Format configuration {position, template, separator}
+   * @param {boolean} useConsolidated - Whether to use consolidated rating format
    * @returns {string} Enhanced title
    * @private
    */
-  _formatTitleRating(title, ratingData, formatConfig) {
-    if (!ratingData || !ratingData.rating) return title;
+  _formatTitleRating(title, ratingData, formatConfig, useConsolidated = false) {
+    if (!ratingData) return title;
 
-    const ratingText = formatConfig.template.replace('{rating}', ratingData.rating.toFixed(1));
+    let ratingText;
 
+    if (useConsolidated && ratingData.consolidatedRating) {
+      // Use consolidated rating format with optional emoji
+      const { consolidatedRating, colorIndicator } = ratingData;
+      const emoji = formatConfig.useColorEmoji
+        ? getColorEmoji(colorIndicator, formatConfig.emojiSet || 'circle')
+        : '';
+
+      const template = formatConfig.consolidatedTemplate || '{emoji} {rating}';
+      ratingText = template
+        .replace('{emoji}', emoji)
+        .replace('{rating}', consolidatedRating.toFixed(1))
+        .trim(); // Remove any extra whitespace if emoji is empty
+    } else if (ratingData.rating) {
+      // Use traditional IMDb-only format
+      ratingText = formatConfig.template.replace('{rating}', ratingData.rating.toFixed(1));
+    } else {
+      // No valid rating data
+      return title;
+    }
+
+    // Apply position (prefix or suffix)
     if (formatConfig.position === 'prefix') {
       return `${ratingText}${formatConfig.separator}${title}`;
     } else {
@@ -97,34 +173,49 @@ class MetadataEnhancerService {
   /**
    * Formats rating for description injection (with extended metadata support)
    * @param {string} description - Original description
-   * @param {Object} ratingData - Rating data object {rating, votes}
-   * @param {Object} formatConfig - Format configuration {position, template, separator, includeVotes, includeMpaa, includeTmdbRating, includeReleaseDate, includeRottenTomatoes, includeMetacritic, includeMalRating, includeMalVotes}
+   * @param {Object} ratingData - Rating data object {rating, votes} or consolidated rating object
+   * @param {Object} formatConfig - Format configuration {position, template, separator, includeVotes, includeMpaa, includeTmdbRating, includeReleaseDate, includeRottenTomatoes, includeMetacritic, includeMalRating, includeMalVotes, includeConsolidatedRating}
    * @param {string} imdbId - IMDb ID for MPAA lookup (optional)
    * @param {string} mpaaRating - Pre-fetched MPAA rating (optional, to avoid individual lookups)
    * @param {Object} tmdbData - Pre-fetched TMDB data (optional)
    * @param {Object} omdbData - Pre-fetched OMDB data (optional)
    * @param {Object} malData - Pre-fetched MAL data (optional)
+   * @param {boolean} useConsolidated - Whether to use consolidated rating format
    * @returns {Promise<string>} Enhanced description
    * @private
    */
-  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null, malData = null) {
-    if (!ratingData || !ratingData.rating) return description;
+  async _formatDescriptionRating(description, ratingData, formatConfig, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null, malData = null, useConsolidated = false, consolidatedData = null) {
+    // Check for either traditional or consolidated rating
+    if (!ratingData || (!ratingData.rating && !ratingData.consolidatedRating)) return description;
 
     // Debug: Check what data we received
-    logger.debug(`_formatDescriptionRating called with: tmdbData=${!!tmdbData}, omdbData=${!!omdbData}, malData=${!!malData}`);
+    logger.debug(`_formatDescriptionRating called with: tmdbData=${!!tmdbData}, omdbData=${!!omdbData}, malData=${!!malData}, useConsolidated=${useConsolidated}, consolidatedData=${!!consolidatedData}`);
     if (malData) {
       logger.debug(`MAL data in formatting: ${JSON.stringify(malData)}`);
       logger.debug(`Format config: includeMalRating=${formatConfig.includeMalRating}, includeMalVotes=${formatConfig.includeMalVotes}`);
     }
 
-    // Build rating template
-    let template = formatConfig.template.replace('{rating}', ratingData.rating.toFixed(1));
-
     // Compute each extended metadata text (do not push yet)
     const partTexts = {};
 
-    // IMDb rating (always included)
-    partTexts.imdbRating = template;
+    // Handle consolidated rating if enabled (use consolidatedData if available, fallback to ratingData)
+    if (formatConfig.includeConsolidatedRating) {
+      const dataToUse = consolidatedData || ratingData;
+      if (dataToUse && dataToUse.consolidatedRating) {
+        const { consolidatedRating, colorIndicator, sourceCount } = dataToUse;
+        const emoji = formatConfig.useColorEmoji
+          ? getColorEmoji(colorIndicator, formatConfig.emojiSet || 'circle')
+          : '';
+
+        const ratingText = `${emoji} ${consolidatedRating.toFixed(1)} (${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'})`.trim();
+        partTexts.consolidatedRating = ratingText;
+      }
+    }
+
+    // IMDb rating as separate metadata item (can show alongside consolidated)
+    if (formatConfig.includeImdbRating && ratingData.rating) {
+      partTexts.imdbRating = `${ratingData.rating.toFixed(1)} IMDb`;
+    }
 
     // Vote count
     if (formatConfig.includeVotes && ratingData.votes) {
@@ -194,7 +285,7 @@ class MetadataEnhancerService {
     }
 
     // Apply ordering if provided; otherwise keep default order
-    const allowedKeys = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic','malRating','malVotes'];
+    const allowedKeys = ['consolidatedRating','imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic','malRating','malVotes'];
     const metadataParts = [];
     if (Array.isArray(formatConfig.metadataOrder)) {
       const order = formatConfig.metadataOrder;
@@ -235,7 +326,7 @@ class MetadataEnhancerService {
    * @returns {Promise<Object>} Enhanced meta object
    * @private
    */
-  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null, malData = null, locationOverride = null) {
+  async _enhanceMetaWithRating(meta, ratingData, config, imdbId = null, mpaaRating = null, tmdbData = null, omdbData = null, malData = null, locationOverride = null, useConsolidated = false, consolidatedData = null) {
     if (!ratingData || !config) {
       return meta;
     }
@@ -248,14 +339,16 @@ class MetadataEnhancerService {
     const titleFormat = config.titleFormat || config.ratingFormat;
     const descriptionFormat = config.descriptionFormat || config.ratingFormat;
 
-    // Handle title injection
+    // Handle title injection (uses ratingData which is based on useConsolidated flag)
     if (location === 'title' || location === 'both') {
-      enhancedMeta.name = this._formatTitleRating(meta.name, ratingData, titleFormat);
+      enhancedMeta.name = this._formatTitleRating(meta.name, ratingData, titleFormat, useConsolidated);
     }
 
     // Handle description injection
     if (location === 'description' || location === 'both') {
       const originalDesc = meta.description || '';
+      // For description, pass both rating data and consolidated data
+      // Description formatter will choose based on descriptionFormat.includeConsolidatedRating
       enhancedMeta.description = await this._formatDescriptionRating(
         originalDesc,
         ratingData,
@@ -264,7 +357,9 @@ class MetadataEnhancerService {
         mpaaRating,
         tmdbData,
         omdbData,
-        malData
+        malData,
+        useConsolidated,
+        consolidatedData
       );
     }
 
@@ -338,8 +433,51 @@ class MetadataEnhancerService {
         return metas;
       }
 
-      // Fetch all ratings in batch
-      const ratingsMap = await ratingsService.getRatingsBatch(items);
+      // Determine which ratings to fetch based on title and description needs
+      const useConsolidatedInTitle = config.useConsolidatedRating === true;
+      const useConsolidatedInDescription = descriptionFormat?.includeConsolidatedRating || false;
+      const needsConsolidated = useConsolidatedInTitle || useConsolidatedInDescription;
+      const needsImdb = !useConsolidatedInTitle || descriptionFormat?.includeImdbRating || descriptionFormat?.includeVotes;
+
+      let ratingsMap;
+      let consolidatedMap = new Map();
+
+      // Fetch consolidated ratings if needed for title or description
+      if (needsConsolidated) {
+        logger.info('Fetching consolidated ratings (multi-source averaging)');
+        const region = descriptionFormat?.streamingRegion || 'US';
+        consolidatedMap = await consolidatedRatingService.getConsolidatedRatingsBatch(items, 10, { region });
+
+        // If using consolidated for titles, use it as the main ratings map
+        if (useConsolidatedInTitle) {
+          ratingsMap = consolidatedMap;
+        }
+      }
+
+      // Fetch IMDb ratings if needed for titles or description metadata
+      if (needsImdb) {
+        logger.info('Fetching IMDb ratings');
+        const imdbMap = await ratingsService.getRatingsBatch(items, 10);
+
+        // If NOT using consolidated for titles, use IMDb as main ratings map
+        if (!useConsolidatedInTitle) {
+          ratingsMap = imdbMap;
+        }
+
+        // Merge IMDb data into consolidated data if both are fetched
+        if (needsConsolidated && imdbMap.size > 0) {
+          for (const [id, imdbData] of imdbMap.entries()) {
+            const consolidated = consolidatedMap.get(id);
+            if (consolidated) {
+              consolidatedMap.set(id, {
+                ...consolidated,
+                ...(imdbData.votes && { votes: imdbData.votes }),
+                ...(imdbData.rating && { rating: imdbData.rating })
+              });
+            }
+          }
+        }
+      }
 
       // Batch fetch MPAA ratings if enabled and using description location
       let mpaaMap = new Map();
@@ -495,6 +633,9 @@ class MetadataEnhancerService {
           return meta;
         }
 
+        // Get consolidated data if available (for description use)
+        const consolidatedData = consolidatedMap.get(item.id) || null;
+
         // Get IMDb ID and MPAA rating (if pre-fetched)
         const imdbId = meta.imdb_id || meta.imdbId || (item.id.startsWith('tt') ? item.id.split(':')[0] : null);
         const mpaaRating = imdbId ? mpaaMap.get(imdbId) : null;
@@ -507,7 +648,8 @@ class MetadataEnhancerService {
         const malData = malId ? malMap.get(malId) : null;
 
         // Pass catalogLocation to override the config location for catalog items
-        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating, tmdbData, omdbData, malData, catalogLocation);
+        // Pass both title rating data and consolidated data separately
+        return await this._enhanceMetaWithRating(meta, ratingData, config, imdbId, mpaaRating, tmdbData, omdbData, malData, catalogLocation, useConsolidatedInTitle, consolidatedData);
       }));
 
       const enhancedCount = enhancedMetas.filter((meta, idx) =>
@@ -583,9 +725,52 @@ class MetadataEnhancerService {
         // Prefer using the resolved IMDb ID for ratings if available
         const lookupId = imdbId || contentId;
 
-        const mainRatingData = await ratingsService.getRating(lookupId, meta.type);
+        // Determine which ratings to fetch based on title and description needs
+        const useConsolidatedInTitle = config.useConsolidatedRating === true;
+        const useConsolidatedInDescription = descriptionFormat?.includeConsolidatedRating || false;
+        const needsConsolidated = useConsolidatedInTitle || useConsolidatedInDescription;
+        const needsImdb = !useConsolidatedInTitle || descriptionFormat?.includeImdbRating || descriptionFormat?.includeVotes;
+
+        let mainRatingData = null;
+        let consolidatedData = null;
+
+        // Fetch consolidated rating if needed for title or description
+        if (needsConsolidated) {
+          consolidatedData = await consolidatedRatingService.getConsolidatedRating(lookupId, meta.type, { region: descriptionFormat?.streamingRegion || 'US' });
+
+          // If using consolidated for titles, use it as main rating data
+          if (useConsolidatedInTitle) {
+            mainRatingData = consolidatedData;
+          }
+        }
+
+        // Fetch IMDb rating if needed for titles or description metadata
+        if (needsImdb) {
+          const imdbData = await ratingsService.getRating(lookupId, meta.type);
+
+          // If NOT using consolidated for titles, use IMDb as main rating data
+          if (!useConsolidatedInTitle) {
+            mainRatingData = imdbData;
+          }
+
+          // Merge IMDb data into consolidated data if both fetched
+          if (consolidatedData && imdbData) {
+            consolidatedData = {
+              ...consolidatedData,
+              ...(imdbData.votes && { votes: imdbData.votes }),
+              ...(imdbData.rating && { rating: imdbData.rating })
+            };
+
+            // Keep mainRatingData in sync when titles use consolidated ratings
+            // so description can access IMDb rating/votes via ratingData
+            if (useConsolidatedInTitle) {
+              mainRatingData = consolidatedData;
+            }
+          }
+        }
 
         if (mainRatingData) {
+
           // imdbId may still be null if not resolvable; keep using derived value
 
           // Fetch TMDB data if needed for description location
@@ -647,7 +832,7 @@ class MetadataEnhancerService {
 
           // Add rating to main title or description (or both)
           // Use regular location setting (not catalog-specific flags) for main meta
-          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, tmdbData, omdbData, malData);
+          const enhancedWithRating = await this._enhanceMetaWithRating(meta, mainRatingData, config, imdbId, null, tmdbData, omdbData, malData, null, useConsolidatedInTitle, consolidatedData);
 
           if (location === 'description') {
             enhancedMeta.description = enhancedWithRating.description;
@@ -1033,7 +1218,9 @@ class MetadataEnhancerService {
           const episodeName = video.name || video.title;
           const episodeDescription = video.description || video.overview || '';
           const tempMeta = { name: episodeName, description: episodeDescription };
-          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId, null, episodeTmdbData, episodeOmdbData, episodeMalData, episodeLocation);
+          // Episodes always use IMDb ratings for titles (only IMDb has episode-level data)
+          // But series-level consolidated rating can appear in description metadata
+          const enhanced = await this._enhanceMetaWithRating(tempMeta, episodeRatingData, config, mpaaLookupId, null, episodeTmdbData, episodeOmdbData, episodeMalData, episodeLocation, false);
 
           // Update the appropriate field(s) based on episodeLocation (not config.ratingLocation)
           if (episodeLocation === 'description') {
