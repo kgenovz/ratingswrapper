@@ -133,60 +133,6 @@ function generateConfigureHTML(protocol, host) {
                 </div>
               </div>
 
-              <!-- Consolidated Rating Toggle Section -->
-              <div class="form-group" style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
-                <div style="margin-bottom: 10px;"><strong>Rating Source:</strong></div>
-                <label style="display: flex; align-items: center; margin-bottom: 8px; cursor: pointer;">
-                  <input type="checkbox" id="useConsolidatedRating" style="width: 18px; height: 18px;" />
-                  <span style="margin-left: 8px; font-weight: 600;">Use Consolidated Rating (Multi-Source Average)</span>
-                </label>
-                <div class="help-text" style="margin-left: 26px; margin-top: -4px; margin-bottom: 10px;">
-                  Computes an average rating from IMDb, TMDB, Rotten Tomatoes, and Metacritic (normalized to 0-10 scale).
-                  All ratings are weighted equally. Displays with a color-coded emoji indicator.
-                  <br><strong>Note:</strong> Episodes always use IMDb ratings (only source with episode-level data).
-                </div>
-
-                <!-- Emoji Settings (conditional visibility) -->
-                <div id="emojiSettings" style="display: none; margin-left: 26px; margin-top: 10px; background: #fff; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px;">
-                  <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
-                    <input type="checkbox" id="useColorEmoji" style="width: 18px; height: 18px;" />
-                    <span style="margin-left: 8px; font-weight: 600;">Show Color Indicator Emoji</span>
-                  </label>
-                  <div class="help-text" style="margin-left: 26px; margin-top: -4px; margin-bottom: 12px;">
-                    6-tier color grading system:<br>
-                    <span style="font-family: monospace; font-size: 13px;">
-                    🟢 <strong>Excellent</strong> (9.0-10.0 / 90%+) |
-                    🟩 <strong>Great</strong> (8.0-8.9 / 80-89%) |
-                    🟨 <strong>Good</strong> (7.0-7.9 / 70-79%)<br>
-                    🟧 <strong>Okay</strong> (6.0-6.9 / 60-69%) |
-                    🟥 <strong>Mediocre</strong> (5.0-5.9 / 50-59%) |
-                    🔴 <strong>Poor</strong> (<5.0 / <50%)
-                    </span>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="emojiSet" style="display: block; font-weight: 600; margin-bottom: 6px;">Emoji Style</label>
-                    <select id="emojiSet" style="margin-bottom: 6px;">
-                      <option value="circle" selected>Circles/Squares (🟢🟩🟨🟧🟥🔴)</option>
-                      <option value="square">Squares (🟩💚🟨🟧🟥🟥)</option>
-                      <option value="star">Stars (⭐🌟✨💫🌠☄️)</option>
-                      <option value="heart">Hearts (💚💛🧡🩷❤️🖤)</option>
-                      <option value="diamond">Diamonds (💎🔷🔶🔸🔺🔻)</option>
-                    </select>
-                    <div class="help-text">Choose your preferred emoji style for the color indicator</div>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="consolidatedTemplate" style="display: block; font-weight: 600; margin-bottom: 6px;">Rating Template</label>
-                    <input type="text" id="consolidatedTemplate" value="{emoji} {rating}" placeholder="{emoji} {rating}" style="font-family: monospace;" />
-                    <div class="help-text">
-                      Use <code>{emoji}</code> for color indicator, <code>{rating}</code> for average score.<br>
-                      Example: "<code>{emoji} {rating}</code>" → "🟢 8.2"
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <!-- Title Format Section (shows when title checkbox is checked) -->
               <div id="titleFormatSection" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
                 <div style="font-weight: 600; margin-bottom: 10px; color: #1e40af;">Title Format Settings</div>
@@ -202,6 +148,58 @@ function generateConfigureHTML(protocol, host) {
                     <input type="checkbox" id="titleEnableEpisodes" checked style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Episodes</span>
                   </label>
+                </div>
+
+                <!-- Consolidated Rating Option -->
+                <div class="form-group" style="background: #fff; border: 1px solid #93c5fd; border-radius: 6px; padding: 10px; margin-bottom: 12px;">
+                  <label style="display: flex; align-items: center; margin-bottom: 8px; cursor: pointer;">
+                    <input type="checkbox" id="useConsolidatedRating" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px; font-weight: 600;">Use Consolidated Rating (Multi-Source Average)</span>
+                  </label>
+                  <div class="help-text" style="margin-left: 26px; margin-top: -4px; margin-bottom: 10px;">
+                    Computes an average rating from IMDb, TMDB, Rotten Tomatoes, and Metacritic (normalized to 0-10 scale).
+                    <br><strong>Note:</strong> Episodes always use IMDb ratings (only source with episode-level data).
+                  </div>
+
+                  <!-- Emoji Settings (conditional visibility) -->
+                  <div id="emojiSettings" style="display: none; margin-left: 26px; margin-top: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px;">
+                    <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                      <input type="checkbox" id="useColorEmoji" style="width: 18px; height: 18px;" />
+                      <span style="margin-left: 8px; font-weight: 600;">Show Color Indicator Emoji</span>
+                    </label>
+                    <div class="help-text" style="margin-left: 26px; margin-top: -4px; margin-bottom: 12px;">
+                      6-tier color grading system:<br>
+                      <span style="font-family: monospace; font-size: 13px;">
+                      🟢 <strong>Excellent</strong> (9.0-10.0 / 90%+) |
+                      🟩 <strong>Great</strong> (8.0-8.9 / 80-89%) |
+                      🟨 <strong>Good</strong> (7.0-7.9 / 70-79%)<br>
+                      🟧 <strong>Okay</strong> (6.0-6.9 / 60-69%) |
+                      🟥 <strong>Mediocre</strong> (5.0-5.9 / 50-59%) |
+                      🔴 <strong>Poor</strong> (<5.0 / <50%)
+                      </span>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="emojiSet" style="display: block; font-weight: 600; margin-bottom: 6px;">Emoji Style</label>
+                      <select id="emojiSet" style="margin-bottom: 6px;">
+                        <option value="circle" selected>Circles/Squares (🟢🟩🟨🟧🟥🔴)</option>
+                        <option value="square">Squares (🟩💚🟨🟧🟥🟥)</option>
+                        <option value="star">Stars (⭐🌟✨💫🌠☄️)</option>
+                        <option value="heart">Hearts (💚💛🧡🩷❤️🖤)</option>
+                        <option value="diamond">Diamonds (💎🔷🔶🔸🔺🔻)</option>
+                      </select>
+                      <div class="help-text">Choose your preferred emoji style for the color indicator</div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="consolidatedTemplate" style="display: block; font-weight: 600; margin-bottom: 6px;">Rating Template</label>
+                      <input type="text" id="consolidatedTemplate" value="{emoji} {rating}" placeholder="{emoji} {rating}" style="font-family: monospace;" />
+                      <div class="help-text">
+                        Use <code>{emoji}</code> for color indicator, <code>{rating}</code> for average score.<br>
+                        Example: "<code>{emoji} {rating}</code>" → "🟢 8.2"
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="form-group">
@@ -283,15 +281,13 @@ function generateConfigureHTML(protocol, host) {
                 <div class="form-group">
                   <div style="font-weight: 600; margin-bottom: 8px;">Extended Metadata</div>
 
-                  <!-- Consolidated Rating (only shows when useConsolidatedRating is enabled) -->
-                  <div id="includeConsolidatedRatingSection" style="display: none;">
-                    <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
-                      <input type="checkbox" id="includeConsolidatedRating" style="width: 18px; height: 18px;" />
-                      <span style="margin-left: 8px;">Include Consolidated Rating (Multi-Source)</span>
-                    </label>
-                    <div class="help-text" style="margin-left: 26px; margin-bottom: 10px;">
-                      Example: "🟢 8.2 (4 sources) • 1.2M votes • PG-13 • 2023"
-                    </div>
+                  <!-- Consolidated Rating -->
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" id="includeConsolidatedRating" style="width: 18px; height: 18px;" />
+                    <span style="margin-left: 8px;">Include Consolidated Rating (Multi-Source)</span>
+                  </label>
+                  <div class="help-text" style="margin-left: 26px; margin-bottom: 10px;">
+                    Example: "🟢 8.2 (4 sources) • 1.2M votes • PG-13 • 2023"
                   </div>
 
                   <!-- IMDb Vote Count -->

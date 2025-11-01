@@ -1243,9 +1243,7 @@ async function generateAll() {
   if (useConsolidatedRating) {
     useConsolidatedRating.addEventListener('change', function() {
       var emojiSettings = document.getElementById('emojiSettings');
-      var consolidatedSection = document.getElementById('includeConsolidatedRatingSection');
       emojiSettings.style.display = this.checked ? 'block' : 'none';
-      if (consolidatedSection) consolidatedSection.style.display = this.checked ? 'block' : 'none';
       updateRatingPreview();
     });
   }
