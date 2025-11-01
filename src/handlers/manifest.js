@@ -41,7 +41,7 @@ function createManifestHandler(config) {
         id: `${wrappedManifest.id}.ratings-wrapper`,
         name: config.addonName || `${wrappedManifest.name} (with Ratings)`,
         description: wrappedManifest.description
-          ? `${wrappedManifest.description}\n\nEnhanced metadata by Ratings Wrapper.`
+          ? `${wrappedManifest.description}. Enhanced metadata by Ratings Wrapper.`
           : 'Catalog addon with enhanced metadata.',
         version: appConfig.defaults.version,
         resources: supportedResources,
