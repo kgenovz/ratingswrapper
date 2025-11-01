@@ -28,7 +28,7 @@ function generateConfigureHTML(protocol, host) {
               <li><strong>Login to Stremio</strong> to see which of your installed addons can be wrapped.</li>
               <li><strong>Select addons</strong> from your account or manually add addon URLs. Cinemeta is recommended if available.</li>
               <li><strong>Customize ratings display</strong> - adjust format, position, and which content gets ratings.</li>
-              <li><strong>Generate & Deploy</strong> - Get install URLs or use Auto-Replace to update your account instantly.</li>
+              <li><strong>Generate & Deploy</strong> - Use Auto-Replace for instant installation (recommended), or get install URLs for manual setup.</li>
             </ol>
           </div>
           <div class="content">
