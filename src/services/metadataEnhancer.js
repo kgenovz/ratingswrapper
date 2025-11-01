@@ -57,7 +57,7 @@ function getColorEmoji(color, emojiSet = 'circle') {
     },
     square: {
       excellent: '🟩',  // Green square
-      great: '💚',      // Green heart (as lighter variant)
+      great: '🟩',      // Green square (no lighter variant available)
       good: '🟨',       // Yellow square
       okay: '🟧',       // Orange square
       mediocre: '🟥',   // Red square

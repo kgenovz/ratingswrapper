@@ -183,7 +183,7 @@ function generateConfigureHTML(protocol, host) {
                       <label for="emojiSet" style="display: block; font-weight: 600; margin-bottom: 6px;">Emoji Style</label>
                       <select id="emojiSet" style="margin-bottom: 6px;">
                         <option value="circle" selected>Circles/Squares (🟢🟩🟨🟧🟥🔴)</option>
-                        <option value="square">Squares (🟩💚🟨🟧🟥🟥)</option>
+                        <option value="square">Squares (🟩🟩🟨🟧🟥🟥)</option>
                         <option value="star">Stars (⭐🌟✨💫🌠☄️)</option>
                         <option value="heart">Hearts (💚💛🧡🩷❤️🖤)</option>
                         <option value="diamond">Diamonds (💎🔷🔶🔸🔺🔻)</option>
@@ -299,22 +299,16 @@ function generateConfigureHTML(protocol, host) {
                   <div style="font-weight: 600; margin-bottom: 8px;">Extended Metadata</div>
 
                   <!-- Consolidated Rating -->
-                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                  <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
                     <input type="checkbox" id="includeConsolidatedRating" style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Include Consolidated Rating (Multi-Source)</span>
                   </label>
-                  <div class="help-text" style="margin-left: 26px; margin-bottom: 10px;">
-                    Example: "🟢 8.2 (4 sources) • 1.2M votes • PG-13 • 2023"
-                  </div>
 
                   <!-- IMDb Rating -->
-                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
+                  <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
                     <input type="checkbox" id="includeImdbRating" style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Include IMDb Rating</span>
                   </label>
-                  <div class="help-text" style="margin-left: 26px; margin-bottom: 10px;">
-                    Example: "8.5 IMDb • 1.2M votes • PG-13 • 2023"
-                  </div>
 
                   <!-- IMDb Vote Count -->
                   <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
