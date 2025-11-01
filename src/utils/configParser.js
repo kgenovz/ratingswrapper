@@ -55,7 +55,7 @@ function sanitizeAddonUrl(url) {
  */
 function validateConfig(userConfig) {
   // Supported order keys and defaults for extended metadata
-  const DEFAULT_METADATA_ORDER = ['imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic','malRating','malVotes'];
+  const DEFAULT_METADATA_ORDER = ['consolidatedRating','imdbRating','votes','mpaa','tmdb','releaseDate','streamingServices','rottenTomatoes','metacritic','malRating','malVotes'];
   const ALLOWED_ORDER_KEYS = new Set(DEFAULT_METADATA_ORDER);
   function sanitizeOrder(order) {
     if (!Array.isArray(order)) return DEFAULT_METADATA_ORDER;
@@ -102,6 +102,12 @@ function validateConfig(userConfig) {
       position: titleFormat?.position || userConfig.ratingFormat?.position || appConfig.defaults.ratingFormat.position,
       template: titleFormat?.template || userConfig.ratingFormat?.template || appConfig.defaults.ratingFormat.template,
       separator: titleFormat?.separator || userConfig.ratingFormat?.separator || appConfig.defaults.ratingFormat.separator,
+      // Consolidated rating template (used when useConsolidatedRating is true)
+      consolidatedTemplate: titleFormat?.consolidatedTemplate || '{emoji} {rating}',
+      // Enable color emoji indicator for consolidated ratings
+      useColorEmoji: titleFormat?.useColorEmoji || false,
+      // Emoji set for color indicators: 'circle', 'square', 'star', 'heart', 'diamond'
+      emojiSet: titleFormat?.emojiSet || 'circle',
       // Granular control: enable ratings for catalog items in title
       enableCatalogItems: titleFormat?.enableCatalogItems !== undefined
         ? titleFormat.enableCatalogItems
@@ -145,6 +151,10 @@ function validateConfig(userConfig) {
       // Streaming services metadata options
       includeStreamingServices: descriptionFormat?.includeStreamingServices || false,
       streamingRegion: descriptionFormat?.streamingRegion || 'US',
+      // Consolidated rating options
+      includeConsolidatedRating: descriptionFormat?.includeConsolidatedRating || false,
+      useColorEmoji: descriptionFormat?.useColorEmoji || titleFormat?.useColorEmoji || false,
+      emojiSet: descriptionFormat?.emojiSet || titleFormat?.emojiSet || 'circle',
       // Order of extended metadata parts (after rating)
       metadataOrder: sanitizeOrder(descriptionFormat?.metadataOrder),
       // Separator between metadata parts (rating, votes, MPAA, TMDB rating, release date, streaming)
@@ -161,6 +171,9 @@ function validateConfig(userConfig) {
 
     // Optional: custom addon name
     addonName: userConfig.addonName || appConfig.defaults.addonName,
+
+    // Optional: use consolidated ratings (average from multiple sources)
+    useConsolidatedRating: userConfig.useConsolidatedRating || false,
 
     // Optional: enable/disable rating injection (global)
     enableRatings: userConfig.enableRatings !== false, // default true
@@ -231,6 +244,15 @@ function validateConfig(userConfig) {
   if (config.descriptionFormat.streamingRegion &&
       !/^[A-Z]{2}$/.test(config.descriptionFormat.streamingRegion)) {
     throw new Error('descriptionFormat.streamingRegion must be a 2-letter ISO country code (e.g., "US", "GB", "CA")');
+  }
+
+  // Validate emoji set for consolidated ratings
+  const allowedEmojiSets = ['circle', 'square', 'star', 'heart', 'diamond'];
+  if (!allowedEmojiSets.includes(config.titleFormat.emojiSet)) {
+    throw new Error(`titleFormat.emojiSet must be one of: ${allowedEmojiSets.join(', ')}`);
+  }
+  if (!allowedEmojiSets.includes(config.descriptionFormat.emojiSet)) {
+    throw new Error(`descriptionFormat.emojiSet must be one of: ${allowedEmojiSets.join(', ')}`);
   }
 
   // Coerce/validate metadata order
