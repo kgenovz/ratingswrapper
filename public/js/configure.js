@@ -981,8 +981,9 @@ function updateRatingPreview() {
 
     // Show consolidated rating in preview if checkbox is enabled (for preview purposes only)
     if (includeConsolidatedRating) {
-      var useColorEmoji = document.getElementById('useColorEmoji')?.checked || false;
-      var sampleEmoji = useColorEmoji ? '🟢' : '';
+      var descriptionUseColorEmoji = document.getElementById('descriptionUseColorEmoji')?.checked || false;
+      var descriptionEmojiSet = document.getElementById('descriptionEmojiSet')?.value || 'circle';
+      var sampleEmoji = descriptionUseColorEmoji ? '🟢' : '';
       partTexts.consolidatedRating = (sampleEmoji + ' 8.2 (4 sources)').trim();
     }
 
@@ -1097,12 +1098,16 @@ async function generateAll() {
   const malVoteFormat = document.getElementById('malVoteFormat')?.value || 'short';
   const metadataOrder = getMetadataOrder();
 
-  // Consolidated rating settings
+  // Consolidated rating settings (title)
   const useConsolidatedRating = document.getElementById('useConsolidatedRating')?.checked || false;
   const useColorEmoji = document.getElementById('useColorEmoji')?.checked || false;
   const emojiSet = document.getElementById('emojiSet')?.value || 'circle';
   const consolidatedTemplate = document.getElementById('consolidatedTemplate')?.value || '{emoji} {rating}';
+
+  // Consolidated rating settings (description)
   const includeConsolidatedRating = document.getElementById('includeConsolidatedRating')?.checked || false;
+  const descriptionUseColorEmoji = document.getElementById('descriptionUseColorEmoji')?.checked || false;
+  const descriptionEmojiSet = document.getElementById('descriptionEmojiSet')?.value || 'circle';
   const includeImdbRating = document.getElementById('includeImdbRating')?.checked || false;
 
   // Global enable toggles removed; per-location settings control behavior
@@ -1137,8 +1142,8 @@ async function generateAll() {
         separator: descriptionSeparator,
         includeConsolidatedRating: includeConsolidatedRating,
         includeImdbRating: includeImdbRating,
-        useColorEmoji: useColorEmoji,
-        emojiSet: emojiSet,
+        useColorEmoji: descriptionUseColorEmoji,
+        emojiSet: descriptionEmojiSet,
         includeVotes: includeVotes,
         includeMpaa: includeMpaa,
         includeTmdbRating: includeTmdbRating,
@@ -1256,7 +1261,22 @@ async function generateAll() {
   if (useColorEmoji) useColorEmoji.addEventListener('change', updateRatingPreview);
   if (emojiSet) emojiSet.addEventListener('change', updateRatingPreview);
   if (consolidatedTemplate) consolidatedTemplate.addEventListener('input', updateRatingPreview);
-  if (includeConsolidatedRating) includeConsolidatedRating.addEventListener('change', updateRatingPreview);
+
+  // Description consolidated rating with emoji settings toggle
+  if (includeConsolidatedRating) {
+    includeConsolidatedRating.addEventListener('change', function() {
+      var descriptionEmojiSettings = document.getElementById('descriptionEmojiSettings');
+      descriptionEmojiSettings.style.display = this.checked ? 'block' : 'none';
+      updateRatingPreview();
+    });
+  }
+
+  // Description emoji settings
+  var descriptionUseColorEmoji = document.getElementById('descriptionUseColorEmoji');
+  var descriptionEmojiSet = document.getElementById('descriptionEmojiSet');
+  if (descriptionUseColorEmoji) descriptionUseColorEmoji.addEventListener('change', updateRatingPreview);
+  if (descriptionEmojiSet) descriptionEmojiSet.addEventListener('change', updateRatingPreview);
+
   if (includeImdbRating) includeImdbRating.addEventListener('change', updateRatingPreview);
 
   // Initial update

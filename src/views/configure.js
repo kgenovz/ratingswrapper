@@ -299,10 +299,34 @@ function generateConfigureHTML(protocol, host) {
                   <div style="font-weight: 600; margin-bottom: 8px;">Extended Metadata</div>
 
                   <!-- Consolidated Rating -->
-                  <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                  <label style="display: flex; align-items: center; margin-bottom: 6px; cursor: pointer;">
                     <input type="checkbox" id="includeConsolidatedRating" style="width: 18px; height: 18px;" />
                     <span style="margin-left: 8px;">Include Consolidated Rating (Multi-Source)</span>
                   </label>
+
+                  <!-- Description Emoji Settings (conditional) -->
+                  <div id="descriptionEmojiSettings" style="display: none; margin-left: 26px; margin-bottom: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px;">
+                    <div class="form-group" style="margin-bottom: 8px;">
+                      <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="descriptionUseColorEmoji" style="width: 16px; height: 16px;" />
+                        <span style="margin-left: 8px; font-weight: 600;">Show Color Indicator Emoji</span>
+                      </label>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                      <label for="descriptionEmojiSet" style="display: block; font-weight: 600; margin-bottom: 6px;">Emoji Style</label>
+                      <select id="descriptionEmojiSet" style="margin-bottom: 6px;">
+                        <option value="circle" selected>Circles/Squares (🟢🟩🟨🟧🟥🔴)</option>
+                        <option value="square">Squares (🟩🟩🟨🟧🟥🟥)</option>
+                        <option value="star">Stars (⭐🌟✨💫🌠☄️)</option>
+                        <option value="heart">Hearts (💚💛🧡🩷❤️🖤)</option>
+                        <option value="diamond">Diamonds (💎🔷🔶🔸🔺🔻)</option>
+                      </select>
+                      <div class="help-text" style="margin-top: 5px;">
+                        6-tier color grading: Excellent (90%+), Great (80-89%), Good (70-79%), Okay (60-69%), Mediocre (50-59%), Poor (<50%)
+                      </div>
+                    </div>
+                  </div>
 
                   <!-- IMDb Rating -->
                   <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
