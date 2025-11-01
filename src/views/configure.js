@@ -102,7 +102,7 @@ function generateConfigureHTML(protocol, host) {
 
             <div class="form-group">
               <label>Addons To Wrap</label>
-              <div id="addonList" class="url-display" style="white-space: normal;"><em>Add addons from your account or paste URLs below.</em></div>
+              <div id="addonList" class="url-display" style="white-space: normal;"><em>Add addons from your account or paste URLs above.</em></div>
               <div class="help-text">Cinemeta is recommended for complete metadata coverage unless you're using a full metadata addon like AIO Metadata.</div>
               <div id="cinemataNotice" style="display:none; background: #dbeafe; border: 1px solid #3b82f6; border-radius: 6px; padding: 10px; margin-top: 8px; font-size: 13px; color: #1e40af;">
                 <i class="fa-solid fa-info-circle" style="margin-right: 6px;"></i>
