@@ -434,21 +434,6 @@ function generateConfigureHTML(protocol, host) {
                     <ul id="metadataOrderList" style="list-style: none; padding: 0; margin: 0;"></ul>
                     <div class="help-text" style="margin-top: 5px;">Use arrows to arrange the order of all metadata elements. IMDb rating can now be moved anywhere in the list.</div>
                   </div>
-                  <div style="margin-top: 10px;">
-                    <label for="metadataSeparator" style="display: block; font-weight: 600; margin-bottom: 6px;">Metadata Separator</label>
-                    <select id="metadataSeparator">
-                      <option value=" • " selected>Bullet ( • )</option>
-                      <option value=" | ">Pipe ( | )</option>
-                      <option value=" - ">Dash ( - )</option>
-                      <option value=", ">Comma + space ( , )</option>
-                      <option value=" . ">Dot ( . )</option>
-                      <option value=" ★ ">Star ( ★ )</option>
-                      <option value=" ⭐ ">Emoji Star ( ⭐ )</option>
-                      <option value=" ✨ ">Sparkles ( ✨ )</option>
-                      <option value=" ">Space</option>
-                    </select>
-                    <div class="help-text" style="margin-top: 5px;">Separator between rating, vote count, MPAA rating, TMDB rating, release date, streaming services, Rotten Tomatoes, and Metacritic</div>
-                  </div>
                 </div>
                 <div class="form-group">
                   <div class="help-text" style="margin-bottom:6px;">Preview</div>
