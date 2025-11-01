@@ -231,6 +231,133 @@ router.post('/emergency-restore', async (req, res) => {
 });
 
 /**
+ * API: Unwrap individual addon - restores a single wrapped addon to its original
+ */
+router.post('/unwrap-addon', async (req, res) => {
+  try {
+    const { authToken, wrappedUrl } = req.body;
+
+    if (!authToken) {
+      return res.status(400).json({ error: 'Auth token required' });
+    }
+
+    if (!wrappedUrl) {
+      return res.status(400).json({ error: 'Wrapped addon URL required' });
+    }
+
+    logger.info(`Unwrapping individual addon: ${wrappedUrl}`);
+
+    // Helper to extract original addon URL from wrapped config
+    function extractOriginalUrl(wrappedUrl) {
+      try {
+        const match = wrappedUrl.match(/\/([A-Za-z0-9_-]+)\/manifest\.json$/);
+        if (!match) return null;
+
+        const encodedConfig = match[1];
+        const decodedConfig = parseConfigFromPath(encodedConfig);
+        return decodedConfig.wrappedAddonUrl || null;
+      } catch (e) {
+        logger.debug(`Failed to extract original URL from ${wrappedUrl}:`, e.message);
+        return null;
+      }
+    }
+
+    // Extract original URL
+    const originalUrl = extractOriginalUrl(wrappedUrl);
+
+    if (!originalUrl) {
+      return res.json({
+        success: false,
+        error: 'Could not extract original addon URL from wrapped config'
+      });
+    }
+
+    logger.info(`Extracted original URL: ${originalUrl}`);
+
+    // Get current addon collection
+    let addons = await stremioApi.getAddonCollection(authToken);
+    logger.info(`Retrieved ${addons.length} addons from account`);
+
+    // Find the wrapped addon in the collection
+    const wrappedAddonIndex = addons.findIndex(addon => {
+      const url = addon.transportUrl || '';
+      return url === wrappedUrl;
+    });
+
+    if (wrappedAddonIndex === -1) {
+      return res.json({
+        success: false,
+        error: 'Wrapped addon not found in your addon collection'
+      });
+    }
+
+    const wrappedAddon = addons[wrappedAddonIndex];
+    logger.info(`Found wrapped addon at index ${wrappedAddonIndex}: ${wrappedAddon.manifest?.name}`);
+
+    // Fetch the original manifest
+    const https = require('https');
+    const http = require('http');
+
+    try {
+      const manifestData = await new Promise((resolve, reject) => {
+        const protocol = originalUrl.startsWith('https') ? https : http;
+        const timeout = setTimeout(() => reject(new Error('Timeout fetching original manifest')), 5000);
+
+        protocol.get(originalUrl, (resp) => {
+          let data = '';
+          resp.on('data', chunk => data += chunk);
+          resp.on('end', () => {
+            clearTimeout(timeout);
+            try {
+              resolve(JSON.parse(data));
+            } catch (e) {
+              reject(new Error('Invalid JSON from original manifest'));
+            }
+          });
+        }).on('error', (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+      });
+
+      // Replace the wrapped addon with the original (preserve position)
+      addons[wrappedAddonIndex] = {
+        transportUrl: originalUrl,
+        transportName: 'http',
+        manifest: manifestData
+      };
+
+      logger.info(`Replaced wrapped addon with original at index ${wrappedAddonIndex}`);
+
+      // Update addon collection
+      await stremioApi.setAddonCollection(authToken, addons);
+
+      res.json({
+        success: true,
+        message: `Successfully unwrapped "${wrappedAddon.manifest?.name}" and restored original addon. Restart Stremio to see changes.`,
+        originalUrl: originalUrl,
+        originalName: manifestData.name || 'Unknown',
+        totalAddons: addons.length
+      });
+
+    } catch (error) {
+      logger.error('Failed to fetch original manifest:', error.message);
+      return res.json({
+        success: false,
+        error: `Failed to fetch original manifest: ${error.message}`
+      });
+    }
+
+  } catch (error) {
+    logger.error('Unwrap addon failed:', error.message);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * API: Login with username and password
  */
 router.post('/login', async (req, res) => {

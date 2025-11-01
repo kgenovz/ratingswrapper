@@ -438,6 +438,12 @@ function updateAutoReplaceSection() {
     document.getElementById('emergencyAuthToken').value = authToken;
     document.getElementById('emergencyAuthInput').style.display = 'none';
     document.getElementById('emergencyAuthReady').style.display = 'block';
+
+    // Also update Individual Unwrapper section
+    document.getElementById('individualUnwrapperAuthToken').value = authToken;
+    document.getElementById('individualUnwrapperAuthInput').style.display = 'none';
+    document.getElementById('individualUnwrapperAuthReady').style.display = 'block';
+    document.getElementById('individualUnwrapperSection').style.display = 'block';
   }
 }
 
@@ -1378,6 +1384,143 @@ async function autoReplaceAll() {
     else { statusDiv.style.background = '#fee2e2'; statusDiv.style.border = '1px solid #ef4444'; statusDiv.innerHTML = '✖ ' + result.error; }
   } catch (e) { statusDiv.style.background = '#fee2e2'; statusDiv.style.border = '1px solid #ef4444'; statusDiv.innerHTML = '✖ Error: ' + e.message; }
   finally { btn.disabled = false; btn.textContent = 'Auto Replace All'; }
+}
+
+/**
+ * Individual Addon Unwrapper Functions
+ */
+
+// Load wrapped addons from user's Stremio account
+async function loadWrappedAddons() {
+  const authToken = document.getElementById('individualUnwrapperAuthToken').value.trim() || state.authToken;
+  const statusDiv = document.getElementById('individualUnwrapperStatus');
+  const listDiv = document.getElementById('wrappedAddonsList');
+  const containerDiv = document.getElementById('wrappedAddonsContainer');
+
+  if (!authToken) {
+    alert('Please enter your auth token or login first');
+    return;
+  }
+
+  statusDiv.style.display = 'block';
+  statusDiv.style.background = '#f0f9ff';
+  statusDiv.style.border = '1px solid #38bdf8';
+  statusDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px"></i>Loading your wrapped addons...';
+
+  try {
+    const response = await fetch(serverUrl + '/api/get-wrappable-addons', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ authToken })
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      statusDiv.style.background = '#fee2e2';
+      statusDiv.style.border = '1px solid #ef4444';
+      statusDiv.innerHTML = '✖ ' + result.error;
+      return;
+    }
+
+    // Filter only already-wrapped addons
+    const wrappedAddons = result.addons.filter(addon => addon.reason === 'Already wrapped');
+
+    if (wrappedAddons.length === 0) {
+      statusDiv.style.background = '#fef3c7';
+      statusDiv.style.border = '1px solid #fbbf24';
+      statusDiv.innerHTML = '<i class="fa-solid fa-info-circle" style="margin-right:8px"></i>You have no wrapped addons. All your addons are original.';
+      listDiv.style.display = 'none';
+      return;
+    }
+
+    // Clear previous list
+    containerDiv.innerHTML = '';
+
+    // Create addon cards
+    wrappedAddons.forEach(addon => {
+      const card = document.createElement('div');
+      card.style.cssText = 'background: white; border: 1px solid #bae6fd; border-radius: 6px; padding: 12px; display: flex; align-items: center; gap: 12px;';
+
+      // Logo
+      const logoImg = addon.logo
+        ? `<img src="${addon.logo}" style="width: 40px; height: 40px; border-radius: 4px; object-fit: contain;" onerror="this.style.display='none'" />`
+        : '<div style="width: 40px; height: 40px; border-radius: 4px; background: #e0f2fe; display: flex; align-items: center; justify-content: center; color: #0284c7; font-weight: bold;">📦</div>';
+
+      // Info
+      const infoHtml = `
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #0c4a6e; margin-bottom: 4px;">${addon.name}</div>
+          <div style="font-size: 12px; color: #64748b;">
+            ${addon.originalUrl ? `Original: <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 3px; font-size: 11px;">${addon.originalUrl.substring(0, 50)}...</code>` : 'Original URL not found'}
+          </div>
+        </div>
+      `;
+
+      // Unwrap button
+      const unwrapBtn = `
+        <button class="btn" onclick="unwrapIndividualAddon('${addon.url}', '${addon.name.replace(/'/g, "\\'")}', '${authToken}')" style="background: #0284c7; color: white; padding: 8px 16px; font-size: 13px;">
+          <i class="fa-solid fa-undo" style="margin-right: 6px;"></i>Unwrap
+        </button>
+      `;
+
+      card.innerHTML = logoImg + infoHtml + unwrapBtn;
+      containerDiv.appendChild(card);
+    });
+
+    listDiv.style.display = 'block';
+    statusDiv.style.background = '#d1fae5';
+    statusDiv.style.border = '1px solid #10b981';
+    statusDiv.innerHTML = `✔ Found ${wrappedAddons.length} wrapped addon(s). Click "Unwrap" to restore any addon.`;
+
+  } catch (e) {
+    statusDiv.style.background = '#fee2e2';
+    statusDiv.style.border = '1px solid #ef4444';
+    statusDiv.innerHTML = '✖ Error: ' + e.message;
+  }
+}
+
+// Unwrap a single addon
+async function unwrapIndividualAddon(wrappedUrl, addonName, authToken) {
+  const statusDiv = document.getElementById('individualUnwrapperStatus');
+
+  if (!confirm(`Unwrap "${addonName}" and restore the original addon?`)) {
+    return;
+  }
+
+  statusDiv.style.display = 'block';
+  statusDiv.style.background = '#f0f9ff';
+  statusDiv.style.border = '1px solid #38bdf8';
+  statusDiv.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px"></i>Unwrapping "${addonName}"...`;
+
+  try {
+    const response = await fetch(serverUrl + '/api/unwrap-addon', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ authToken, wrappedUrl })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      statusDiv.style.background = '#d1fae5';
+      statusDiv.style.border = '1px solid #10b981';
+      statusDiv.innerHTML = '✔ ' + result.message;
+
+      // Reload the wrapped addons list after a short delay
+      setTimeout(() => {
+        loadWrappedAddons();
+      }, 1500);
+    } else {
+      statusDiv.style.background = '#fee2e2';
+      statusDiv.style.border = '1px solid #ef4444';
+      statusDiv.innerHTML = '✖ ' + result.error;
+    }
+  } catch (e) {
+    statusDiv.style.background = '#fee2e2';
+    statusDiv.style.border = '1px solid #ef4444';
+    statusDiv.innerHTML = '✖ Error: ' + e.message;
+  }
 }
 
 async function emergencyRestore() {

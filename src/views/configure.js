@@ -445,6 +445,35 @@ function generateConfigureHTML(protocol, host) {
               </div>
             </div>
 
+            <!-- Individual Addon Unwrapper -->
+            <div id="individualUnwrapperSection" style="display:none; background: #f0f9ff; border: 2px solid #38bdf8; border-radius: 8px; padding: 16px; margin-top: 22px;">
+              <h3 style="color:#0369a1; margin-bottom:8px;"><i class="fa-solid fa-box-open" style="margin-right:8px"></i>Unwrap Individual Addons</h3>
+              <p style="font-size: 13px; color: #075985; margin-bottom: 10px;">Restore individual wrapped addons back to their originals without affecting other addons.</p>
+
+              <div id="individualUnwrapperAuthInput">
+                <div class="help-text" style="margin-bottom: 8px; color: #075985;">Paste your auth token or <a href="#" onclick="document.querySelector('.login-section').scrollIntoView({behavior:'smooth'}); return false;" style="color: #0284c7; text-decoration: underline;">login above</a> to auto-fill.</div>
+                <div style="display:flex; gap:8px; align-items: end;">
+                  <div style="flex:1"><input type="text" id="individualUnwrapperAuthToken" placeholder="Paste your auth token" style="font-family: monospace;" /></div>
+                  <button class="btn" onclick="loadWrappedAddons()" style="background: #0284c7; color: white;"><i class="fa-solid fa-sync" style="margin-right:6px"></i>Load Wrapped Addons</button>
+                </div>
+              </div>
+
+              <div id="individualUnwrapperAuthReady" style="display:none;">
+                <p style="font-size: 13px; color: #059669; margin-bottom: 10px; font-weight: 600;">✓ Already logged in - ready to load addons</p>
+                <button class="btn" onclick="loadWrappedAddons()" style="background: #0284c7; color: white;"><i class="fa-solid fa-sync" style="margin-right:6px"></i>Load Wrapped Addons</button>
+              </div>
+
+              <!-- Wrapped Addons List -->
+              <div id="wrappedAddonsList" style="display:none; margin-top: 16px;">
+                <h4 style="color:#0369a1; margin-bottom: 10px; font-size: 14px;">Your Wrapped Addons:</h4>
+                <div id="wrappedAddonsContainer" style="display: flex; flex-direction: column; gap: 10px;">
+                  <!-- Dynamically populated with addon cards -->
+                </div>
+              </div>
+
+              <div id="individualUnwrapperStatus" style="display:none; margin-top: 10px; padding: 10px; border-radius: 6px;"></div>
+            </div>
+
             <!-- Emergency Restore (bottom-most) -->
             <div style="background: #fff7ed; border: 2px solid #fdba74; border-radius: 8px; padding: 16px; margin-top: 22px;">
               <h3 style="color:#9a3412; margin-bottom:8px;">Emergency Restore</h3>
