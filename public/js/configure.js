@@ -980,7 +980,8 @@ function updateRatingPreview() {
     var includeConsolidatedRating = document.getElementById('includeConsolidatedRating')?.checked || false;
     var includeImdbRating = document.getElementById('includeImdbRating')?.checked || false;
 
-    if (useConsolidatedRating && includeConsolidatedRating) {
+    // Show consolidated rating in preview if checkbox is enabled (for preview purposes only)
+    if (includeConsolidatedRating) {
       var useColorEmoji = document.getElementById('useColorEmoji')?.checked || false;
       var sampleEmoji = useColorEmoji ? '🟢' : '';
       partTexts.consolidatedRating = (sampleEmoji + ' 8.2 (4 sources)').trim();
