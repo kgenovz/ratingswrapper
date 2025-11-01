@@ -18,6 +18,16 @@ const router = express.Router();
 const rateLimiter = createStandardRateLimiter();
 
 /**
+ * Configure endpoint - redirects to main configuration page
+ * Handles Stremio's configurable: true behavior hint
+ * When users click "Configure" button in Stremio, this redirects them to the wrapper's config page
+ */
+router.get('/:config/configure', (req, res) => {
+  logger.info('Configure button clicked from Stremio, redirecting to main config page');
+  res.redirect('/configure');
+});
+
+/**
  * Main addon endpoint - Manifest
  * Middleware order: Cache → Rate Limit → Handler
  * Cached responses bypass rate limiting
